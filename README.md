@@ -13,6 +13,9 @@ The currently supported engines include Unity and Unreal Engine, but as the feat
 
 The currently supported login options for the identity component include __guest identities__, __Steam__, __Sign in with Apple__, and __Google Play__. Using these integrations as a template, it's possible to add other platforms such as console identity systems and other PC game stores.
 
+**Note**: _“The sample code; software libraries; command line tools; proofs of concept; templates; or other related technology (including any of the foregoing that are provided by our personnel) is provided to you as AWS Content under the AWS Customer Agreement, or the relevant written agreement between you and AWS (whichever applies). You should not use this AWS Content in your production accounts, or on production or other critical data. You are responsible for testing, securing, and optimizing the AWS Content, such as sample code, as appropriate for production grade use based on your specific quality control practices and standards. Deploying AWS Content may incur AWS charges for creating or using AWS chargeable resources, such as running Amazon EC2 instances or using Amazon S3 storage.”_
+
+
 ## Solution components
 
 * **Custom Identity Component** (`CustomIdentityComponent` folder contains [Readme](CustomIdentityComponent/README.md)):
@@ -101,7 +104,7 @@ The Custom Identity Component costs can be estimated more easily, and the follow
 
 ## Scalability considerations
 
-As all components of the identity solution are serverless, and Amazon DynamoDB is configured in on-demand mode allowing scaling based on denmand, the solution scales automatically within your accounts soft limits. Though these default limits are sufficient for even relatively large amounts of requests (up to 1000 requests per second), you should always check all the service quotas for the individual services and API:s from AWS documentation, and make sure you are ready to scale for production.
+As all components of the identity solution are serverless, and Amazon DynamoDB is configured in on-demand mode allowing scaling based on demand, the solution scales automatically within your accounts soft limits. Though these default limits are sufficient for even relatively large amounts of requests (up to 5000 requests per second), you should always check all the service quotas for the individual services and API:s from AWS documentation, and make sure you are ready to scale for production.
 
 The custom identity component has been tested with 226 requests/second to create new guest users, which is a bit more complex request than refreshing tokens, and less complex than logging in with identity providers.
 
