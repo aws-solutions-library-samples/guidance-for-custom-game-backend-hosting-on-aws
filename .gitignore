@@ -1,27 +1,6 @@
-### vsCode ###
-.vscode
-
-### macOS ###
-# General
+UnitySample/.DS_Store
+UnrealSample/.DS_Store
+CustomIdentityComponent/.DS_Store
 .DS_Store
-.AppleDouble
-.LSOverride
-# Files that might appear in the root of a volume
-.DocumentRevisions-V100
-.fseventsd
-.Spotlight-V100
-.TemporaryItems
-.Trashes
-.VolumeIcon.icns
-.com.apple.timemachine.donotpresent
-
-**/node_modules
-**/dist
-**/build
-**/.DS_Store
-**/.angular
-**/.idea
-cdk.out
-**/data/**.csv
-
-.env
+UnitySample/.DS_Store
+.DS_Store
