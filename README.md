@@ -56,13 +56,15 @@ Then in be backend code you'll have an authenticated user ID that you can use to
 
 # Deploying the solution
 
+## 1. Deploy the Custom Identity Component
+
 See the [Readme for the Custom Identity Component](CustomIdentityComponent/README.md#deploy-the-custom-identity-component) and follow the instructions to deploy the custom identity component.
 
-## Deploy one of the sample backend components
+## 2. Deploy one of the sample backend components
 
 See the [Readme for Sample Backend Components](BackendComponentSamples/README.md#serverless-rest-api-sample-component-template) to deploy either the **Serverless REST API sample component** or the **Loadbalanced AWS Fargate sample component** that you will use with the Unreal and Unity sample integrations to test using an identity from the custom identity component to make authenticated calls to a simple backend to set and get player data.
 
-## Testing the client integrations
+## 3. Test the client integrations
 
 To test the client integrations, you can use the Unreal or Unity sample projects (`UnrealSample` and `UnitySample`), that include a lightweight SDK called `AWSGameSDK` to interact with the identity component and your backend features.
 
