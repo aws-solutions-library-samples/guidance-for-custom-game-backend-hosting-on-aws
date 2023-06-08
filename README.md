@@ -75,29 +75,39 @@ See the [Unity SDK Readme](UnitySample/README.md#unity-integration-samples) for 
 
 As the backend component costs depend extensively on customer specific implementations, and the samples are just templates to get started, they have been left out of the cost estimations.
 
-The Custom Identity Component costs can be estimated more easily, and the following breakdown aims to be a pessimistic estimate for 10 000 concurrent users, which can often be mapped roughly to 100k daily users and 1M monthly users. **NOTE**: These are rough estimates only, and even though they are calculated with a very pessimistic approach, there can always be some costs that are not fully covered here. You always need to do your own testing and estimates based on that.
+**Custom Identity Component Costs**
 
-**Concurrent users**: 10 000
+The Custom Identity Component costs can be estimated more easily, and the following breakdown aims to be a pessimistic estimate for 10 000 concurrent users, which can often be mapped roughly to 100k daily users and 1M monthly users.
+
+**NOTE**: These are rough estimates only, and even though they are calculated with a very pessimistic approach, there can always be some costs that are not fully covered here. You always need to do your own testing and estimates based on that.
+
+**Concurrent users**: 10 000 (roughly 100k daily and 1M monthly users)
 **Region**: Us-East-1
  
 * **API Gateway requests** 667 per minute (clients need to log in or refresh access tokens every 15 minutes)
-  * 116.85 USD / month
+  * *116.85 USD / month*
 * **AWS Web Application Firewall**: 667 requests per minute, 2 rules (managed rule set and rate limited)
-  * 33.40 USD / month
+  * *33.40 USD / month*
 * **AWS Lambda requests** 667 per minute (200ms estimated length, 2048MB memory)
-  * 193.74 USD / month
+  * *193.74 USD / month*
 * **DynamoDB requests**: 10k writes and reads per hour (pessimistic estimation based on both re-logins and new users coming in at 5k per hour)
-  * 10.29 USD / month
+  * *10.29 USD / month*
 * **AWS CloudWatch Logs**: 10 GB data estimated ingested per month
-  * 5.55 USD / month
+  * *5.55 USD / month*
 * **AWS Secrets Manager**: 10000 request per hour (very pessimistically estimated for 200 concurrent Lambda invocations)
-  * 4.05 USD / month
+  * *4.05 USD / month*
 
-**TOTAL**: 363.88 USD / month
+**TOTAL**: *363.88 USD / month* ($0.036/CCU, roughly $0.00036/MAU)
 
 ## Scalability considerations
 
-TODO
+As all components of the identity solution are serverless, and Amazon DynamoDB is configured in on-demand mode allowing scaling based on denmand, the solution scales automatically within your accounts soft limits. Though these default limits are sufficient for even relatively large amounts of requests (up to 1000 requests per second), you should always check all the service quotas for the individual services and API:s from AWS documentation, and make sure you are ready to scale for production.
+
+The custom identity component has been tested with 226 requests/second to create new guest users, which is a bit more complex request than refreshing tokens, and less complex than logging in with identity providers.
+
+This test didn't surface any errors, and would be sufficient to supports 813k new users per hour, and 19.5M new users per day. It would also support at least 203k CCU when mapped to logins and token refresh requests. There's no reason to expect this is even close to the upper limits of the solution, but you always need to validate and load test for your own use case.
+
+For logging in with 3rd party identity providers like Steam, Apple or Google Play, the backend will make requests to their endpoints to validate tokens. These endpoints might have their own limits that you need to validate with the 3rd parties directly. As the solution supports up to 7 days of refreshing an existing access token (using the refresh token), this can massively reduce the amount of times you need to log in directly with the game platform identities and reduces the load from these endpoints.
 
 ## Security
 
