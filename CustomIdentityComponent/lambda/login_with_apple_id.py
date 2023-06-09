@@ -48,7 +48,7 @@ def create_user(apple_id):
     # Check that user_id doesn't exist in DynamoDB table defined in environment variable USER_TABLE
     dynamodb = boto3.resource('dynamodb')
     table = dynamodb.Table(os.environ['USER_TABLE'])
-    # Try to write a new iteam to the table with user_id as partition key
+    # Try to write a new item to the table with user_id as partition key
     try:
         table.put_item(
             Item={
