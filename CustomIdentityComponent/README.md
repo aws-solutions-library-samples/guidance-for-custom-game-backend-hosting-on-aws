@@ -32,6 +32,13 @@ To deploy the identity component, run the following commands
 3. `cdk boostrap` to bootstrap your account for CDK, see [Bootstrapping](https://docs.aws.amazon.com/cdk/v2/guide/bootstrapping.html) for more information
 4. `cdk synth` to synthesize the CDK app and validate your configuration works
 5. `cdk deploy` to deploy the CDK app to your account
+6. run the following AWS CLI commands to invoke the GenerateKeys function to generate the first set of public and private keys (rotation will run this weekly):
+  ```
+  fn=$(aws cloudformation describe-stacks --stack-name CustomIdentityComponentStack --query 'Stacks[0].Outputs[?OutputKey==`GenerateKeysFunctionName`].OutputValue' --output text)
+  aws invoke --function-name $fn response.json
+  ```
+
+
 
 After this you should see a CloudFormation stack installed in your AWS account, with an API Gateway REST API for login functionalities, and a Amazon CloudFront endpoint backed with AWS S3 for the public encryption key and authentication configuration. There's also a main UserTable in Amazon DynamoDB to store user info, and identity provide specific tables created for linking the accounts.
 
