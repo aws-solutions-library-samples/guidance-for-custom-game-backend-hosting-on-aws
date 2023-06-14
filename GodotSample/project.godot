@@ -1,0 +1,24 @@
+; Engine configuration file.
+; It's best edited using the editor UI and not directly,
+; since the parameters that go here are not all obvious.
+;
+; Format:
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
+
+config_version=5
+
+[application]
+
+config/name="GodotSample"
+run/main_scene="res://Samples/GuestIdentityAndRestApiBackend/GuestIdentityAndRestApiBackend.tscn"
+config/features=PackedStringArray("4.0", "Mobile")
+config/icon="res://icon.svg"
+
+[autoload]
+
+AwsGameSdk="*res://AWSGameSDK/AWSGameSDK.gd"
+
+[rendering]
+
+renderer/rendering_method="mobile"

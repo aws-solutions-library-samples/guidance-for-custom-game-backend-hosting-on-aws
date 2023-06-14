@@ -1,0 +1,8 @@
+[gd_scene load_steps=2 format=3 uid="uid://dpdmqpyoy6pg"]
+
+[ext_resource type="Script" path="res://Samples/GuestIdentityAndRestApiBackend/GuestIdentityAndRestApiBackend.gd" id="1_xv65c"]
+
+[node name="Node2D" type="Node2D"]
+
+[node name="Test" type="Node" parent="."]
+script = ExtResource("1_xv65c")

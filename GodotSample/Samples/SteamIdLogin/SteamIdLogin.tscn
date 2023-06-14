@@ -1,0 +1,8 @@
+[gd_scene load_steps=2 format=3 uid="uid://b8blf3o26rhc3"]
+
+[ext_resource type="Script" path="res://Samples/SteamIdLogin/SteamIdLogin.gd" id="1_kitbl"]
+
+[node name="Node2D" type="Node2D"]
+
+[node name="Test" type="Node" parent="."]
+script = ExtResource("1_kitbl")
