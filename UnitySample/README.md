@@ -41,7 +41,7 @@ To test the integrations with Unity, open the Unity sample project (`UnitySample
 
 This is a simple test level that will login as a new guest user if a save file is not present, or login using the user_id and guest_secret found in the PlayerPrefs if available to login as an existing user. It will then use the logged in user to set player name and get player name in sequence to test the HTTP API integration
 
-Configure the `GuestIdentityAndRestApiBackend` component of the `BackendIntegrationTest` GameObject to set up API endpoints. Set `Login Endpoint Url` value to the `BackendEndpointUrl` value found in the PythonServerlessHttpApiStack Outputs or the `FargateSampleNodeJsServiceServiceURL` found in the NodeJsFargateApiStack Outputs. Both backend sample integrations support the same functionality to validate tokens and set and get player data.
+Configure the `GuestIdentityAndRestApiBackend` component of the `BackendIntegrationTest` GameObject to set up API endpoints. Set `Login Endpoint Url` value to the `LoginEndpoint` value found in the CustomIdentityComponentStack Outputs, and the `Backend Endpoint Url` to the `BackendEndpointUrl` value found in the PythonServerlessHttpApiStack Outputs or the `FargateSampleNodeJsServiceServiceURL` found in the NodeJsFargateApiStack Outputs. Both backend sample integrations support the same functionality to validate tokens and set and get player data.
 
 Press play to test the integration. You'll see the login and backend call activity in the Console as well as key items on on screen log as well.
 

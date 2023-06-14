@@ -6,10 +6,10 @@ The AWS Game Backend Framework allows you to integrate your game clients with AW
 
 The framework consists of three key components:
 * Custom identity component, that can be deployed with AWS Cloud Development Kit
-* Lightweight game engine SDK:s for __Unreal__ and __Unity__
+* Lightweight game engine SDK:s for __Unreal Engine 5__,  __Unity 2021 (and up)__, and __Godot 4__
 * Sample backend component templates to get started with backend feature development
 
-The currently supported engines include Unity and Unreal Engine, but as the features are exposed as REST API:s, you can easily integrate the identity component and custom backend components to any game engine of choice.
+The currently supported engines include Unity, Unreal Engine 5, and Godot 4, but as the features are exposed as REST API:s, you can easily integrate the identity component and custom backend components to any game engine of choice.
 
 The currently supported login options for the identity component include __guest identities__, __Steam__, __Sign in with Apple__, and __Google Play__. Using these integrations as a template, it's possible to add other platforms such as console identity systems and other PC game stores.
 
@@ -25,14 +25,17 @@ The currently supported login options for the identity component include __guest
   * Supports integrating with 3rd party identity providers such as Steam, Sign in with Apple, and Google Play
   * See the [API Reference](CustomIdentityComponent/README.md#api-reference) for full API details.
 * **Backend Component Templates** (`BackendComponentSamples` folder contains [Readme](BackendComponentSamples/README.md))
-  * Template backend components that integrate with the custom identity component and the Unreal and Unity SDK:s
+  * Template backend components that integrate with the custom identity component and the Unreal, Unity and Godot SDK:s
   * Demonstrate how to get started with serverless and containerized backend development, with authenticated user access
-* **Unreal Samples with AWS Game SDK** (`UnrealSample` folder contains [Readme](UnrealSample/README.md))
+* **Unreal Engine 5 Samples with AWS Game SDK** (`UnrealSample` folder contains [Readme](UnrealSample/README.md))
   * Unreal 5 version of the AWS Game SDK and sample scenes for integration with different identity providers
   * For SDK details see the [Unreal SDK Overview](UnrealSample/README.md#sdk-overview)
-* **Unity Samples with AWS Game SDK** (`Unity` folder contains [Readme](UnitySample/README.md))
-  * Unity of the AWS Game SDK and sample scenes for integration with different identity providers
+* **Unity Samples with AWS Game SDK** (`UnitySample` folder contains [Readme](UnitySample/README.md))
+  * Unity version of the AWS Game SDK and sample scenes for integration with different identity providers
   * For SDK details see the [Unity SDK Overview](UnitySample/README.md#sdk-overview)
+* **Godot 4 Samples with AWS Game SDK** (`GodotSample` folder contains [Readme](GodotSample/README.md))
+  * Godot 4 version of the AWS Game SDK and sample scenes for integration with different identity providers
+  * For SDK details see the [Godot 4 SDK Overview](GodotSample/README.md#sdk-overview)
 
 **High Level Architecture**
 
@@ -62,19 +65,23 @@ See the [Readme for the Custom Identity Component](CustomIdentityComponent/READM
 
 ## 2. Deploy one of the sample backend components
 
-See the [Readme for Sample Backend Components](BackendComponentSamples/README.md#serverless-rest-api-sample-component-template) to deploy either the **Serverless REST API sample component** or the **Loadbalanced AWS Fargate sample component** that you will use with the Unreal and Unity sample integrations to test using an identity from the custom identity component to make authenticated calls to a simple backend to set and get player data.
+See the [Readme for Sample Backend Components](BackendComponentSamples/README.md#serverless-rest-api-sample-component-template) to deploy either the **Serverless REST API sample component** or the **Loadbalanced AWS Fargate sample component** that you will use with the Unreal, Unity, and Godot sample integrations to test using an identity from the custom identity component to make authenticated calls to a simple backend to set and get player data.
 
 ## 3. Test the client integrations
 
-To test the client integrations, you can use the Unreal or Unity sample projects (`UnrealSample` and `UnitySample`), that include a lightweight SDK called `AWSGameSDK` to interact with the identity component and your backend features.
+To test the client integrations, you can use the Unreal, Unity, or GOdot sample projects (`UnrealSample`, `UnitySample` and `GodotSample`), that include a lightweight SDK called `AWSGameSDK` to interact with the identity component and your backend features.
 
-### Unreal SDK and Integration Samples
+### Unreal Engine 5 SDK and Integration Samples
 
 See the [Unreal SDK Readme](UnrealSample/README.md#unreal-integration-samples) for details on the Unreal 5 integration SDK and samples
 
 ### Unity SDK and Integration Samples
 
 See the [Unity SDK Readme](UnitySample/README.md#unity-integration-samples) for details on the Unity integration SDK and samples
+
+### Godot 4 SDK and Integration Samples
+
+See the [Godot 4 SDK Readme](GodotSample/README.md#unity-integration-samples) for details on the Godot 4 integration SDK and samples
 
 # Cost estimations and scalability considerations
 
