@@ -18,6 +18,7 @@ import * as logs from 'aws-cdk-lib/aws-logs';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import { NagSuppressions } from 'cdk-nag';
 import * as wafv2 from 'aws-cdk-lib/aws-wafv2';
+import * as custom_resources from 'aws-cdk-lib/custom-resources'
 
 export interface CustomIdentityComponentStackProps extends StackProps {
   // If defined, login-with-apple endpoint will be created
@@ -121,6 +122,8 @@ export class CustomIdentityComponentStack extends Stack {
     NagSuppressions.addResourceSuppressions(generate_keys_function_role, [
       { id: 'AwsSolutions-IAM5', reason: 'Using the standard Lambda execution role, all custom access resource restricted.' }
     ], true);
+
+    new CfnOutput(this, 'GenerateKeysFunctionName', { value: generate_keys_function.functionName });
 
     // Schedule the generate_keys_function to run every seven days for key rotation
     const eventRule = new events.Rule(this, 'scheduleRule', {
