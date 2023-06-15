@@ -38,8 +38,6 @@ To deploy the identity component, run the following commands
   aws lambda invoke --function-name $fn response.json
   ```
 
-
-
 After this you should see a CloudFormation stack installed in your AWS account, with an API Gateway REST API for login functionalities, and a Amazon CloudFront endpoint backed with AWS S3 for the public encryption key and authentication configuration. There's also a main UserTable in Amazon DynamoDB to store user info, and identity provide specific tables created for linking the accounts.
 
 ## Issuer details
@@ -55,6 +53,10 @@ The issuer is available through an Amazon CloudFront endpoint, and will include 
 **AWS Web Application Firewall protection**
 
 The API is protected by the default managed rule set provided by AWS for blocking common attacks. In addition, a rate limit rule is applied to allow a maximum of 1000 requests per 5 minutes from a single IP (3.33 transactions per second).
+
+**Logs and Distributed Tracing**
+
+The identity component leverages **Powertools for AWS Lambda (Python)** to generate log output to Amazon CloudWatch Logs. In addition, the tools are used to push tracing information to **AWS X-Ray**. You can find both the logs and the tracing map and individual trace information the **AWS CloudWatch** console. 
 
 ## API Reference
 
