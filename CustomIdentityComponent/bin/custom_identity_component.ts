@@ -2,9 +2,16 @@
 import 'source-map-support/register';
 import * as cdk from 'aws-cdk-lib';
 import { CustomIdentityComponentStack } from '../lib/custom_identity_component-stack';
-import { App, Aspects } from 'aws-cdk-lib';
+import { App, Aspects, Stack, Tags } from 'aws-cdk-lib';
 import { AwsSolutionsChecks } from 'cdk-nag';
 import { NagSuppressions } from 'cdk-nag';
+
+// Set these tags to values that make sense to your company. You can define applicable tags as billing tags as well: https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/custom-tags.html
+let tags: { [key: string]: string } = {};
+tags['Application'] = 'CustomIdentityComponent';
+tags['Owner'] = 'MyTeam';
+tags['Environment'] = 'Dev';
+tags['CostCenter'] = '1000';
 
 // Set to Apple App ID value (such as com.mycompany.myapp) if you want to provision the login-with-apple-id endpoint
 // An empty value "" required to NOT deploy the Apple ID login endpoint
@@ -33,6 +40,11 @@ var identityComponentStack = new CustomIdentityComponentStack(app, 'CustomIdenti
     googlePlayClientId: googlePlayClientId,
     googlePlayAppId: googlePlayAppid,
     googlePlayClientSecretArn: googlePlayClientSecretArn
+  });
+  
+  // Apply all the tags in the tags object to the stack
+  Object.keys(tags).forEach(key => {
+    Tags.of(identityComponentStack).add(key, tags[key]);
   });
 
   // CDK-nag

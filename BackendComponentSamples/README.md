@@ -6,6 +6,10 @@ These sample components can be deployed to test integration from a game client t
 
 All the backend template components leverage **AWS X-Ray** for distributed tracing, as well as **AWS CloudWatch** for logs. You can find both the logs and the tracing map and individual trace information the **AWS CloudWatch** console.
 
+# Preliminary setup
+
+Set the `const issuerEndpointUrl` in `BackendComponentSamples/bin/backend_component_samples` to the value of `IssuerEndpointUrl` found in the stack outputs of the _CustomIdentityComponentStack_. You can find it in the CloudFormation console, or in the terminal after deploying the identity component.
+
 # Serverless REST API sample component template
 
 It is recommended to deploy the serverless API Gateway HTTP API backed component template next to test out your integration from a game engine. The templates work as starting points for your own backend development. We'll deploy the `PythonServerlessHttpApiStack` that can be found in `BackendComponentSamples`.

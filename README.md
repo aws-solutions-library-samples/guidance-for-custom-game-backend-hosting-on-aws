@@ -15,7 +15,6 @@ The currently supported login options for the identity component include __guest
 
 **Note**: _“The sample code; software libraries; command line tools; proofs of concept; templates; or other related technology (including any of the foregoing that are provided by our personnel) is provided to you as AWS Content under the AWS Customer Agreement, or the relevant written agreement between you and AWS (whichever applies). You should not use this AWS Content in your production accounts, or on production or other critical data. You are responsible for testing, securing, and optimizing the AWS Content, such as sample code, as appropriate for production grade use based on your specific quality control practices and standards. Deploying AWS Content may incur AWS charges for creating or using AWS chargeable resources, such as running Amazon EC2 instances or using Amazon S3 storage.”_
 
-
 ## Solution components
 
 * **Custom Identity Component** (`CustomIdentityComponent` folder contains [Readme](CustomIdentityComponent/README.md)):
@@ -83,6 +82,21 @@ See the [Unity SDK Readme](UnitySample/README.md#unity-integration-samples) for 
 
 See the [Godot 4 SDK Readme](GodotSample/README.md#unity-integration-samples) for details on the Godot 4 integration SDK and samples
 
+# Governance
+
+All the resources of the solution are deployed as AWS Cloud Development Kit (CDK) stacks. This allows for a consistent and repeatable deployment across multiple environments (dev, test, prod). It's recommended that you'll separate these environments to different AWS accounts under the same AWS Organization, and provide least privilege access based on the environment.
+
+All the CDK stacks implement **tags** that use can also configure to be used for [cost allocation](https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/custom-tags.html). You can freely modify the specific tags that are applied to all resources by modifying the CDK templates. 
+
+An example of the default tagging scheme for the stack resources:
+
+```typescript
+let tags: { [key: string]: string } = {};
+tags['Application'] = 'CustomIdentityComponent';
+tags['Owner'] = 'MyTeam';
+tags['Environment'] = 'Dev';
+tags['CostCenter'] = '1000';
+```
 # Cost estimations and scalability considerations
 
 As the backend component costs depend extensively on customer specific implementations, and the samples are just templates to get started, they have been left out of the cost estimations.
@@ -93,8 +107,8 @@ The Custom Identity Component costs can be estimated more easily, and the follow
 
 **NOTE**: These are rough estimates only, and even though they are calculated with a very pessimistic approach, there can always be some costs that are not fully covered here. You always need to do your own testing and estimates based on that.
 
-**Concurrent users**: 10 000 (roughly 100k daily and 1M monthly users)
-**Region**: Us-East-1
+**Concurrent users**: _10 000_ (roughly 100k daily and 1M monthly users)
+**Region**: _Us-East-1_
  
 * **API Gateway requests** 667 per minute (clients need to log in or refresh access tokens every 15 minutes)
   * *116.85 USD / month*
@@ -109,7 +123,7 @@ The Custom Identity Component costs can be estimated more easily, and the follow
 * **AWS Secrets Manager**: 10000 request per hour (very pessimistically estimated for 200 concurrent Lambda invocations)
   * *4.05 USD / month*
 
-**TOTAL**: *363.88 USD / month* ($0.036/CCU, roughly $0.00036/MAU)
+**TOTAL**: *363.88 USD / month* (_$0.036/CCU_, roughly _$0.00036/MAU_)
 
 ## Scalability considerations
 
