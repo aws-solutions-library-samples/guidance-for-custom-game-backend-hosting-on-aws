@@ -8,13 +8,13 @@ All the backend template components leverage **AWS X-Ray** for distributed traci
 
 # Preliminary setup
 
-Set the `const issuerEndpointUrl` in `BackendComponentSamples/bin/backend_component_samples` to the value of `IssuerEndpointUrl` found in the stack outputs of the _CustomIdentityComponentStack_. You can find it in the CloudFormation console, or in the terminal after deploying the identity component.
+Set the `const issuerEndpointUrl` in `BackendComponentSamples/bin/backend_component_samples.ts` to the value of `IssuerEndpointUrl` found in the stack outputs of the _CustomIdentityComponentStack_. You can find it in the CloudFormation console, or in the terminal after deploying the identity component.
 
 # Serverless REST API sample component template
 
 It is recommended to deploy the serverless API Gateway HTTP API backed component template next to test out your integration from a game engine. The templates work as starting points for your own backend development. We'll deploy the `PythonServerlessHttpApiStack` that can be found in `BackendComponentSamples`.
 
-To deploy the component, run the following commands
+To deploy the component, follow the _Preliminary Setup_, and then run the following commands
 1. `cd ..` to return to the root and `cd BackendComponentSamples` to navigate to samples
 2. `npm install` to install CDK app dependencies
 4. `cdk synth` to synthesize the CDK app and validate your configuration works
@@ -34,7 +34,7 @@ The python functions use **Powertools for Lambda (Python)** to provide detailed 
 
 Another option is to deploy the AWS Fargate sample component that deploys an AWS Fargate service with an Application Load Balancer, and use Node.js on the server side. It leverages the [aws-verify-jwt package](https://github.com/awslabs/aws-jwt-verify) to verify the JWT tokens received from the backend, and sets and gets player data in a DynamoDB table in the same way as the Serverless sample component. You can optionally use this Fargate component as your test integration point within the game engines
 
-To deploy the component, run the following commands
+To deploy the component, follow the _Preliminary Setup_, and then run the following commands
 1. Make sure you have __Docker running__ before you open the terminal, as the deployment process creates a Docker image
 2. `cd ..` to return to the root and `cd BackendComponentSamples` to navigate to samples
 3. `npm install` to install CDK app dependencies
