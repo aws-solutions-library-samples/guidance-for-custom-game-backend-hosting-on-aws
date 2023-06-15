@@ -86,7 +86,7 @@ See the [Godot 4 SDK Readme](GodotSample/README.md#unity-integration-samples) fo
 
 All the resources of the solution are deployed as AWS Cloud Development Kit (CDK) stacks. This allows for a consistent and repeatable deployment across multiple environments (dev, test, prod). It's recommended that you'll separate these environments to different AWS accounts under the same AWS Organization, and provide least privilege access based on the environment.
 
-All the CDK stacks implement **tags** that use can also configure to be used for [cost allocation](https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/custom-tags.html). You can freely modify the specific tags that are applied to all resources by modifying the CDK templates. 
+All the CDK stacks implement **tags** that can also be configured to be used for [cost allocation](https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/custom-tags.html). You can freely modify the specific tags that are applied to all resources by modifying the CDK templates. 
 
 An example of the default tagging scheme for the stack resources:
 
