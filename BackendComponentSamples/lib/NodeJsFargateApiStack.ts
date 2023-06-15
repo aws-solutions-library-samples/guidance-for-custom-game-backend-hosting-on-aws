@@ -11,6 +11,7 @@ import * as path from 'path';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as s3  from 'aws-cdk-lib/aws-s3';
 import { NagSuppressions } from 'cdk-nag';
+import * as iam from 'aws-cdk-lib/aws-iam';
 
 export interface NodeJsFargateApiStackProps extends StackProps {
   // custom identity provider issuer URL
@@ -61,6 +62,7 @@ export class NodeJsFargateApiStack extends Stack {
       directory: path.join(__dirname, '../NodeJsFargateApi'),
     });
 
+    // create task definition for our Fargate service
     const taskDefinition = new ecs.FargateTaskDefinition(this, 'TaskDef');
     taskDefinition.addContainer('backendservice', {
       image: ecs.ContainerImage.fromDockerImageAsset(containerAsset),
@@ -79,6 +81,33 @@ export class NodeJsFargateApiStack extends Stack {
         streamPrefix: 'NodeJsFargateSampleBackendService'
       })
     });
+
+    // Add the X-ray daemon to the task definition
+    taskDefinition.addContainer('backendservice-xray', {
+      containerName: "xray-daemon",
+      image: ecs.ContainerImage.fromRegistry('amazon/aws-xray-daemon'),
+      portMappings: [
+        {
+            hostPort: 2000,
+            containerPort: 2000,
+            protocol: ecs.Protocol.UDP
+        }
+      ],
+      logging: new ecs.AwsLogDriver({
+        streamPrefix: 'XRayDaemon'
+      }),
+      memoryLimitMiB: 256,
+      cpu: 32
+    });
+    // Allow access to X-ray
+    taskDefinition.addToTaskRolePolicy(
+      new iam.PolicyStatement({
+        actions: ['xray:PutTraceSegments', 'xray:PutTelemetryRecords'],
+        effect: iam.Effect.ALLOW,
+        resources: ['*']
+      })
+    );
+
     // Allow the backend service to read and write data to the player data table
     playerDataTable.grantReadWriteData(taskDefinition.taskRole);
 
@@ -112,6 +141,6 @@ export class NodeJsFargateApiStack extends Stack {
 
     // enable acess logs for the Fargate service ELB
     fargateService.loadBalancer.logAccessLogs(loggingBucket, "node-js-fargate-api-logs");
-    
+
   }
 }

@@ -3,8 +3,15 @@
 
 'use strict';
 
+// AWS-provided JWT verifier
 const { JwtRsaVerifier } = require("aws-jwt-verify");
-const AWS = require('aws-sdk');
+
+// X-ray for distributed tracing
+var AWSXRay = require('aws-xray-sdk');
+AWSXRay.config([AWSXRay.plugins.ECSPlugin]);
+
+// AWS SDK with tracing
+const AWS = AWSXRay.captureAWS(require('aws-sdk'));
 
 const verifier = JwtRsaVerifier.create({
   issuer: process.env.ISSUER_ENDPOINT, // Get our custom issuer url from environment
@@ -21,6 +28,8 @@ const HOST = '0.0.0.0';
 
 // Server app
 const app = express();
+
+app.use(AWSXRay.express.openSegment('NodeJsFargateApi-SetPlayerData'));
 
 // Set player data to DynamoDB
 app.get('/set-player-data', async (req, res) => {
@@ -62,6 +71,10 @@ app.get('/set-player-data', async (req, res) => {
   }
 });
 
+app.use(AWSXRay.express.closeSegment());
+
+app.use(AWSXRay.express.openSegment('NodeJsFargateApi-GetPlayerData'));
+
 // Get player data from DynamoDB
 app.get('/get-player-data', async (req, res) => {
 
@@ -100,6 +113,8 @@ app.get('/get-player-data', async (req, res) => {
     res.status(500).json({ statusCode: 500, message: "Something went wrong" });
   }
 });
+
+app.use(AWSXRay.express.closeSegment());
 
 // health check for root get
 app.get('/', (req, res) => {
