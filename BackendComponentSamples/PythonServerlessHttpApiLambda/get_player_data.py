@@ -5,6 +5,11 @@ import json
 import boto3
 import os
 
+from aws_lambda_powertools import Tracer
+from aws_lambda_powertools import Logger
+tracer = Tracer()
+logger = Logger()
+
 def error_response(message):
     return {
         "statusCode": 500,
@@ -15,6 +20,7 @@ def error_response(message):
         },
     }
 
+@tracer.capture_lambda_handler
 def lambda_handler(event, context):
 
     # We expect a successful JWT authorization has been done

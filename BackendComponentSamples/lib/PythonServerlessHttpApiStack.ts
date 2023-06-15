@@ -79,7 +79,14 @@ export class PythonServerlessHttpApiStack extends Stack {
     set_player_data_function_role.addToPolicy(lambdaBasicPolicy);
     const set_player_data = new lambda.Function(this, 'SetPlayerData', {
       role: set_player_data_function_role,
-      code: lambda.Code.fromAsset("PythonServerlessHttpApiLambda", {}),
+      code: lambda.Code.fromAsset("PythonServerlessHttpApiLambda", {
+        bundling: {
+          image: lambda.Runtime.PYTHON_3_10.bundlingImage,
+          command: [
+            'bash', '-c',
+            'pip install -r requirements.txt -t /asset-output && cp -au . /asset-output'
+          ],
+      },}),
       runtime: lambda.Runtime.PYTHON_3_10,
       handler: 'set_player_data.lambda_handler',
       timeout: Duration.seconds(15),
@@ -109,7 +116,14 @@ export class PythonServerlessHttpApiStack extends Stack {
     get_player_data_function_role.addToPolicy(lambdaBasicPolicy);
     const get_player_data = new lambda.Function(this, 'GetPlayerData', {
       role: get_player_data_function_role,
-      code: lambda.Code.fromAsset("PythonServerlessHttpApiLambda", {}),
+      code: lambda.Code.fromAsset("PythonServerlessHttpApiLambda", {
+        bundling: {
+          image: lambda.Runtime.PYTHON_3_10.bundlingImage,
+          command: [
+            'bash', '-c',
+            'pip install -r requirements.txt -t /asset-output && cp -au . /asset-output'
+          ],
+      },}),
       runtime: lambda.Runtime.PYTHON_3_10,
       handler: 'get_player_data.lambda_handler',
       timeout: Duration.seconds(15),

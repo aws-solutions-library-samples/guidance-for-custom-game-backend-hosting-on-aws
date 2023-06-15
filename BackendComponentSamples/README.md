@@ -20,6 +20,10 @@ You'll see a new stack deployed in the AWS CloudFormation console, with an API G
 
 ## Architecture
 
+The solution uses Python on AWS Lambda for managing requests to get and set player data. Requests are autenticated on the API Gateway level by validating the JWT token in the Authorization header against the public keys provided by our custom identity component. This is using the native integration of the API Gateway HTTP API.
+
+The python functions use **Powertools for Lambda (Python)** to provide detailed tracing in **AWS X-Ray**.
+
 ![High Level Reference Architecture](ApiGatewayPythonApiArchitecture.png)
 
 # Loadbalanced AWS Fargate sample component template
@@ -34,5 +38,7 @@ To deploy the component, run the following commands
 5. `cdk deploy NodeJsFargateApiStack` to deploy the CDK app to your account
 
 ## Architecture
+
+The solution has an Application Load Balancer, that integrates with an auto-scaling Node.js application running on AWS Fargate. The application is integrated with **AWS X-Ray** for distributed tracing by adding a sidecar container for the X-Ray daemon and using the X-Ray SDK to trace requests and integrations with other AWS services. The app is an express web server that will handle set and get requests for player data with authenticated users. It also responds to the health check sent by the Application Load Balancer.
 
 ![High Level Reference Architecture](FargateNodejsApiArchitecture.png)
