@@ -1,5 +1,12 @@
 # AWS Game Backend Framework Sample Backend Components
 
+- [AWS Game Backend Framework Sample Backend Components](#aws-game-backend-framework-sample-backend-components)
+- [Preliminary setup](#preliminary-setup)
+- [Serverless REST API sample component template](#serverless-rest-api-sample-component-template)
+  * [Architecture](#architecture)
+- [Loadbalanced AWS Fargate sample component template](#loadbalanced-aws-fargate-sample-component-template)
+  * [Architecture](#architecture-1)
+  
 These sample components can be deployed to test integration from a game client to a backend using the authentication feature of the custom identity component.
 
 **Logs and Distributed Tracing**

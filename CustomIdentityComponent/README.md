@@ -1,5 +1,15 @@
 # AWS Game Backend Framework Custom Identity Component
 
+- [AWS Game Backend Framework Custom Identity Component](#aws-game-backend-framework-custom-identity-component)
+  * [Deploy the Custom Identity Component](#deploy-the-custom-identity-component)
+  * [Issuer details](#issuer-details)
+  * [API Reference](#api-reference)
+    + [GET /login-as-guest](#get-login-as-guest)
+    + [GET /refresh-access-token](#get-refresh-access-token)
+    + [GET /login-with-steam](#get-login-with-steam)
+    + [GET /login-with-apple-id](#get-login-with-apple-id)
+    + [GET /login-with-google-play](#get-login-with-google-play)
+    
 The custom identity component implements is a serverless solution that manages a JSON Web Key Set (JWKS) with rotation and publicly available configuration and public keys. It also supports integration with Steam, Sign in with Apple, and Google Play, and can be extended with custom code to more providers such as console platforms.
 
 The solution also allows guest login, and supports linking new identity providers to existing identities, for example upgrading from a guest identity to an authenticated identity with Steam, Apple or Google Play.

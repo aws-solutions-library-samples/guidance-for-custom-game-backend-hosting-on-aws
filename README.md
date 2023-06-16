@@ -1,5 +1,22 @@
 # AWS Game Backend Framework
 
+- [AWS Game Backend Framework](#aws-game-backend-framework)
+- [Introduction](#introduction)
+  * [Solution components](#solution-components)
+  * [How does it work?](#how-does-it-work-)
+- [Deploying the solution](#deploying-the-solution)
+  * [1. Deploy the Custom Identity Component](#1-deploy-the-custom-identity-component)
+  * [2. Deploy one of the sample backend components](#2-deploy-one-of-the-sample-backend-components)
+  * [3. Test the client integrations](#3-test-the-client-integrations)
+    + [Unreal Engine 5 SDK and Integration Samples](#unreal-engine-5-sdk-and-integration-samples)
+    + [Unity SDK and Integration Samples](#unity-sdk-and-integration-samples)
+    + [Godot 4 SDK and Integration Samples](#godot-4-sdk-and-integration-samples)
+- [Governance](#governance)
+- [Cost estimations and scalability considerations](#cost-estimations-and-scalability-considerations)
+  * [Scalability considerations](#scalability-considerations)
+  * [Security](#security)
+  * [License](#license)
+
 # Introduction
 
 The AWS Game Backend Framework allows you to integrate your game clients with AWS backend services, with secure scalable identity management and authentication, and integrations to commonly used game platform identity providers and game engines.
