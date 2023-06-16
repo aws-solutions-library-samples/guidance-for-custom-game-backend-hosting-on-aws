@@ -1,6 +1,5 @@
 # AWS Game Backend Framework
 
-- [AWS Game Backend Framework](#aws-game-backend-framework)
 - [Introduction](#introduction)
   * [Solution components](#solution-components)
   * [How does it work?](#how-does-it-work-)
