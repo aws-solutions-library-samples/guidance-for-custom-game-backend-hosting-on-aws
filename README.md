@@ -14,8 +14,8 @@
 - [Governance](#governance)
 - [Cost estimations and scalability considerations](#cost-estimations-and-scalability-considerations)
   * [Scalability considerations](#scalability-considerations)
-  * [Security](#security)
-  * [License](#license)
+- [Security](#security)
+- [License](#license)
 
 # Introduction
 
