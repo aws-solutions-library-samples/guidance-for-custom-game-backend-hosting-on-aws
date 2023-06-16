@@ -10,6 +10,7 @@ The first thing you need to do is deploy the custom identity component, that wil
 
 To deploy the custom identity component you'll need the following tools:
 * [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) installed and [credentials configured](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-files.html)
+* [Node.js](https://nodejs.org/en/download) installed (required for AWS Cloud Development Kit)
 * [AWS Cloud Development Kit (CDK) v2](https://docs.aws.amazon.com/cdk/v2/guide/cli.html) installed. AWS CDK is used to deploy the identity component resources
 * [Docker engine](https://docs.docker.com/engine/install/) installed (and started **prior** to opening terminal). The deployment uses Docker for packaging Python backend functions
 
@@ -29,7 +30,7 @@ When you set a non empty value for one of these App ID:s, the CDK stack will aut
 To deploy the identity component, run the following commands
 1. `cd CustomIdentityComponent`
 2. `npm install` to install CDK app dependencies
-3. `cdk boostrap` to bootstrap your account for CDK, see [Bootstrapping](https://docs.aws.amazon.com/cdk/v2/guide/bootstrapping.html) for more information
+3. `cdk bootstrap` to bootstrap your account for CDK, see [Bootstrapping](https://docs.aws.amazon.com/cdk/v2/guide/bootstrapping.html) for more information
 4. `cdk synth` to synthesize the CDK app and validate your configuration works
 5. `cdk deploy` to deploy the CDK app to your account
 6. run the following AWS CLI commands to invoke the GenerateKeys function to generate the first set of public and private keys (rotation will run this weekly). NOTE: You should get a 200 OK if this is successful. Make sure to set a region to the calls if you're not using the default CLI region):
