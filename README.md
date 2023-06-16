@@ -2,7 +2,7 @@
 
 - [Introduction](#introduction)
   * [Solution components](#solution-components)
-  * [How does it work?](#how-does-it-work-)
+  * [How does it work?](#how-does-it-work)
 - [Deploying the solution](#deploying-the-solution)
   * [1. Deploy the Custom Identity Component](#1-deploy-the-custom-identity-component)
   * [2. Deploy one of the sample backend components](#2-deploy-one-of-the-sample-backend-components)
