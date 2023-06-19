@@ -40,7 +40,7 @@ Optionally, you can add integrations to identity providers by modifying `CustomI
 
 When you set a non empty value for one of these App ID:s, the CDK stack will automatically deploy required endpoints and resources for that platform.
 
-To deploy the identity component, run the following commands
+To deploy the identity component, run the following commands (Note: on **Windows** make sure to run in Powershell as **Administrator**):
 1. `cd CustomIdentityComponent`
 2. `npm install` to install CDK app dependencies
 3. `cdk bootstrap` to bootstrap your account for CDK, see [Bootstrapping](https://docs.aws.amazon.com/cdk/v2/guide/bootstrapping.html) for more information
