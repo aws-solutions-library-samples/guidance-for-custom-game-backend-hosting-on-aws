@@ -21,13 +21,13 @@
 The AWS Game Backend Framework allows you to integrate your game clients with AWS backend services, with secure scalable identity management and authentication, and integrations to commonly used game platform identity providers and game engines.
 
 The framework consists of three key components:
-* Custom identity component, that can be deployed with AWS Cloud Development Kit
+* Custom identity component, that can be deployed with AWS Cloud Development Kit. Supports __guest identities__, __Steam__, __Sign in with Apple__, __Google Play__, and __Facebook__.
 * Lightweight game engine SDK:s for __Unreal Engine 5__,  __Unity 2021 (and up)__, and __Godot 4__
 * Sample backend component templates to get started with backend feature development
 
 The currently supported engines include Unity, Unreal Engine 5, and Godot 4, but as the features are exposed as REST API:s, you can easily integrate the identity component and custom backend components to any game engine of choice.
 
-The currently supported login options for the identity component include __guest identities__, __Steam__, __Sign in with Apple__, and __Google Play__. Using these integrations as a template, it's possible to add other platforms such as console identity systems and other PC game stores.
+The currently supported login options for the identity component include __guest identities__, __Steam__, __Sign in with Apple__, __Google Play__, and __Facebook__. Using these integrations as a template, it's possible to add other platforms such as console identity systems and other PC game stores.
 
 **Note**: _“The sample code; software libraries; command line tools; proofs of concept; templates; or other related technology (including any of the foregoing that are provided by our personnel) is provided to you as AWS Content under the AWS Customer Agreement, or the relevant written agreement between you and AWS (whichever applies). You should not use this AWS Content in your production accounts, or on production or other critical data. You are responsible for testing, securing, and optimizing the AWS Content, such as sample code, as appropriate for production grade use based on your specific quality control practices and standards. Deploying AWS Content may incur AWS charges for creating or using AWS chargeable resources, such as running Amazon EC2 instances or using Amazon S3 storage.”_
 
@@ -37,7 +37,7 @@ The currently supported login options for the identity component include __guest
   * Deployed before any other components
   * Managed the player identities and authentication tokens
   * Supports refreshing authentications tokens
-  * Supports integrating with 3rd party identity providers such as Steam, Sign in with Apple, and Google Play
+  * Supports integrating with 3rd party identity providers such as Steam, Sign in with Apple, Google Play, and Facebook
   * See the [API Reference](CustomIdentityComponent/README.md#api-reference) for full API details.
 * **Backend Component Templates** (`BackendComponentSamples` folder contains [Readme](BackendComponentSamples/README.md))
   * Template backend components that integrate with the custom identity component and the Unreal, Unity and Godot SDK:s
@@ -149,7 +149,7 @@ The custom identity component has been tested with 226 requests/second to create
 
 This test didn't surface any errors, and would be sufficient to supports 813k new users per hour, and 19.5M new users per day. It would also support at least 203k CCU when mapped to logins and token refresh requests. There's no reason to expect this is even close to the upper limits of the solution, but you always need to validate and load test for your own use case.
 
-For logging in with 3rd party identity providers like Steam, Apple or Google Play, the backend will make requests to their endpoints to validate tokens. These endpoints might have their own limits that you need to validate with the 3rd parties directly. As the solution supports up to 7 days of refreshing an existing access token (using the refresh token), this can massively reduce the amount of times you need to log in directly with the game platform identities and reduces the load from these endpoints.
+For logging in with 3rd party identity providers like Steam, Apple, Google Play or Facebook, the backend will make requests to their endpoints to validate tokens. These endpoints might have their own limits that you need to validate with the 3rd parties directly. As the solution supports up to 7 days of refreshing an existing access token (using the refresh token), this can massively reduce the amount of times you need to log in directly with the game platform identities and reduces the load from these endpoints.
 
 ## Security
 

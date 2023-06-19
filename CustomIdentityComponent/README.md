@@ -9,10 +9,11 @@
     + [GET /login-with-steam](#get-login-with-steam)
     + [GET /login-with-apple-id](#get-login-with-apple-id)
     + [GET /login-with-google-play](#get-login-with-google-play)
-    
-The custom identity component implements is a serverless solution that manages a JSON Web Key Set (JWKS) with rotation and publicly available configuration and public keys. It also supports integration with Steam, Sign in with Apple, and Google Play, and can be extended with custom code to more providers such as console platforms.
+    + [GET /login-with-facebook](#get-login-with-facebook)
 
-The solution also allows guest login, and supports linking new identity providers to existing identities, for example upgrading from a guest identity to an authenticated identity with Steam, Apple or Google Play.
+The custom identity component implements is a serverless solution that manages a JSON Web Key Set (JWKS) with rotation and publicly available configuration and public keys. It also supports integration with Steam, Sign in with Apple, Google Play, and Facebook, and can be extended with custom code to more providers such as console platforms.
+
+The solution also allows guest login, and supports linking new identity providers to existing identities, for example upgrading from a guest identity to an authenticated identity with Steam, Apple or Google Play, or using Facebook identities as a link between platforms.
 
 ## Deploy the Custom Identity Component
 
@@ -34,6 +35,8 @@ Optionally, you can add integrations to identity providers by modifying `CustomI
   * Set `const googlePlayAppid` to your Google Play app identifier such as "1234567890".
   * Set `const googlePlayClientId` to your Google Play Web application client ID such as "1234567890-xyz123.apps.googleusercontent.com".
   * Set `const googlePlayClientSecretArn` to the Arn of a Secrets Manager secret containing your Client Secret for the Web application client (see [Google Play developer docs](https://developers.google.com/games/services/console/enabling) for details). You can create a secret with the AWS CLI: `aws secretsmanager create-secret --name MyGooglePlayClientSecret --description "Google Play client secret" --secret-string "YOURCLIENTSECRET"`
+* __Facebook__
+  * Set `const facebookAppId` to the App ID of your Facebook application in developer.facebook.com. You can find this under "Basic Settings" for the app.
 
 When you set a non empty value for one of these App ID:s, the CDK stack will automatically deploy required endpoints and resources for that platform.
 
@@ -166,5 +169,25 @@ The API integrations are built into the SDK:s provided for both Unity and Unreal
 > |---------------|---------------------------------------------------------------------|
 > | `200`         | `{'google_play_id': google_play_id,'user_id': user_id,'auth_token': auth_token,'refresh_token': refresh_token, 'auth_token_expires_in' :auth_token_expires_in,'refresh_token_expires_in' : refresh_token_expires_in}`                                |
 > | `401`         | Multiple errors: could not create a validate user                |   
+
+### GET /login-with-facebook
+
+`GET /login-with-facebook`
+
+**Parameters**
+
+> | name      |  required | description                                                                    |
+> |-----------|-----------|--------------------------------------------------------------------------------|
+> | `facebook_access_token`   |  Yes       | When logging in with Facebook, you always need to provide a valid Facebook Access token |
+> | `facebook_user_id`   |  Yes       | When logging in with Facebook, you always need to provide a valid Facebook User ID |
+> | `link_to_existing_user`   |  No  | Set this to `Yes` for linking the Facebook identity to existing user. Requires also the `auth_token` field to be set.  |
+> | `auth_token`   |  No  | Provide an existing auth_token for a logged in user when linking Facebook identity to existing user. Requires also the `link_to_existing_user` to be set.  |
+
+**Responses**
+
+> | http code     | response                                                            |
+> |---------------|---------------------------------------------------------------------|
+> | `200`         | `{'facebook_id': facebook_id,'user_id': user_id,'auth_token': auth_token,'refresh_token': refresh_token, 'auth_token_expires_in' :auth_token_expires_in,'refresh_token_expires_in' : refresh_token_expires_in}`                                |
+> | `401`         | Multiple errors: could not create a validate user                |  
 
 

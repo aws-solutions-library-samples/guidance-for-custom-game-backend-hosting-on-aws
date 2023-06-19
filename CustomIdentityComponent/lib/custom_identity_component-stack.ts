@@ -34,6 +34,8 @@ export interface CustomIdentityComponentStackProps extends StackProps {
   googlePlayAppId: string;
   // This is the arn of the Secrets Manager secret in the same region containing the Google Play Client secret
   googlePlayClientSecretArn: string;
+  // This is the app ID of the facebook app
+  facebookAppId: string;
 }
 
 export class CustomIdentityComponentStack extends Stack {
@@ -349,6 +351,11 @@ export class CustomIdentityComponentStack extends Stack {
     if(props.googlePlayClientId != "") {
         this.setupGooglePlayLogin(props.googlePlayClientId, props.googlePlayAppId, props.googlePlayClientSecretArn, secret, user_table, distribution, api_gateway, lambdaBasicPolicy, requestValidator);
     }
+
+    // If Facebook App ID defined, add a DynamoDB table and Lambda function for Facebook login
+    if(props.facebookAppId != "") {
+        this.setupFacebookLogin(props.facebookAppId, secret, user_table, distribution, api_gateway, lambdaBasicPolicy, requestValidator);
+    }
   }
 
   ///// *** IDENTITY PROVIDER SPECIFIC RESOURECE **** //////
@@ -413,10 +420,10 @@ export class CustomIdentityComponentStack extends Stack {
       });
   }
 
-  // Sets up Lambda endpoint and DynamoDB table for Apple ID Login
+  // Sets up Lambda endpoint and DynamoDB table for Steam ID Login
   setupSteamLogin(appId: string, steamWebApiKeySecretArn: string, privateKeySecret: secretsmanager.Secret, user_table: dynamodb.Table, distribution: cloudfront.Distribution, api_gateway: apigw.RestApi, lambdaBasicPolicy: iam.PolicyStatement, requestValidator: apigw.RequestValidator) {
   
-    // Define a DynamoDB table for AppleIdUsers
+    // Define a DynamoDB table for Steam Users
     const steamIdUserTable = new dynamodb.Table(this, 'SteamUserTable', {
       partitionKey: {
         name: 'SteamId',
@@ -481,12 +488,12 @@ export class CustomIdentityComponentStack extends Stack {
     });
   }
 
-  // Sets up Lambda endpoint and DynamoDB table for Apple ID Login
+  // Sets up Lambda endpoint and DynamoDB table for Google Play Login
   setupGooglePlayLogin(googlePlayClientId: string, googlePlayAppId: string, googlePlayClientSecretArn: string,
                         privateKeySecret: secretsmanager.Secret, user_table: dynamodb.Table,
                         distribution: cloudfront.Distribution, api_gateway: apigw.RestApi, lambdaBasicPolicy: iam.PolicyStatement, requestValidator: apigw.RequestValidator) {
 
-    // Define a DynamoDB table for AppleIdUsers
+    // Define a DynamoDB table for Google Play
     const googlePlayUserTable = new dynamodb.Table(this, 'GooglePlayUserTable', {
       partitionKey: {
         name: 'GooglePlayId',
@@ -551,4 +558,65 @@ export class CustomIdentityComponentStack extends Stack {
       requestValidator: requestValidator
     });
   }
+
+   // Sets up Lambda endpoint and DynamoDB table for Facebook Login
+   setupFacebookLogin(appId : string, secret: secretsmanager.Secret, user_table: dynamodb.Table, distribution: cloudfront.Distribution, api_gateway: apigw.RestApi, lambdaBasicPolicy: iam.PolicyStatement, requestValidator: apigw.RequestValidator) {
+    
+    // Define a DynamoDB table for Facebook Users
+    const facebookUserTable = new dynamodb.Table(this, 'FacebookUserTable', {
+      partitionKey: {
+        name: 'FacebookId',
+        type: dynamodb.AttributeType.STRING
+      },
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      pointInTimeRecovery: true
+    });
+
+    // Lambda function for Facebook login
+    const loginWithFacebookFunctionRole = new iam.Role(this, 'LoginWithFacebookFunctionRole', {
+      assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
+    });
+    loginWithFacebookFunctionRole.addToPolicy(lambdaBasicPolicy);
+    const loginWithFacebookFunction = new lambda.Function(this, 'LoginWithFacebook', {
+      role: loginWithFacebookFunctionRole,
+      code: lambda.Code.fromAsset("lambda", {
+        bundling: {
+          image: lambda.Runtime.PYTHON_3_10.bundlingImage,
+          command: [
+            'bash', '-c',
+            'pip install --platform manylinux2010_x86_64 --only-binary=:all: -r requirements.txt -t /asset-output && cp -au . /asset-output'
+          ],
+      },}),
+      runtime: lambda.Runtime.PYTHON_3_10,
+      handler: 'login_with_facebook.lambda_handler',
+      timeout: Duration.seconds(15),
+      tracing: lambda.Tracing.ACTIVE,
+      memorySize: 2048,
+      environment: {
+        "ISSUER_URL": "https://"+distribution.domainName,
+        "SECRET_KEY_ID": secret.secretName,
+        "USER_TABLE": user_table.tableName,
+        "FACEBOOK_APP_ID" : appId,
+        "FACEBOOK_USER_TABLE": facebookUserTable.tableName
+      }
+    });
+    secret.grantRead(loginWithFacebookFunction);
+    user_table.grantReadWriteData(loginWithFacebookFunction);
+    facebookUserTable.grantReadWriteData(loginWithFacebookFunction);
+
+    NagSuppressions.addResourceSuppressions(loginWithFacebookFunctionRole, [
+      { id: 'AwsSolutions-IAM5', reason: 'Using the standard Lambda execution role, all custom access resource restricted.' }
+    ], true);
+
+    // Map login_as_guest_function to the api_gateway GET requeste login_as_guest
+    api_gateway.root.addResource('login-with-facebook').addMethod('GET', new apigw.LambdaIntegration(loginWithFacebookFunction),{
+      requestParameters: {
+        'method.request.querystring.facebook_access_token': true,
+        'method.request.querystring.facebook_user_id': true,
+        'method.request.querystring.auth_token': false,
+        'method.request.querystring.link_to_existing_user': false
+      },
+      requestValidator: requestValidator
+    });
+}
 };

@@ -30,6 +30,9 @@ const googlePlayAppid = ""
 // Set this to the arn of a Google Play Client secret you created with the aws cli (You need to create a Web application Client ID and secret in https://console.cloud.google.com/apis/credentials)
 // using aws secretsmanager create-secret --name MyGooglePlayClientSecret --description "Google Play client secret" --secret-string "YOURCLIENTSECRET"
 const googlePlayClientSecretArn = ""
+// Set this to the App ID of your Facebook app created in developer.facebook.com, found under "Basic Settings"
+// An empty value "" required to Not deploy the Facebook login endpoint
+const facebookAppId = ""
 
 const app = new cdk.App();
 var identityComponentStack = new CustomIdentityComponentStack(app, 'CustomIdentityComponentStack', {
@@ -39,7 +42,8 @@ var identityComponentStack = new CustomIdentityComponentStack(app, 'CustomIdenti
     steamWebApiKeySecretArn: steamWebApiKeySecretArn,
     googlePlayClientId: googlePlayClientId,
     googlePlayAppId: googlePlayAppid,
-    googlePlayClientSecretArn: googlePlayClientSecretArn
+    googlePlayClientSecretArn: googlePlayClientSecretArn,
+    facebookAppId: facebookAppId
   });
   
   // Apply all the tags in the tags object to the stack
