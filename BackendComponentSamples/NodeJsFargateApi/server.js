@@ -29,7 +29,7 @@ const HOST = '0.0.0.0';
 // Server app
 const app = express();
 
-app.use(AWSXRay.express.openSegment('NodeJsFargateApi-SetPlayerData'));
+app.use(AWSXRay.express.openSegment('NodeJsFargateApi-PlayerData'));
 
 // Set player data to DynamoDB
 app.get('/set-player-data', async (req, res) => {
@@ -70,10 +70,6 @@ app.get('/set-player-data', async (req, res) => {
     res.status(500).json({ statusCode: 500, message: "Something went wrong" });
   }
 });
-
-app.use(AWSXRay.express.closeSegment());
-
-app.use(AWSXRay.express.openSegment('NodeJsFargateApi-GetPlayerData'));
 
 // Get player data from DynamoDB
 app.get('/get-player-data', async (req, res) => {
