@@ -47,8 +47,16 @@ To deploy the identity component, run the following commands (Note: on **Windows
 4. `cdk synth` to synthesize the CDK app and validate your configuration works
 5. `cdk deploy` to deploy the CDK app to your account
 6. run the following AWS CLI commands to invoke the GenerateKeys function to generate the first set of public and private keys (rotation will run this weekly). NOTE: You should get a 200 OK if this is successful. Make sure to set a region to the calls if you're not using the default CLI region):
-  ```
+
+  **MacOS and Linux (Shell)**
+  ```bash
   fn=$(aws cloudformation describe-stacks --stack-name CustomIdentityComponentStack --query 'Stacks[0].Outputs[?OutputKey==`GenerateKeysFunctionName`].OutputValue' --output text)
+  aws lambda invoke --function-name $fn response.json
+  ```
+
+  **Windows (Powershell)**
+  ```powershell
+  $fn = aws cloudformation describe-stacks --stack-name CustomIdentityComponentStack --query 'Stacks[0].Outputs[?OutputKey==`GenerateKeysFunctionName`].OutputValue' --output text
   aws lambda invoke --function-name $fn response.json
   ```
 
