@@ -34,6 +34,8 @@ void LoginWithSteamToken(const FString& steamAuthToken, std::function<void(UserI
 void LinkSteamIdToCurrentUser(const FString& steamAuthToken, std::function<void(UserInfo userInfo)> callback);
 void LoginWithGooglePlayToken(const FString& googlePlayAuthToken, std::function<void(UserInfo userInfo)> callback);
 void LinkGooglePlayIdToCurrentUser(const FString& googlePlayAuthToken, std::function<void(UserInfo userInfo)> callback);
+void LoginWithFacebookAccessToken(const FString& facebookAccessToken, const FString& facebookUserId, std::function<void(UserInfo userInfo)> callback);
+void LinkFacebookIdToCurrentUser(const FString& facebookAccessToken, const FString& facebookUserId, std::function<void(UserInfo userInfo)> callback);
 void LoginWithRefreshToken(const FString& refreshToken, std::function<void(UserInfo userInfo)> callback);
 void RefreshAccessToken(std::function<void(UserInfo userInfo)> callback);
 ```
@@ -88,4 +90,15 @@ Configure the `GooglePlayLoginTest` component of the `GooglePlayLoginTest` Actor
 
 You will need to pass a valid Google Play token to the `AWSGameSDK->LinkGooglePlayIdToCurrentUser("YOURTOKEN", onLinkGooglePlayIdCallback)` found in `UnrealSample/Source/UnrealSample/Samples/GooglePlayLoginTest/GooglePlayLoginTest.cpp`.
 
+### Unreal: Facebook Test Level
+
+* Open the level `Samples/FacebookLoginTest/FacebookLoginTest`
+
+This is a simple test level that will login a guest user, upgrade the guest user to authenticated by linking a Facebook ID to it, and then finally test logging in directly with Facebook. It doesn't call any custom backend functionalities.
+
+To use this sample, you will need a valid Facebook access token and user ID. This requires you to sign up as a Facebook Developer, create an App and integrate with the Facebook API:s from Unreal. Currently, we don't have any specific requirements on how to integrate with Facebook, but there are some community options.
+
+Configure the `FacebookLoginTest` component of the `FacebookLoginTest` Actor to set up the login API endpoint. Set `M Login Endpoint` value to the `LoginEndpoint` value found in the CustomIdentityComponentStack Outputs.
+
+You will need to pass a valid Facebook token to the `AWSGameSDK->LinkFacebookIdToCurrentUser("tokenHere", "userIDHere", onLinkFacebookIdCallback);` and `AWSGameSDK->LoginWithFacebookAccessToken("tokenHere", "userIdHere", onFacebookLoginCallback);` found in `UnrealSample/Source/UnrealSample/Samples/FacebookLoginTest/FacebookLoginTest.cpp`.
 
