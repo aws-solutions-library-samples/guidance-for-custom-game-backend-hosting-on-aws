@@ -116,6 +116,15 @@ void UAWSGameSDK::LinkGooglePlayIdToCurrentUser(const FString& googlePlayToken, 
     this->LoginWithGooglePlay(googlePlayToken, this->m_userInfo.auth_token, true, callback);
 }
 
+void UAWSGameSDK::LoginWithFacebookAccessToken(const FString& facebookAccessToken, const FString& facebookUserId, std::function<void(UserInfo userInfo)> callback){
+    UE_LOG(LogTemp, Display, TEXT("Logging in with Facebook auth token"));
+    this->LoginWithFacebook(facebookAccessToken, facebookUserId, "", false, callback);
+}
+void UAWSGameSDK::LinkFacebookIdToCurrentUser(const FString& facebookAccessToken, const FString& facebookUserId, std::function<void(UserInfo userInfo)> callback){
+    UE_LOG(LogTemp, Display, TEXT("Linking Facebook ID to existing user"));
+    this->LoginWithFacebook(facebookAccessToken, facebookUserId, this->m_userInfo.auth_token, true, callback);
+}
+
 void UAWSGameSDK::BackendGetRequest(const FString& url, const FString& resource, TMap<FString, FString> queryParameters, std::function<void(FString response)> callback){
     // If Url doesn't end with '/', add it
     FString urlWithTrailingSlash = url;
@@ -165,7 +174,7 @@ void UAWSGameSDK::CallRestApiGetUserLogin(const FString& url, const FString& res
             // Deserialize the json data given Reader and the actual object to deserialize
             if (FJsonSerializer::Deserialize(Reader, JsonObject)) {
                 
-                FString UserId = "", GuestSecret = "", AccessToken = "", AppleId = "", SteamId = "", GooglePlayId = "", RefreshToken  = "";
+                FString UserId = "", GuestSecret = "", AccessToken = "", AppleId = "", SteamId = "", GooglePlayId = "", FacebookId = "", RefreshToken  = "";
                 int32 AccessTokenExpiration, RefreshTokenExpiration;
 
                 // First get all the fields from the existing user info
@@ -175,6 +184,7 @@ void UAWSGameSDK::CallRestApiGetUserLogin(const FString& url, const FString& res
                 AppleId = this->m_userInfo.apple_id;
                 SteamId = this->m_userInfo.steam_id;
                 GooglePlayId = this->m_userInfo.google_play_id;
+                FacebookId = this->m_userInfo.facebook_id;
                 RefreshToken = this->m_userInfo.refresh_token;
                 AccessTokenExpiration = this->m_userInfo.auth_token_expires_in;
                 RefreshTokenExpiration = this->m_userInfo.refresh_token_expires_in;
@@ -193,6 +203,7 @@ void UAWSGameSDK::CallRestApiGetUserLogin(const FString& url, const FString& res
                 JsonObject->TryGetStringField("apple_id", AppleId);
                 JsonObject->TryGetStringField("steam_id", SteamId);
                 JsonObject->TryGetStringField("google_play_id", GooglePlayId);
+                JsonObject->TryGetStringField("facebook_id", FacebookId);
                 JsonObject->TryGetStringField("refresh_token", RefreshToken);
                 JsonObject->TryGetNumberField("auth_token_expires_in", AccessTokenExpiration);
                 JsonObject->TryGetNumberField("refresh_token_expires_in", RefreshTokenExpiration);
@@ -203,6 +214,7 @@ void UAWSGameSDK::CallRestApiGetUserLogin(const FString& url, const FString& res
                 UE_LOG(LogTemp, Log, TEXT("apple_id: %s"), *AppleId);
                 UE_LOG(LogTemp, Log, TEXT("steam_id: %s"), *SteamId);
                 UE_LOG(LogTemp, Log, TEXT("google_play_id: %s"), *GooglePlayId);
+                UE_LOG(LogTemp, Log, TEXT("facebook_id: %s"), *FacebookId);
                 UE_LOG(LogTemp, Log, TEXT("refresh_token: %s"), *RefreshToken);
                 UE_LOG(LogTemp, Log, TEXT("auth_token_expires_in: %d"), AccessTokenExpiration);
                 UE_LOG(LogTemp, Log, TEXT("refresh_token_expires_in: %d"), RefreshTokenExpiration);
@@ -213,6 +225,7 @@ void UAWSGameSDK::CallRestApiGetUserLogin(const FString& url, const FString& res
                 this->m_userInfo.apple_id = AppleId;
                 this->m_userInfo.steam_id = SteamId;
                 this->m_userInfo.google_play_id = GooglePlayId;
+                this->m_userInfo.facebook_id = FacebookId;
                 this->m_userInfo.refresh_token = RefreshToken;
                 this->m_userInfo.auth_token_expires_in = AccessTokenExpiration;
                 this->m_userInfo.refresh_token_expires_in = RefreshTokenExpiration;
@@ -316,6 +329,30 @@ void UAWSGameSDK::LoginWithGooglePlay(const FString& googlePlayAuthToken, const 
     else if(googlePlayAuthToken != "") {
         queryParameters.Add(TEXT("google_play_auth_token"), googlePlayAuthToken);
         this->CallRestApiGetUserLogin(this->m_loginEndpoint, "login-with-google-play",  queryParameters, callback);
+    }
+}
+
+void UAWSGameSDK::LoginWithFacebook(const FString& facebookAccessToken, const FString& facebookUserId, const FString& authToken, bool linkToExistingUser, std::function<void(UserInfo userInfo)> callback){
+    
+    // Set up query params for the request (either new/existing Facebook user or linking)
+    TMap<FString, FString> queryParameters;
+
+    // Linking Facebook ID to existing user
+    if(facebookAccessToken != "" && facebookUserId != "" && authToken != "" && linkToExistingUser) {
+        queryParameters.Add(TEXT("facebook_access_token"), facebookAccessToken);
+        queryParameters.Add(TEXT("facebook_user_id"), facebookUserId);
+        queryParameters.Add(TEXT("auth_token"), authToken);
+        if(linkToExistingUser)
+            queryParameters.Add(TEXT("link_to_existing_user"), TEXT("Yes"));
+
+        this->CallRestApiGetUserLogin(this->m_loginEndpoint, "login-with-facebook",  queryParameters, callback);
+    }
+
+    // Getting an existing or new user
+    else if(facebookAccessToken != "" && facebookUserId != "") {
+        queryParameters.Add(TEXT("facebook_access_token"), facebookAccessToken);
+        queryParameters.Add(TEXT("facebook_user_id"), facebookUserId);
+        this->CallRestApiGetUserLogin(this->m_loginEndpoint, "login-with-facebook",  queryParameters, callback);
     }
 }
 

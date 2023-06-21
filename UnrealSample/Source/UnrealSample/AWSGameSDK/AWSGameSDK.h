@@ -17,14 +17,15 @@ struct UserInfo
         FString apple_id;
         FString steam_id;
         FString google_play_id;
+        FString facebook_id;
         FString refresh_token;
         int auth_token_expires_in;
         int refresh_token_expires_in;
         // Define ToString() method
         FString ToString()
         {
-            return FString::Printf(TEXT("user_id=%s\n guest_secret=%s\n auth_token=%s\n apple_id=%s\n steam_id=%s\n google_play_id=%s \n refresh_token=%s \n auth_token_expires_in=%d \n refresh_token_expires_in=%d"), 
-                                        *user_id, *guest_secret, *auth_token, *apple_id, *steam_id, *google_play_id, *refresh_token, auth_token_expires_in, refresh_token_expires_in);
+            return FString::Printf(TEXT("user_id=%s\n guest_secret=%s\n auth_token=%s\n apple_id=%s\n steam_id=%s\n google_play_id=%s \n facebook_id=%s \n refresh_token=%s \n auth_token_expires_in=%d \n refresh_token_expires_in=%d"), 
+                                        *user_id, *guest_secret, *auth_token, *apple_id, *steam_id, *google_play_id, *facebook_id, *refresh_token, auth_token_expires_in, refresh_token_expires_in);
         }
 };
 
@@ -56,6 +57,8 @@ public:
     void LinkSteamIdToCurrentUser(const FString& steamAuthToken, std::function<void(UserInfo userInfo)> callback);
     void LoginWithGooglePlayToken(const FString& googlePlayAuthToken, std::function<void(UserInfo userInfo)> callback);
     void LinkGooglePlayIdToCurrentUser(const FString& googlePlayAuthToken, std::function<void(UserInfo userInfo)> callback);
+    void LoginWithFacebookAccessToken(const FString& facebookAccessToken, const FString& facebookUserId, std::function<void(UserInfo userInfo)> callback);
+    void LinkFacebookIdToCurrentUser(const FString& facebookAccessToken, const FString& facebookUserId, std::function<void(UserInfo userInfo)> callback);
     void LoginWithRefreshToken(const FString& refreshToken, std::function<void(UserInfo userInfo)> callback);
     void RefreshAccessToken(std::function<void(UserInfo userInfo)> callback);
 
@@ -78,6 +81,6 @@ private:
     void LoginWithAppleId(const FString& appleAuthToken, const FString& authToken, bool linkToExistingUser, std::function<void(UserInfo userInfo)> callback);
     void LoginWithSteam(const FString& steamAuthToken, const FString& authToken, bool linkToExistingUser, std::function<void(UserInfo userInfo)> callback);
     void LoginWithGooglePlay(const FString& googlePlayAuthToken, const FString& authToken, bool linkToExistingUser, std::function<void(UserInfo userInfo)> callback);
+    void LoginWithFacebook(const FString& facebookAccessToken, const FString& facebookUserId, const FString& authToken, bool linkToExistingUser, std::function<void(UserInfo userInfo)> callback);
     void CallRestApiGetWithAuth(const FString& url, const FString& resource, const FString& authToken, TMap<FString, FString> queryParameters, std::function<void(FString response)> callback);
-    
 };
