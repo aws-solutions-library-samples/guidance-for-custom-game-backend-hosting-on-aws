@@ -28,6 +28,8 @@ public void LoginWithSteamToken(string steamAuthToken, Action<LoginRequestData> 
 public void LinkSteamIdToCurrentUser(string steamAuthToken, Action<LoginRequestData> callback);
 public void LoginWithGooglePlayToken(string googlePlayAuthToken, Action<LoginRequestData> callback);
 public void LinkGooglePlayIdToCurrentUser(string googlePlayAuthToken, Action<LoginRequestData> callback);
+public void LinkFacebookIdToCurrentUser(string facebookAccessToken, string facebookUserId, Action<LoginRequestData> callback)
+public void LoginWithFacebookAccessToken(string facebookAccessToken, string facebookUserId, Action<LoginRequestData> callback)
 public void BackendGetRequest(string url, string resource, Action<UnityWebRequest> callback, Dictionary<string, string> getParameters = null);
 ```
 
@@ -81,6 +83,17 @@ Configure the `GooglePlayLoginTest` component of the `BackendIntegrationTest` Ga
 
 You will need to pass a valid Google Play token to the `AWSGameSDKClient.Instance.LinkGooglePlayIdToCurrentUser("YOUTOKEN", this.OnLinkGooglePlayIdResponse);` found in `UnitySample/Assets/Samples/GooglePlayLogin/GooglePlayLoginTest.cs`.
 
+### Unity: Facebook test level
+
+* Open the level `Samples/FacebookLogin/FacebookLogin.unity`
+
+This is a simple test level that will login a guest user, upgrade the guest user to authenticated by linking a Facebook ID to it, and then finally test logging in directly with Facebook. It doesn't call any custom backend functionalities.
+
+To use this sample, you will need a valid Facebook access token and User ID. This requires you to sign up as a Facebook Developer, create an App and using the [Official Facebook Unity SDK](https://developers.facebook.com/docs/unity/) to integrate with Facebook. After logging in with the SDK, you'll receive an access token and user ID for the user to be sent to the backend.
+
+Configure the `FacebookLoginTest` component of the `BackendIntegrationTest` GameObject to set up the login API endpoint. Set `Login Endpoint Url` value to the `LoginEndpoint` value found in the CustomIdentityComponentStack Outputs.
+
+You will need to pass a valid Facebook access token and userID to the `AWSGameSDKClient.Instance.LinkFacebookIdToCurrentUser("AccessTokenHere","UserIDHere", this.OnLinkFacebookIdResponse);` and `AWSGameSDKClient.Instance.LoginWithFacebookAccessToken("AccessTokenHere", "UserIdHere", this.OnLoginWithFacebookResponse);` found in `UnitySample/Assets/Samples/FacebookLogin/FacebookLoginTest.cs`.
 
 
 

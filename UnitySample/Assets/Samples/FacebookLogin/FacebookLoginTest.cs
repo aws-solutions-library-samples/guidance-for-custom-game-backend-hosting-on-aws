@@ -46,7 +46,7 @@ public class FacebookLoginTest : MonoBehaviour
         this.logOutput.text += "Login response: \nUserID: " + userInfo.user_id + " \nGuestSecret: " + userInfo.guest_secret + " \n";
         
         // Now let's test linking Facebook ID to the guest user
-        // NOTE: You're expected to input a valid Facebook access token and user ID here, see official documentation for Unity Facebook SDL: https://developers.facebook.com/docs/unity/
+        // NOTE: You're expected to input a valid Facebook access token and user ID here, see official documentation for Unity Facebook SDK: https://developers.facebook.com/docs/unity/
         //       You will receive a Facebook Access Token and User ID after calling the Login method.
         AWSGameSDKClient.Instance.LinkFacebookIdToCurrentUser("AccessTokenHere","UserIDHere", this.OnLinkFacebookIdResponse);
     }
