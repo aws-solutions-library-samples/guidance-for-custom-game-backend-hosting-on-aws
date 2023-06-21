@@ -8,6 +8,7 @@ class UserInfo:
 	var apple_id = "";
 	var steam_id = "";
 	var google_play_id = "";
+	var facebook_id = "";
 	var refresh_token = "";
 	var auth_token_expires_in = "";
 	var refresh_token_expires_in = "";
@@ -15,6 +16,7 @@ class UserInfo:
 	func _to_string():
 		print("user_id: " + user_id + "\nguest_secret: " + guest_secret + "\nauth_token: " + auth_token +
 				"\napple_id: " + apple_id + "\nsteam_id: " + steam_id + "\ngoogle_play_id: " + google_play_id
+				+ "\nfacebook_id: " + facebook_id
 				+ "\nrefresh_token: " + refresh_token + "\nauth_token_expires_in: " + str(auth_token_expires_in)
 				+ "\nrefresh_token_expires_in: " + str(refresh_token_expires_in))
 
@@ -267,6 +269,60 @@ func login_with_google_play(google_play_auth_token, auth_token, link_to_existing
 	if error != OK:
 		self.login_error_callback.call("Error making request to login endpoint for login-with-google-play")
 
+# Called to link an existing authenticated user to a Facebook ID
+func link_facebook_id_to_current_user(facebook_access_token, facebook_user_id, login_callback_facebook):
+	
+	# Set the login callback
+	if(login_callback_facebook != null):
+		self.login_callback = login_callback_facebook
+		
+	if(self.user_info == null):
+		self.login_error_callback.call("No user info, can't link existing user to Facebook ID")
+		return
+		
+	self.login_with_facebook(facebook_access_token, facebook_user_id, self.user_info.auth_token, true)
+	
+# Called to create a new user with Facebook ID, or to login with existing user linked to Facebook
+func login_with_facebook_access_token(facebook_access_token, facebook_user_id, login_callback):
+	
+	# Set the login callback
+	if(login_callback != null):
+		self.login_callback = login_callback
+		
+	self.login_with_facebook(facebook_access_token, facebook_user_id, null, false)
+	
+# Logs in with Facebook ID either linking existing user or as a Facebook ID only / new user
+# Called internally by the different Facebook ID login functions
+func login_with_facebook(facebook_access_token, facebook_user_id, auth_token, link_to_existing_user):
+
+	# Create an HTTP request node and connect its completion signal.
+	var http_request = HTTPRequest.new()
+	add_child(http_request)
+	http_request.request_completed.connect(self.sdk_login_callback)
+	
+	# Add the Facebook auth token and user ID to request
+	var params = "?"
+	params += "facebook_access_token" + "=" + facebook_access_token.uri_encode()
+	params += "&facebook_user_id" + "=" + facebook_user_id.uri_encode()
+	
+	# If we're linking to existing user, add the relevant parameters
+	if(auth_token != null and link_to_existing_user == true):
+		
+		print("Linking Facebook ID to existing user")
+		params += "&auth_token" + "=" + auth_token.uri_encode()
+		params += "&link_to_existing_user=Yes"
+	
+	print(login_endpoint+"/login-with-facebook"+params)
+	
+	# Perform a GET request to login as a new guest
+	var error = http_request.request(login_endpoint+"/login-with-facebook"+params)
+	
+	# In case of error, trigger the error callback
+	if error != OK:
+		self.login_error_callback.call("Error making request to login endpoint for login-with-facebook")
+
+
+
 # callback for login or refresh requests
 func sdk_login_callback(result, response_code, headers, body):
 	var json_string = body.get_string_from_utf8() # Retrieve data
@@ -307,6 +363,8 @@ func sdk_login_callback(result, response_code, headers, body):
 			self.user_info.apple_id = data_received["apple_id"]
 		if(data_received.has("google_play_id")):
 			self.user_info.google_play_id = data_received["google_play_id"]
+		if(data_received.has("facebook_id")):
+			self.user_info.facebook_id = data_received["facebook_id"]
 		
 		# Get the current UNIX time, and add the seconds for auth_token expiration
 		self.unix_time_for_auth_token_expiration = Time.get_unix_time_from_system() + self.user_info.auth_token_expires_in
