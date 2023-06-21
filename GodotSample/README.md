@@ -31,6 +31,8 @@ func link_apple_id_to_current_user(apple_auth_token, login_callback_apple)
 func login_with_apple_id_token(apple_auth_token, login_callback)
 func link_google_play_id_to_current_user(google_play_auth_token, login_callback_google)
 func login_with_google_play_token(google_play_auth_token, login_callback)
+func link_facebook_id_to_current_user(facebook_access_token, facebook_user_id, login_callback_facebook)
+func login_with_facebook_access_token(facebook_access_token, facebook_user_id, login_callback)
 func backend_get_request(url, resource, query_parameters, callback)
 ```
 
@@ -58,7 +60,19 @@ To use this sample, you will need a valid Steam ID token. This requires you to s
 
 Configure the `Samples/SteamIdLogin/SteamLogin.gd` script to set up the login API endpoint. Set `const login_endpoint` value to the `LoginEndpoint` value found in the CustomIdentityComponentStack Outputs.
 
-You will need to pass a valid Steam token to the `self.aws_game_sdk.link_steam_id_to_current_user("YourTokenHere", self.on_link_steam_id_response)` and `self.aws_game_sdk.login_with_steam_token("YourTokenHere", self.on_login_with_steam_response)` found in `Samples/SteamIdLogin/SteamLogin.gds`.
+You will need to pass a valid Steam token to the `self.aws_game_sdk.link_steam_id_to_current_user("YourTokenHere", self.on_link_steam_id_response)` and `self.aws_game_sdk.login_with_steam_token("YourTokenHere", self.on_login_with_steam_response)` found in `Samples/SteamIdLogin/SteamLogin.gd`.
+
+### Godot: Facebook test level
+
+* Open the level `Samples/SteamIdLogin/FacebookLogin.gd`
+
+This is a simple test level that will login a guest user, upgrade the guest user to authenticated by linking a Facebook ID to it, and then finally test logging in directly with Facebook. It doesn't call any custom backend functionalities.
+
+To use this sample, you will need a valid Facebook access token and Facebook User ID. This requires you to sign up as a Facebook Developer, create an App and using one of the community integrations with Facebook to login (such as [this](https://github.com/DrMoriarty/godot-facebook)). After calling _Login_ with Facebook you'll receive and access token and user ID which need to be passed to the SDK integrations.
+
+Configure the `Samples/FacebookLogin/FacebookLogin.gd` script to set up the login API endpoint. Set `const login_endpoint` value to the `LoginEndpoint` value found in the CustomIdentityComponentStack Outputs.
+
+You will need to pass a valid Facebook access token and User ID to the `self.aws_game_sdk.link_facebook_id_to_current_user("AcceessTokenHere", "UserIdHere", self.on_link_facebook_id_response)` and `self.aws_game_sdk.login_with_facebook_access_token("AccessTokenHere", "UserIdHere", self.on_login_with_facebook_response)` found in `Samples/FacebookLign/FacebookLogin.gd`.
 
 ### Godot: Google Play and Sign in with Apple testing
 
