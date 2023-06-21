@@ -13,6 +13,7 @@ public class LoginRequestData
     public string apple_id;
     public string steam_id;
     public string google_play_id;
+    public string facebook_id;
     public string refresh_token;
     public int auth_token_expires_in;
     public int refresh_token_expires_in;

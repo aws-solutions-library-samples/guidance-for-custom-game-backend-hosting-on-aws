@@ -254,6 +254,24 @@ public class AWSGameSDKClient : MonoBehaviour
         this.LoginWithGooglePlay(googlePlayAuthToken, this.userInfo.auth_token, true, callback);
     }
 
+    // Logs in with a Facebook access token and return user info for an existing account or a new account created for this Facebok ID
+    public void LoginWithFacebookAccessToken(string facebookAccessToken, string facebookUserId, Action<LoginRequestData> callback)
+    {
+        Debug.Log("Logging in with Facebook access token");
+        this.LoginWithFacebook(facebookAccessToken, facebookUserId, null, false, callback);
+    }
+
+    public void LinkFacebookIdToCurrentUser(string facebookAccessToken, string facebookUserId, Action<LoginRequestData> callback)
+    {
+        if(this.userInfo == null)
+        {
+            Debug.LogError("UserInfo not defined, cannot link Facebook ID without existing user");
+            return;
+        }
+        Debug.Log("Logging in with Facebook access token");
+        this.LoginWithFacebook(facebookAccessToken, facebookUserId, this.userInfo.auth_token, true, callback);
+    }
+
     // Privately called by the public Apple ID login methods
     private void LoginWithAppleId(string appleAuthToken, string authToken, bool linkToExistingUser, Action<LoginRequestData> callback)
     {
@@ -272,7 +290,6 @@ public class AWSGameSDKClient : MonoBehaviour
         if(appleAuthToken != null && authToken != null && linkToExistingUser)
         {
             Debug.Log("Linking Apple ID to existing user");
-            // Call CreateNewGuestUser with a callback method
             StartCoroutine(this.CallRestApiGetForLogin(this.loginEndpoint, "login-with-apple-id", this.SdkLoginCallback, 
                             new Dictionary<string, string>() { { "auth_token", authToken }, { "apple_auth_token", appleAuthToken }, { "link_to_existing_user", "Yes"} }));
         }
@@ -280,7 +297,6 @@ public class AWSGameSDKClient : MonoBehaviour
         else if(appleAuthToken != null)
         {
             Debug.Log("Logging in with Apple ID auth token");
-            // Call CreateNewGuestUser with a callback method
             StartCoroutine(this.CallRestApiGetForLogin(this.loginEndpoint, "login-with-apple-id", this.SdkLoginCallback, 
                             new Dictionary<string, string>() { { "apple_auth_token", appleAuthToken } }));
         }
@@ -308,7 +324,6 @@ public class AWSGameSDKClient : MonoBehaviour
         if(steamAuthToken != null && authToken != null && linkToExistingUser)
         {
             Debug.Log("Linking Steam ID to existing user");
-            // Call CreateNewGuestUser with a callback method
             StartCoroutine(this.CallRestApiGetForLogin(this.loginEndpoint, "login-with-steam", this.SdkLoginCallback, 
                             new Dictionary<string, string>() { { "auth_token", authToken }, { "steam_auth_token", steamAuthToken }, { "link_to_existing_user", "Yes"} }));
         }
@@ -316,7 +331,6 @@ public class AWSGameSDKClient : MonoBehaviour
         else if(steamAuthToken != null)
         {
             Debug.Log("Logging in with Steam auth token");
-            // Call CreateNewGuestUser with a callback method
             StartCoroutine(this.CallRestApiGetForLogin(this.loginEndpoint, "login-with-steam", this.SdkLoginCallback, 
                             new Dictionary<string, string>() { { "steam_auth_token", steamAuthToken } }));
         }
@@ -344,7 +358,6 @@ public class AWSGameSDKClient : MonoBehaviour
         if(googlePlayAuthToken != null && authToken != null && linkToExistingUser)
         {
             Debug.Log("Linking Google Play to existing user");
-            // Call CreateNewGuestUser with a callback method
             StartCoroutine(this.CallRestApiGetForLogin(this.loginEndpoint, "login-with-google-play", this.SdkLoginCallback, 
                             new Dictionary<string, string>() { { "auth_token", authToken }, { "google_play_auth_token", googlePlayAuthToken }, { "link_to_existing_user", "Yes"} }));
         }
@@ -352,13 +365,45 @@ public class AWSGameSDKClient : MonoBehaviour
         else if(googlePlayAuthToken != null)
         {
             Debug.Log("Logging in with Google Play auth token");
-            // Call CreateNewGuestUser with a callback method
             StartCoroutine(this.CallRestApiGetForLogin(this.loginEndpoint, "login-with-google-play", this.SdkLoginCallback, 
                             new Dictionary<string, string>() { { "google_play_auth_token", googlePlayAuthToken } }));
         }
         else
         {
             Debug.LogError("Missing tokens for requesting user with Google Play token");
+        }
+    }
+
+    void LoginWithFacebook(string facebookAccessToken, string facebookUserId, string authToken, bool linkToExistingUser, Action<LoginRequestData> callback)
+    {
+        Debug.Log("Logging in with Facebook auth token");
+
+        if(this.loginEndpoint == null)
+        {
+            Debug.LogError("Login endpoint not defined");
+            return;
+        }
+
+        // Set the login callback so that we can return the info back to the game code
+        this.LoginCallback = callback;
+
+        // If we have an existing user and are requesting linking, send a linking request
+        if(facebookAccessToken != null && facebookUserId != null && authToken != null && linkToExistingUser)
+        {
+            Debug.Log("Linking Facebook to existing user");
+            StartCoroutine(this.CallRestApiGetForLogin(this.loginEndpoint, "login-with-facebook", this.SdkLoginCallback, 
+                            new Dictionary<string, string>() { { "auth_token", authToken }, { "facebook_access_token", facebookAccessToken }, { "facebook_user_id", facebookUserId }, { "link_to_existing_user", "Yes"} }));
+        }
+        // Else we're logging in as a new user or getting our existing Apple ID linked user
+        else if(facebookAccessToken != null && facebookUserId != null)
+        {
+            Debug.Log("Logging in with Facebook access token");
+            StartCoroutine(this.CallRestApiGetForLogin(this.loginEndpoint, "login-with-facebook", this.SdkLoginCallback, 
+                            new Dictionary<string, string>() { { "facebook_access_token", facebookAccessToken }, { "facebook_user_id", facebookUserId} }));
+        }
+        else
+        {
+            Debug.LogError("Missing tokens for requesting user with Facebook token");
         }
     }
 
