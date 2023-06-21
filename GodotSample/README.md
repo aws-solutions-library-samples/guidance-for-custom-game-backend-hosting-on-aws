@@ -64,7 +64,7 @@ You will need to pass a valid Steam token to the `self.aws_game_sdk.link_steam_i
 
 ### Godot: Facebook test level
 
-* Open the level `Samples/SteamIdLogin/FacebookLogin.gd`
+* Open the level `Samples/FacebookLogin/FacebookLogin.gd`
 
 This is a simple test level that will login a guest user, upgrade the guest user to authenticated by linking a Facebook ID to it, and then finally test logging in directly with Facebook. It doesn't call any custom backend functionalities.
 
@@ -78,7 +78,7 @@ You will need to pass a valid Facebook access token and User ID to the `self.aws
 
 The sample project does not come with Google Play or Sign in with Apple sample scenes and scripts. Currently, Godot 4 integrations with Apple ID or Google Play are not easily available. If you build such integration yourself, you can use the APIs provided in the SDK to log in with Google Play and Apple ID, as these functionalities are fully supported by the SDK.
 
-The following SDK functions can be used for this in a very similar fashion as with the Steam integration:
+The following SDK functions can be used for this in a very similar fashion as with the Steam and Facebook integrations:
 
 ```text
 func link_apple_id_to_current_user(apple_auth_token, login_callback_apple)
