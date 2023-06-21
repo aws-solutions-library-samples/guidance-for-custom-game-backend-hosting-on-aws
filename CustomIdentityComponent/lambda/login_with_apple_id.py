@@ -17,24 +17,16 @@ logger = Logger()
 
 apple_public_key_url = "https://appleid.apple.com/auth/keys"
 apple_public_keys = None
-last_apple_public_key_refresh = 0
 
-# Method for requesting the latest Apple public keys (cached for 15 minutes)
+# Method for requesting the latest Apple public keys
 @tracer.capture_method
-def get_apple_public_keys():
+def refresh_apple_public_keys():
     global apple_public_keys
-    global last_apple_public_key_refresh
-    # time since last apple public key refresh
-    now = int(time.time())
-    time_since_last_refresh = now - last_apple_public_key_refresh
 
-    # If we don't have a public key or it's 15 minutes from last refresh fetch it
-    if apple_public_keys is None or time_since_last_refresh > 900:
-        logger.info("Refreshing Apple public key set")
-        key_payload = requests.get(apple_public_key_url).json()
-        #logger.info("Received key set: ", key=key_payload)
-        apple_public_keys = key_payload["keys"]
-        last_apple_public_key_refresh = int(time.time())
+    logger.info("Refreshing Apple public key set")
+    key_payload = requests.get(apple_public_key_url).json()
+    #logger.info("Received key set: ", key=key_payload)
+    apple_public_keys = key_payload["keys"]
 
     return apple_public_keys
 
@@ -94,10 +86,26 @@ def generate_success(user_id, apple_id, jwt_token, refresh_token, auth_token_exp
     }
 
 @tracer.capture_method
-def find_key_with_kid(key_set, kid):
-    for key in key_set:
+def find_key_with_kid(kid):
+
+    # If no keys, get them first
+    if not apple_public_keys:
+        logger.info("No public keys found, getting them from Apple.")
+        refresh_apple_public_keys()
+
+    # First try to find the key from the list
+    for key in apple_public_keys:
         if key["kid"] == kid:
             return jwt.algorithms.RSAAlgorithm.from_jwk(key)
+    
+    # If not found, try to refresh the keys and try again
+    logger.info("Refreshing Apple access keys as given kid not found.")
+    refresh_apple_public_keys()
+    for key in apple_public_keys:
+        if key["kid"] == kid:
+            return jwt.algorithms.RSAAlgorithm.from_jwk(key)
+    
+    # Still couldn't find, return none
     return None
 
 # Tries to get an existing user from User Table. Reports error if request fails
@@ -161,9 +169,6 @@ def link_apple_id_to_existing_user(user_id, apple_id):
 @tracer.capture_lambda_handler
 def lambda_handler(event, context):
 
-    # Get Apple public key
-    apple_key_set = get_apple_public_keys()
-
     # Get the audience (our app identifier)
     my_audience = os.getenv("APPLE_APP_ID")
     logger.info("Audience: ", audience=my_audience)
@@ -182,7 +187,7 @@ def lambda_handler(event, context):
             try:
                 # Get kid from header and find the right key from key set
                 kid = jwt.get_unverified_header(apple_auth_token)['kid']
-                public_key = find_key_with_kid(apple_key_set, kid)
+                public_key = find_key_with_kid(kid)
                 # Decode the token
                 decoded_apple_auth_token = jwt.decode(apple_auth_token, public_key, audience=my_audience, algorithms=["RS256"])
             except Exception as e:
