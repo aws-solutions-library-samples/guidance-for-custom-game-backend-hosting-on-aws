@@ -35,18 +35,21 @@ The currently supported login options for the identity component include __guest
 
 * **Custom Identity Component** (`CustomIdentityComponent` folder contains [Readme](CustomIdentityComponent/README.md)):
   * Deployed before any other components
-  * Managed the player identities and authentication tokens
+  * Implemented with AWS Cloud Development Kit (CDK)
+  * Manages the player identities and authentication tokens
   * Supports refreshing authentications tokens
   * Supports integrating with 3rd party identity providers such as Steam, Sign in with Apple, Google Play, and Facebook
   * See the [API Reference](CustomIdentityComponent/README.md#api-reference) for full API details.
 * **Backend Component Templates** (`BackendComponentSamples` folder contains [Readme](BackendComponentSamples/README.md))
   * Template backend components that integrate with the custom identity component and the Unreal, Unity and Godot SDK:s
+  * Implemented with AWS Cloud Development Kit (CDK)
   * Demonstrate how to get started with serverless and containerized backend development, with authenticated user access
+  * Implement best practices such as resource tagging, observability (with distributed tracing), and security guidelines (cdk-nag)
 * **Unreal Engine 5 Samples with AWS Game SDK** (`UnrealSample` folder contains [Readme](UnrealSample/README.md))
-  * Unreal 5 version of the AWS Game SDK and sample scenes for integration with different identity providers
+  * Unreal Engine 5 version of the AWS Game SDK and sample levels for integration with different identity providers
   * For SDK details see the [Unreal SDK Overview](UnrealSample/README.md#sdk-overview)
 * **Unity Samples with AWS Game SDK** (`UnitySample` folder contains [Readme](UnitySample/README.md))
-  * Unity version of the AWS Game SDK and sample scenes for integration with different identity providers
+  * Unity 2021 (and up) version of the AWS Game SDK and sample scenes for integration with different identity providers
   * For SDK details see the [Unity SDK Overview](UnitySample/README.md#sdk-overview)
 * **Godot 4 Samples with AWS Game SDK** (`GodotSample` folder contains [Readme](GodotSample/README.md))
   * Godot 4 version of the AWS Game SDK and sample scenes for integration with different identity providers
@@ -58,19 +61,19 @@ The currently supported login options for the identity component include __guest
 
 ## How does it work?
 
-Once you have the identity component deployed, you can create a new guest user account with (Unity):
+Once you have the identity component deployed, you can create a new guest user account with (Unity code as a sample):
 
 ```csharp
 AWSGameSDKClient.Instance.LoginAsNewGuestUser(this.OnLoginResponse);
 ```
 
-After this you can deploy some of the sample backend templates and call them securely with (Unity):
+After this you can deploy some of the sample backend templates and call them securely with (Unity code as a sample):
 
 ```csharp
 AWSGameSDKClient.Instance.BackendGetRequest(this.backendEndpointUrl, "get-player-data", this.OnGetPlayerDataResponse);
 ```
 
-Then in be backend code you'll have an authenticated user ID that you can use to access their data. The solution comes with two sample backend components, a serverless API Gateway HTTP API (Python) and a AWS Fargate service (Node.js) to demonstrate the player access authorization and simple backend functionality to store and retrieve player data.
+Then in the backend code you'll have an authenticated user ID that you can use to access their data. The solution comes with two sample backend components, a serverless API Gateway HTTP API (Python) and a AWS Fargate service (Node.js) to demonstrate the player access authorization and simple backend functionality to store and retrieve player data.
 
 # Deploying the solution
 
@@ -90,7 +93,7 @@ See the [Readme for Sample Backend Components](BackendComponentSamples/README.md
 
 ## 3. Test the client integrations
 
-To test the client integrations, you can use the Unreal, Unity, or GOdot sample projects (`UnrealSample`, `UnitySample` and `GodotSample`), that include a lightweight SDK called `AWSGameSDK` to interact with the identity component and your backend features.
+To test the client integrations, you can use the Unreal, Unity, or Godot sample projects (`UnrealSample`, `UnitySample` and `GodotSample`), that include a lightweight SDK called `AWSGameSDK` to interact with the identity component and your backend features.
 
 ### Unreal Engine 5 SDK and Integration Samples
 
@@ -127,9 +130,10 @@ As the backend component costs depend extensively on customer specific implement
 
 The Custom Identity Component costs can be estimated more easily, and the following breakdown aims to be a pessimistic estimate for 10 000 concurrent users, which can often be mapped roughly to 100k daily users and 1M monthly users.
 
-**NOTE**: These are rough estimates only, and even though they are calculated with a very pessimistic approach, there can always be some costs that are not fully covered here. You always need to do your own testing and estimates based on that.
+**NOTE**: These are rough estimates only, and even though they are calculated with a very pessimistic approach, there can always be some costs that are not fully covered here. You always need to do your own testing and estimates.
 
 **Concurrent users**: _10 000_ (roughly 100k daily and 1M monthly users)
+
 **Region**: _Us-East-1_
  
 * **API Gateway requests** 667 per minute (clients need to log in or refresh access tokens every 15 minutes)
@@ -149,13 +153,11 @@ The Custom Identity Component costs can be estimated more easily, and the follow
 
 ## Scalability considerations
 
-As all components of the identity solution are serverless, and Amazon DynamoDB is configured in on-demand mode allowing scaling based on demand, the solution scales automatically within your accounts soft limits. Though these default limits are sufficient for even relatively large amounts of requests (up to 5000 requests per second), you should always check all the service quotas for the individual services and API:s from AWS documentation, and make sure you are ready to scale for production.
+As all components of the identity solution are serverless, and Amazon DynamoDB is configured in on-demand mode allowing scaling based on demand, the solution scales automatically within your accounts soft limits. Though these default limits are sufficient for even relatively large amounts of requests, you should always check all the service quotas for the individual services and API:s from AWS documentation, and make sure you are ready to scale for production by requesting limit increases through AWS Support.
 
-The custom identity component has been tested with 226 requests/second to create new guest users, which is a bit more complex request than refreshing tokens, and less complex than logging in with identity providers.
+The custom identity component has been tested with 226 requests/second to create new guest users, which is a bit more complex request than refreshing tokens, and less complex than logging in with identity providers. This test didn't surface any errors, and would be sufficient to supports 813k new users per hour, and 19.5M new users per day. It would also support at least 203k CCU when mapped to logins and token refresh requests. There's no reason to expect this is even close to the upper limits of the solution, but you always need to validate and load test for your own use case.
 
-This test didn't surface any errors, and would be sufficient to supports 813k new users per hour, and 19.5M new users per day. It would also support at least 203k CCU when mapped to logins and token refresh requests. There's no reason to expect this is even close to the upper limits of the solution, but you always need to validate and load test for your own use case.
-
-For logging in with 3rd party identity providers like Steam, Apple, Google Play or Facebook, the backend will make requests to their endpoints to validate tokens. These endpoints might have their own limits that you need to validate with the 3rd parties directly. As the solution supports up to 7 days of refreshing an existing access token (using the refresh token), this can massively reduce the amount of times you need to log in directly with the game platform identities and reduces the load from these endpoints.
+For logging in with 3rd party identity providers like Steam, Apple, Google Play or Facebook, the backend will make requests to their endpoints to validate tokens. These endpoints might have their own limits that you need to validate with the 3rd parties directly. As the solution supports up to 7 days of refreshing an existing access token by default (using the refresh token), this can massively reduce the amount of times you need to log in directly with the game platform identities and reduces the load from these endpoints. You can freely control this limit and allow even longer living refresh tokens, as long as you also extend the keys rotation schedule.
 
 ## Security
 
