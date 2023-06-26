@@ -12,7 +12,8 @@ import os
 access_token_expiration = 900
 
 # Refresh token expiration in days
-refresh_token_expiration_days = 7
+# (NOTE: make sure if you increase this that you also increase the rotation of the keys in the CDK app to avoid having a refresh token without a matching public key)
+refresh_token_expiration_days = 6
 
 # Private key refresh rate (should be relatively often to pick up new keys after rotation)
 private_key_refresh_rate = 900
