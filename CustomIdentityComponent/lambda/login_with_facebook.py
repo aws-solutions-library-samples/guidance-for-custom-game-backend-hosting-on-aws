@@ -187,7 +187,6 @@ def lambda_handler(event, context):
                 success = False # Indicates the whole process success (existing user or new)
 
                 # OPTION 1: Try to get an existing user. This overrides any requests to link accounts
-                # TODO: CHECK THIS
                 existing_user_request_success, user_id = get_existing_user(validated_facebook_user_id)
                 # If there was a problem getting existing user, abort as we don't want to create duplicate
                 if existing_user_request_success is False:

@@ -49,7 +49,7 @@ public class GooglePlayLoginTest : MonoBehaviour
         // NOTE: You're expected to input a valid Google Play single use token here, see the documentation for Unity Google Play integration here: https://docs.unity.com/authentication/en-us/manual/platform-signin-google-play-games
         //       Server will generate an auth ticket with the authorization code received with RequestServerSideAccess
         //       The code will look something like "4/0AbCD..."
-        AWSGameSDKClient.Instance.LinkGooglePlayIdToCurrentUser("4/0AbUR2VMWXdnmnsht5bEPiHqPL0RgQ-OrbK58ijV33Aazt9caLoqMzlvNbCdNljW2PdqjJA", this.OnLinkGooglePlayIdResponse);
+        AWSGameSDKClient.Instance.LinkGooglePlayIdToCurrentUser("YourTokenHere", this.OnLinkGooglePlayIdResponse);
 
         // You would use AWSGameSDKClient.Instance.LoginWithGooglePlayToken to login with an existing Google Play linked identity or to create a new one
     }

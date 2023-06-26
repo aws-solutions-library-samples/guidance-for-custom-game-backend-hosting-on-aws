@@ -8,6 +8,8 @@ from jwcrypto import jwk
 import boto3
 import os
 
+# This lambda function is used to rotate the public and private key whenever it is called
+# Make sure to only call this on an automated interval (e.g. once a week/month)
 def lambda_handler(event, context):
 
     # Generate a new RS256 key pair and random UUID for key ID
