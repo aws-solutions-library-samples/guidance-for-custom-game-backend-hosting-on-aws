@@ -2,7 +2,7 @@
 
 The AWS Game Backend Framework Unreal SDK provides integrations to the custom identity component, managed refreshing of access tokens, helper methods for calling custom backend features, and samples for integrating with different game platforms.
 
-**NOTE:** The Unreal sample is built with Unreal 5.1.1, but as it leverages very basic Unreal features, you should be able to build it on any version of Unreal Engine 5.
+**NOTE:** The Unreal sample is built with Unreal 5.1.1, but as it leverages very basic Unreal features, you should be able to build it on any version of Unreal Engine 5. The solution will require Visual Studio 2022 (Windows) or XCode (MacOS) installed as well as the .NET 6 capability. You can upgrade the project to UE 5.2, which has been tested to work well.
 
 # SDK Overview
 
