@@ -2,7 +2,7 @@
 
 - [AWS Game Backend Framework Custom Identity Component](#aws-game-backend-framework-custom-identity-component)
   * [Deploy the Custom Identity Component](#deploy-the-custom-identity-component)
-  * [Issuer details](#issuer-details)
+  * [Implementation details](#implementation-details)
   * [API Reference](#api-reference)
     + [GET /login-as-guest](#get-login-as-guest)
     + [GET /refresh-access-token](#get-refresh-access-token)
@@ -62,21 +62,31 @@ To deploy the identity component, run the following commands (Note: on **Windows
 
 After this you should see a CloudFormation stack installed in your AWS account, with an API Gateway REST API for login functionalities, and a Amazon CloudFront endpoint backed with AWS S3 for the public encryption key and authentication configuration. There's also a main UserTable in Amazon DynamoDB to store user info, and identity provide specific tables created for linking the accounts.
 
-## Issuer details
+## Implementation details
 
-By default, the keys (JWKS) is rotated every 7 days, with both the most recent and the previous key available in the public endpoint for validating JWT:s. 
+The identity component is implemented as an AWS Cloud Development Kit (AWS CDK) application. You can find the app configuration in `CustomIdentityComponent/bin/custom_identity_component.ts`. This is also where you configure the different identity providers. You can find the actual stack resources definitions in `CustomIdentityComponent/lib/custom_identity_component-stack.ts`. This is where all the resources of the stack are configured, with the identity provider specific APIs deployed if their configuration is available. Any customization you want to do to the solution would be mainly done here.
 
-When logging in as a **Guest** user, the scope of the JWT is *"guest"*. When logging in (or linking) any of the **identity providers**, the scope of the JWT is *"authenticated"*. For both cases, the JWT*audience is *"gamebackend"*. The sample integrations use this information to make sure access is only allowed with the right audience and scopes.
+For the AWS Lambda function code for the APIs, see `CustomIdentityComponent/lambda`. You'll find a matching Python script for each of the API requests here. You can modify them for things like retrieving additional user information when validating a game platform token. You can also use these platform specific integrations as templates to add more platforms such as consoles and other PC stores.
+
+### Issuer details
+
+By default, the keys (JWKS) is rotated every 7 days, with both the most recent and the previous key available in the public endpoint for validating JWT:s.
+
+When logging in as a **Guest** user, the scope of the JWT is *"guest"*. When logging in (or linking) any of the **identity providers**, the scope of the JWT is *"authenticated"*. For both cases, the JWT *audience* is *"gamebackend"*. The sample integrations use this information to make sure access is only allowed with the right audience and scopes.
 
 The client will also receive a refresh token with the scope *"refresh"* and audience *"refresh"*. This should be only used with the refresh-access-token API. By default the refresh token is valid for 7 days, and the access token for 15 minutes. The SDK:s provided for Unity and Unreal will automatically refresh the access token, but you are responsible for making sure you don't use a single refresh token beyond the amount if time it is valid.
 
 The issuer is available through an Amazon CloudFront endpoint, and will include a */.well-known/jwks.json* file as well as an */.well-known/openid-configuration* that are stored in Amazon S3. Your backend systems should use these to get the public keys for validating JWT:s. The sample backend components include sample implementation for this, and for example API Gateway HTTP API:s natively support this issuer endpoint for validating JWT:s.
 
-**AWS Web Application Firewall protection**
+**Modifying the rotation**
+
+You can modify the keys rotation by modifying `const eventRule = new events.Rule(this, 'scheduleRule', { schedule: events.Schedule.rate(Duration.days(7))});` in the `CustomIdentityComponent/lib/custom_identity_component-stack.ts`. It's not adviced to use a shorter rotation (most identity providers will use a much longer actually). But if you do decide to do that, make sure to modify `refresh_token_expiration_days = 7` in `CustomIdentityComponent/lambda/encryption_and_decryption.py` to avoid having a refresh token signed with a key that becomes unavailable due to the rotation. By default we provide two of the latest public keys, so matching the length of these two values is sufficient to avoid this.
+
+### AWS Web Application Firewall protection
 
 The API is protected by the default managed rule set provided by AWS for blocking common attacks. In addition, a rate limit rule is applied to allow a maximum of 1000 requests per 5 minutes from a single IP (3.33 transactions per second).
 
-**Logs and Distributed Tracing**
+### Logs and Distributed Tracing
 
 The identity component leverages **Powertools for AWS Lambda (Python)** to generate log output to Amazon CloudWatch Logs. In addition, the tools are used to push tracing information to **AWS X-Ray**. You can find both the logs and the tracing map and individual trace information the **AWS CloudWatch** console. 
 
