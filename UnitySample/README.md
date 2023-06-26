@@ -35,7 +35,7 @@ public void BackendGetRequest(string url, string resource, Action<UnityWebReques
 
 ## Unity Integration Samples
 
-To test the integrations with Unity, open the Unity sample project (`UnitySample`) with Unity 2021.
+To test the integrations with Unity, open the Unity sample project (`UnitySample`) with Unity 2021 (or above).
 
 ### Unity: Guest Identity and Rest API test level
 
