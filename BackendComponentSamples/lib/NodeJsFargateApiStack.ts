@@ -63,7 +63,11 @@ export class NodeJsFargateApiStack extends Stack {
     });
 
     // create task definition for our Fargate service
-    const taskDefinition = new ecs.FargateTaskDefinition(this, 'TaskDef');
+    const taskDefinition = new ecs.FargateTaskDefinition(this, 'TaskDef', {
+      memoryLimitMiB: 2048,
+      cpu: 1024
+    });
+    // Set cpu and memory for Task definition
     taskDefinition.addContainer('backendservice', {
       image: ecs.ContainerImage.fromDockerImageAsset(containerAsset),
       // Add environment variable with issuer endpoint
