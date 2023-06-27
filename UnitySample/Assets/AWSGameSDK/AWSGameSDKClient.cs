@@ -77,6 +77,17 @@ public class AWSGameSDKClient : MonoBehaviour
         try {
             var loginResponse = JsonUtility.FromJson<LoginRequestData>(request.downloadHandler.text);
 
+            // Sanity check we have a valid response
+            if(loginResponse.user_id == "" || loginResponse.user_id == null
+                || loginResponse.auth_token == "" || loginResponse.auth_token == null
+                || loginResponse.refresh_token == "" || loginResponse.refresh_token == null
+                || loginResponse.auth_token_expires_in == 0 || loginResponse.refresh_token_expires_in == 0)
+            {
+                Debug.LogError("Error parsing login response, user credentials not set");
+                this.LoginErrorCallback("Error parsing login response, user credentials not set");
+                return;
+            }
+
             // If this a refresh, we'll only set the access token and refresh token
             if(isRefresh)
             {
