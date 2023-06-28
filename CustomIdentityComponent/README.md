@@ -17,8 +17,6 @@ The solution also allows guest login, and supports linking new identity provider
 
 ## Deploy the Custom Identity Component
 
-The first thing you need to do is deploy the custom identity component, that will create, rotate and manage Json Web Key Set (JWKS) keys, and provide publicly accessible endpoints to login as guest user, link existing users to new identity providers, and directly login with an identity provider ID such as Steam or Apple ID.
-
 To deploy the custom identity component you'll need the following tools:
 * [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) installed and [credentials configured](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-files.html)
 * [Node.js](https://nodejs.org/en/download) installed (required for AWS Cloud Development Kit)
