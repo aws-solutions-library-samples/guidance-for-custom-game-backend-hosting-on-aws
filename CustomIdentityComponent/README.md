@@ -11,7 +11,7 @@
     + [GET /login-with-google-play](#get-login-with-google-play)
     + [GET /login-with-facebook](#get-login-with-facebook)
 
-The custom identity component implements is a serverless solution that manages a JSON Web Key Set (JWKS) with rotation and publicly available configuration and public keys. It also supports integration with Steam, Sign in with Apple, Google Play, and Facebook, and can be extended with custom code to more providers such as console platforms.
+The custom identity component is a serverless solution that manages a JSON Web Key Set (JWKS) with key rotation and publicly available configuration and public keys through an Amazon CloudFront endpoint. It supports integration with Steam, Sign in with Apple, Google Play, and Facebook, and can be extended with custom code to more providers such as console platforms.
 
 The solution also allows guest login, and supports linking new identity providers to existing identities, for example upgrading from a guest identity to an authenticated identity with Steam, Apple or Google Play, or using Facebook identities as a link between platforms.
 
