@@ -42,7 +42,7 @@ To test the integrations with Godot 4, open the Godot 4 sample project (`GodotSa
 
 ### Godot: Guest Identity and Rest API test level
 
-* Open the level `Samples/GuestIdentityAndRestApiBackend/GuestIdentityAndRestApiBackend.gd`
+* Open the level `Samples/GuestIdentityAndRestApiBackend/GuestIdentityAndRestApiBackend.tscn`
 
 This is a simple test level that will login as a new guest user if a save file is not present, or login using the user_id and guest_secret found in the save file if available to login as an existing user. It will then use the logged in user to set player name and get player name in sequence to test the HTTP API integration
 
@@ -52,7 +52,7 @@ Press play to test the integration. You'll see the login and backend call activi
 
 ### Godot: Steam test level
 
-* Open the level `Samples/SteamIdLogin/SteamIdLogin.gd`
+* Open the level `Samples/SteamIdLogin/SteamIdLogin.tscn`
 
 This is a simple test level that will login a guest user, upgrade the guest user to authenticated by linking a Steam ID to it, and then finally test logging in directly with Steam. It doesn't call any custom backend functionalities.
 
@@ -64,7 +64,7 @@ You will need to pass a valid Steam token to the `self.aws_game_sdk.link_steam_i
 
 ### Godot: Facebook test level
 
-* Open the level `Samples/FacebookLogin/FacebookLogin.gd`
+* Open the level `Samples/FacebookLogin/FacebookLogin.tscn`
 
 This is a simple test level that will login a guest user, upgrade the guest user to authenticated by linking a Facebook ID to it, and then finally test logging in directly with Facebook. It doesn't call any custom backend functionalities.
 
