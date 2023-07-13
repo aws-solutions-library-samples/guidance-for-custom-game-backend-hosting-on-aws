@@ -39,7 +39,7 @@ To add the SDK to an existing project:
 
 1. Drag and drop the folder `AWSGameSDK` found under _Assets_ to your Unity project
 2. Add the script `AWSGameSDKClient.cs` to a GameObject in the first scene you need to access it. It will be persisted across scenes (and only one copy always existing even if you have it in multiple scenes)
-2. Integrate with the SDK from your custom code (see Unity Integration Samples for example integrations)
+3. Integrate with the SDK from your custom code (see Unity Integration Samples for example integrations)
 
 # Unity Integration Samples
 
