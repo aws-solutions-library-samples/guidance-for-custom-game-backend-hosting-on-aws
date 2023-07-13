@@ -42,7 +42,7 @@ To add the SDK to an existing project:
 
 1. Drag and drop the folder `AWSGameSDK` to your Godot 4 project
 2. Open _Project Settings -> Autoload_, select the script `AWSGameSDK.gd` with the directory search and select _Open_. Make sure the name is _AwsGameSdk_ and select _Add_.
-3. Integrate with the SDK from your custom code (see Unity Integration Samples for example integrations)
+3. Integrate with the SDK from your custom code (see Godot 4 Integration Samples for example integrations)
 
 # Godot 4 Integration Samples
 

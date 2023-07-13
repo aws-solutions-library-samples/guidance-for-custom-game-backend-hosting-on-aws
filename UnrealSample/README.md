@@ -39,12 +39,20 @@ void LinkFacebookIdToCurrentUser(const FString& facebookAccessToken, const FStri
 void LoginWithRefreshToken(const FString& refreshToken, std::function<void(UserInfo userInfo)> callback);
 void RefreshAccessToken(std::function<void(UserInfo userInfo)> callback);
 ```
+## Adding the SDK to an existing project
+
+To add the SDK to an existing project:
+
+1. Copy the folder `AWSGameSDK` to your Unreal C++ Project in `Source\<YOUR_PROJECT>\`
+2. Modify the file `AWSGameSDK.h` by replacing the class definition with reference you your project name: `class UNREALSAMPLE_API UAWSGameSDK` replaced with `class <YOUR_PROJECT>_API UAWSGameSDK`
+3. Add the code line `PrivateDependencyModuleNames.AddRange(new string[] {  "Http", "Json", "JsonUtilities" });` to `<YOUR_PROJECT>.Build.cs` file found under `Source\<YOUR_PROJECT>\`.
+3. Integrate with the SDK from your custom code (see Unreal Integration Samples for example integrations)
 
 # Unreal Integration Samples
 
 To test the integrations with Unreal, open the Unreal sample project (`UnrealSample`) in Unreal Engine 5 first.
 
-### Unreal: Guest Identity and Rest API test level
+## Guest Identity and Rest API test level
 
 * Open the level `Samples/GuestIdentityAndRestApiTest/GuestIdentityAndRestApiTest`
 
@@ -54,7 +62,7 @@ Configure the `BackendIntegrationTest` component of the `BackendIntegrationTest`
 
 Press play to test the integration. You'll see the login and backend call activity in the Output Log as well as key items on on screen log as well.
 
-### Unreal: Sign in with Apple test level
+## Sign in with Apple test level
 
 * Open the level `Samples/AppleIdLoginTest/TestLevel`
 
@@ -66,7 +74,7 @@ Configure the `AppleIdLoginTest` component of the `BackendIntegrationTest` Actor
 
 You will need to pass a valid Apple ID JWT token to the `AWSGameSDK->LinkAppleIdToCurrentUser("eyYourToken", onLinkAppleIdCallback);` and `AWSGameSDK->LoginWithAppleIdToken("eyYourToken", onAppleIdLoginCallback);` found in `UnrealSample/Source/UnrealSample/Samples/AppleIdLoginTest/AppleIdLoginTest.cpp`.
 
-### Unreal: Steam test level
+## Steam test level
 
 * Open the level `Samples/SteamLoginTest/SteamLoginTest`
 
@@ -78,7 +86,7 @@ Configure the `SteamLoginTest` component of the `SteamLoginTest` Actor to set up
 
 You will need to pass a valid Steam token to the `AWSGameSDK->LinkSteamIdToCurrentUser("eyYourToken", onLinkSteamIdCallback);` and `AWSGameSDK->LoginWithSteamToken("eyYourToken", onSteamLoginCallback);` found in `UnrealSample/Source/UnrealSample/Samples/SteamLoginTest/SteamLoginTest.cpp`.
 
-### Unreal: Google Play level
+## Google Play level
 
 * Open the level `Samples/GooglePlayLoginTest/GooglePlayLoginTest`
 
@@ -90,7 +98,7 @@ Configure the `GooglePlayLoginTest` component of the `GooglePlayLoginTest` Actor
 
 You will need to pass a valid Google Play token to the `AWSGameSDK->LinkGooglePlayIdToCurrentUser("YOURTOKEN", onLinkGooglePlayIdCallback)` found in `UnrealSample/Source/UnrealSample/Samples/GooglePlayLoginTest/GooglePlayLoginTest.cpp`.
 
-### Unreal: Facebook Test Level
+## Facebook Test Level
 
 * Open the level `Samples/FacebookLoginTest/FacebookLoginTest`
 
