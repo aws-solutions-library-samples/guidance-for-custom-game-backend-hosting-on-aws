@@ -104,7 +104,7 @@ You will need to pass a valid Google Play token to the `AWSGameSDK->LinkGooglePl
 
 This is a simple test level that will login a guest user, upgrade the guest user to authenticated by linking a Facebook ID to it, and then finally test logging in directly with Facebook. It doesn't call any custom backend functionalities.
 
-To use this sample, you will need a valid Facebook access token and user ID. This requires you to sign up as a Facebook Developer, create an App and integrate with the Facebook API:s from Unreal. Currently, we don't have any specific requirements on how to integrate with Facebook, but there are some community options.
+To use this sample, you will need a valid Facebook access token and user ID. This requires you to sign up as a Facebook Developer, create an App and integrate with the Facebook API:s from Unreal. Currently, we don't have any specific recommendations on how to integrate with Facebook, but there are some community options.
 
 Configure the `FacebookLoginTest` component of the `FacebookLoginTest` Actor to set up the login API endpoint. Set `M Login Endpoint` value to the `LoginEndpoint` value found in the CustomIdentityComponentStack Outputs.
 
