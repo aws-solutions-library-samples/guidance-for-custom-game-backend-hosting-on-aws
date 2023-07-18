@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: MIT-0
 
 import boto3
+from botocore.config import Config
 import uuid
 import os
 import jwt
@@ -14,6 +15,8 @@ import time
 
 tracer = Tracer()
 logger = Logger()
+config = Config(connect_timeout=2, read_timeout=2)
+dynamodb = boto3.resource('dynamodb', config=config)
 
 google_play_token_creation_api_endpoint = "https://accounts.google.com/o/oauth2/token"
 google_play_token_validation_api_endpoint = "https://www.googleapis.com/games/v1/applications/"+os.environ['GOOGLE_PLAY_APP_ID']+"/verify/"
@@ -52,7 +55,6 @@ def create_user(google_play_id):
     user_id = str(uuid.uuid4())
 
     # Check that user_id doesn't exist in DynamoDB table defined in environment variable USER_TABLE
-    dynamodb = boto3.resource('dynamodb')
     table = dynamodb.Table(os.environ['USER_TABLE'])
     # Try to write a new iteam to the table with user_id as partition key
     try:
@@ -111,7 +113,6 @@ def find_key_with_kid(key_set, kid):
 def get_existing_user(google_play_id):
     try:
         google_play_user_table_name = os.getenv("GOOGLE_PLAY_USER_TABLE");
-        dynamodb = boto3.resource('dynamodb')
         google_play_user_table = dynamodb.Table(google_play_user_table_name)
         google_play_user_table_response = google_play_user_table.get_item(Key={'GooglePlayId':google_play_id})
         if 'Item' in google_play_user_table_response:
@@ -127,8 +128,7 @@ def get_existing_user(google_play_id):
 @tracer.capture_method
 def add_new_user_to_google_play_table(user_id, google_play_id):
     try:
-        google_play_user_table_name = os.getenv("GOOGLE_PLAY_USER_TABLE");
-        dynamodb = boto3.resource('dynamodb')
+        google_play_user_table_name = os.getenv("GOOGLE_PLAY_USER_TABLE")
         google_play_user_table = dynamodb.Table(google_play_user_table_name)
         google_play_user_table.put_item(
         Item={
@@ -143,8 +143,7 @@ def add_new_user_to_google_play_table(user_id, google_play_id):
 
 def link_google_play_to_existing_user(user_id, google_play_id):
     try:
-        user_table_name = os.getenv("USER_TABLE");
-        dynamodb = boto3.resource('dynamodb')
+        user_table_name = os.getenv("USER_TABLE")
         user_table = dynamodb.Table(user_table_name)
         # Update existing user
         user_table.update_item(

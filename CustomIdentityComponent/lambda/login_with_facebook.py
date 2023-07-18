@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: MIT-0
 
 import boto3
+from botocore.config import Config
 import uuid
 import os
 import jwt
@@ -14,6 +15,8 @@ import time
 
 tracer = Tracer()
 logger = Logger()
+config = Config(connect_timeout=2, read_timeout=2)
+dynamodb = boto3.resource('dynamodb', config=config)
 
 # Endpoint to validate the access token received from the user
 facebook_validation_endpoint = "https://graph.facebook.com/"
@@ -26,7 +29,6 @@ def create_user(facebook_id):
     user_id = str(uuid.uuid4())
 
     # Check that user_id doesn't exist in DynamoDB table defined in environment variable USER_TABLE
-    dynamodb = boto3.resource('dynamodb')
     table = dynamodb.Table(os.environ['USER_TABLE'])
     # Try to write a new item to the table with user_id as partition key
     try:
@@ -88,7 +90,6 @@ def find_key_with_kid(key_set, kid):
 def get_existing_user(facebook_id):
     try:
         facebook_id_user_table_name = os.getenv("FACEBOOK_USER_TABLE");
-        dynamodb = boto3.resource('dynamodb')
         facebook_id_user_table = dynamodb.Table(facebook_id_user_table_name)
         facebook_id_user_table_response = facebook_id_user_table.get_item(Key={'FacebookId': facebook_id})
         if 'Item' in facebook_id_user_table_response:
@@ -105,7 +106,6 @@ def get_existing_user(facebook_id):
 def add_new_user_to_facebook_id_table(user_id, facebook_id):
     try:
         facebook_id_user_table_name = os.getenv("FACEBOOK_USER_TABLE");
-        dynamodb = boto3.resource('dynamodb')
         facebook_id_user_table = dynamodb.Table(facebook_id_user_table_name)
         facebook_id_user_table.put_item(
         Item={
@@ -121,7 +121,6 @@ def add_new_user_to_facebook_id_table(user_id, facebook_id):
 def link_facebook_id_to_existing_user(user_id, facebook_id):
     try:
         user_table_name = os.getenv("USER_TABLE");
-        dynamodb = boto3.resource('dynamodb')
         user_table = dynamodb.Table(user_table_name)
         # Update existing user
         user_table.update_item(

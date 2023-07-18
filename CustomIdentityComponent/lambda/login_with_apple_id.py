@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: MIT-0
 
 import boto3
+from botocore.config import Config
 import uuid
 import os
 import jwt
@@ -14,6 +15,8 @@ import time
 
 tracer = Tracer()
 logger = Logger()
+config = Config(connect_timeout=2, read_timeout=2)
+dynamodb = boto3.resource('dynamodb', config=config)
 
 apple_public_key_url = "https://appleid.apple.com/auth/keys"
 apple_public_keys = None
@@ -113,7 +116,6 @@ def find_key_with_kid(kid):
 def get_existing_user(apple_id):
     try:
         apple_id_user_table_name = os.getenv("APPLE_ID_USER_TABLE");
-        dynamodb = boto3.resource('dynamodb')
         apple_id_user_table = dynamodb.Table(apple_id_user_table_name)
         apple_id_user_table_response = apple_id_user_table.get_item(Key={'AppleId': apple_id})
         if 'Item' in apple_id_user_table_response:
@@ -130,7 +132,6 @@ def get_existing_user(apple_id):
 def add_new_user_to_apple_id_table(user_id, apple_id):
     try:
         apple_id_user_table_name = os.getenv("APPLE_ID_USER_TABLE");
-        dynamodb = boto3.resource('dynamodb')
         apple_id_user_table = dynamodb.Table(apple_id_user_table_name)
         apple_id_user_table.put_item(
         Item={
@@ -146,7 +147,6 @@ def add_new_user_to_apple_id_table(user_id, apple_id):
 def link_apple_id_to_existing_user(user_id, apple_id):
     try:
         user_table_name = os.getenv("USER_TABLE");
-        dynamodb = boto3.resource('dynamodb')
         user_table = dynamodb.Table(user_table_name)
         # Update existing user
         user_table.update_item(
