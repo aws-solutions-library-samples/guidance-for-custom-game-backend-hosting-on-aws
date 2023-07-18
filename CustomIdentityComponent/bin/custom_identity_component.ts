@@ -36,6 +36,7 @@ const facebookAppId = ""
 
 const app = new cdk.App();
 var identityComponentStack = new CustomIdentityComponentStack(app, 'CustomIdentityComponentStack', {
+    description : "Guidance for Custom Game Backend Hosting on AWS (SO9258)",
     env: { account: process.env.CDK_DEFAULT_ACCOUNT, region: process.env.CDK_DEFAULT_REGION},
     appleIdAppId: appleIdAppId,
     steamAppId: steamAppId,
