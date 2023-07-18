@@ -24,7 +24,7 @@ def create_user():
     
     # generate a random secret
     guest_secret = str(uuid.uuid4())+"-"+str(uuid.uuid4())
-    
+
     # Check that user_id doesn't exist in DynamoDB table defined in environment variable USER_TABLE
     table = dynamodb.Table(os.environ['USER_TABLE'])
     # Try to write a new iteam to the table with user_id as partition key
@@ -45,10 +45,8 @@ def create_user():
 ''' Checks that the user exists in the table and guest secrets match '''
 @tracer.capture_method
 def check_user_exists(existing_user_id, guest_secret):
-    logger.info("Check user exists started")
     # Check that the user actually exists in the table and the guest_secret matches
     table = dynamodb.Table(os.environ['USER_TABLE'])
-    logger.info("Check user exists dynamodb and table setup")
     # Try to read the item with user_id as partition key
     try:
         response = table.get_item(
@@ -56,7 +54,6 @@ def check_user_exists(existing_user_id, guest_secret):
                 'UserId': existing_user_id
             }
         )
-        logger.info("Get item request done")
         # Check that the guest_secret matches
         if 'Item' in response and response['Item']['GuestSecret'] == guest_secret:
             logger.info("Guest secret matches")
