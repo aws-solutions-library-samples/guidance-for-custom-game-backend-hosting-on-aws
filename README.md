@@ -148,8 +148,10 @@ The Custom Identity Component costs can be estimated more easily, and the follow
   * *5.55 USD / month*
 * **AWS Secrets Manager**: 10000 request per hour (very pessimistically estimated for 200 concurrent Lambda invocations)
   * *4.05 USD / month*
+* **AWS X-Ray**: 667 traces per minute, 5% default sampling rate
+  * *7.20 USD / month*
 
-**TOTAL**: *363.88 USD / month* (_$0.036/CCU_, roughly _$0.00036/MAU_)
+**TOTAL**: *371.09 USD / month* (_$0.037/CCU_, roughly _$0.00037/MAU_)
 
 ## Scalability considerations
 
