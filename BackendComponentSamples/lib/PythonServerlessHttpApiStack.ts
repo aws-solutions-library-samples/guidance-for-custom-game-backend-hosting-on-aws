@@ -84,7 +84,7 @@ export class PythonServerlessHttpApiStack extends Stack {
           image: lambda.Runtime.PYTHON_3_10.bundlingImage,
           command: [
             'bash', '-c',
-            'pip install -r requirements.txt -t /asset-output && cp -au . /asset-output'
+            'pip install -r requirements.txt -t /asset-output && cp -ru . /asset-output'
           ],
       },}),
       runtime: lambda.Runtime.PYTHON_3_10,
@@ -121,7 +121,7 @@ export class PythonServerlessHttpApiStack extends Stack {
           image: lambda.Runtime.PYTHON_3_10.bundlingImage,
           command: [
             'bash', '-c',
-            'pip install -r requirements.txt -t /asset-output && cp -au . /asset-output'
+            'pip install -r requirements.txt -t /asset-output && cp -ru . /asset-output'
           ],
       },}),
       runtime: lambda.Runtime.PYTHON_3_10,
