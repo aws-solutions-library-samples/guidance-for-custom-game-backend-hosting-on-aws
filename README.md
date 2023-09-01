@@ -80,7 +80,7 @@ Then in the backend code you'll have an authenticated user ID that you can use t
 Start by cloning the repository. On **Windows** make sure to have a **short path** to the repository (like `C:\Projects\aws-game-backend-framework` containing the source directly) to avoid any path length issues:
 
 ```bash
-git clone git@github.com:aws-solutions-library-samples/guidance-for-custom-game-backend-hosting-on-aws.git
+git clone https://github.com/aws-solutions-library-samples/guidance-for-custom-game-backend-hosting-on-aws.git
 ```
 
 ## 1. Deploy the Custom Identity Component
