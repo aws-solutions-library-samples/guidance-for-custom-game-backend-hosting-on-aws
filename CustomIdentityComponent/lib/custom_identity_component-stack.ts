@@ -4,7 +4,6 @@
 import { Stack, StackProps, CfnOutput, Duration } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
-import * as path from 'path';
 import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
@@ -18,7 +17,6 @@ import * as logs from 'aws-cdk-lib/aws-logs';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import { NagSuppressions } from 'cdk-nag';
 import * as wafv2 from 'aws-cdk-lib/aws-wafv2';
-import * as custom_resources from 'aws-cdk-lib/custom-resources'
 
 export interface CustomIdentityComponentStackProps extends StackProps {
   // If defined, login-with-apple endpoint will be created
