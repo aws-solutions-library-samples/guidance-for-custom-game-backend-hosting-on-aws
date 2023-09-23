@@ -7,7 +7,7 @@ import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
-import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
+import * as secretsmanager from  'aws-cdk-lib/aws-secretsmanager';
 import * as apigw from 'aws-cdk-lib/aws-apigateway';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as events from 'aws-cdk-lib/aws-events';
@@ -42,7 +42,7 @@ export class CustomIdentityComponentStack extends Stack {
 
     // The shared policy for basic Lambda access needs for logging. This is similar to the managed Lambda Execution Policy
     const lambdaBasicPolicy = new iam.PolicyStatement({
-      actions: ['logs:CreateLogGroup', 'logs:CreateLogStream', 'logs:PutLogEvents'],
+      actions: ['logs:CreateLogGroup','logs:CreateLogStream','logs:PutLogEvents'],
       resources: ['*'],
     });
 
@@ -74,7 +74,7 @@ export class CustomIdentityComponentStack extends Stack {
 
     // Define a CloudFront distribution for the issuer data
     const distribution = new cloudfront.Distribution(this, 'IssuerEndpoint', {
-      defaultBehavior: { origin: new origins.S3Origin(issuer_bucket), cachePolicy: myCachePolicy },
+      defaultBehavior: { origin: new origins.S3Origin(issuer_bucket), cachePolicy: myCachePolicy},
       enableLogging: true,
       minimumProtocolVersion: cloudfront.SecurityPolicyProtocol.TLS_V1_2_2021,
       logBucket: loggingBucket
@@ -84,7 +84,7 @@ export class CustomIdentityComponentStack extends Stack {
     ], true);
 
     // Issuer endpoint used by customer backend components for validation JWT:s
-    new CfnOutput(this, 'IssuerEndpointUrl', { value: "https://" + distribution.domainName });
+    new CfnOutput(this, 'IssuerEndpointUrl', { value: "https://"+distribution.domainName });
 
     // Define a secrets manager secret with name jwk_private_key
     const secret = new secretsmanager.Secret(this, 'JWKPrivateKeySecret');
@@ -101,20 +101,19 @@ export class CustomIdentityComponentStack extends Stack {
       role: generate_keys_function_role,
       code: lambda.Code.fromAsset("lambda", {
         bundling: {
-          image: lambda.Runtime.PYTHON_3_11.bundlingImage,
+          image: lambda.Runtime.PYTHON_3_10.bundlingImage,
           command: [
             'bash', '-c',
             'pip install --platform manylinux2010_x86_64 --only-binary=:all: -r requirements.txt -t /asset-output && cp -ru . /asset-output'
           ],
-        },
-      }),
-      runtime: lambda.Runtime.PYTHON_3_11,
+      },}),
+      runtime: lambda.Runtime.PYTHON_3_10,
       handler: 'generate_keys.lambda_handler',
       timeout: Duration.seconds(300),
       memorySize: 2048,
       environment: {
         "ISSUER_BUCKET": issuer_bucket.bucketName,
-        "ISSUER_ENDPOINT": "https://" + distribution.domainName,
+        "ISSUER_ENDPOINT": "https://"+distribution.domainName,
         "SECRET_KEY_ID": secret.secretName,
       }
     });
@@ -143,68 +142,68 @@ export class CustomIdentityComponentStack extends Stack {
     });
 
     // Define a Web Application Firewall with the standard AWS provided rule set
-    const cfnWebACLManaged = new wafv2.CfnWebACL(this, 'CustomIdentityWebACL', {
+    const cfnWebACLManaged = new wafv2.CfnWebACL(this,'CustomIdentityWebACL',{
+            defaultAction: {
+              allow: {}
+            },
+            scope: 'REGIONAL',
+            visibilityConfig: {
+              cloudWatchMetricsEnabled: true,
+              metricName:'MetricForWebACLCDK',
+              sampledRequestsEnabled: true,
+            },
+            name:'CustomIdentityWebACL',
+            rules: [{
+              name: 'ManagedWafRules',
+              priority: 0,
+              statement: {
+                managedRuleGroupStatement: {
+                  name:'AWSManagedRulesCommonRuleSet', // The standard rule set provided by AWS: https://docs.aws.amazon.com/waf/latest/developerguide/aws-managed-rule-groups-baseline.html
+                  vendorName:'AWS'
+                }
+              },
+              visibilityConfig: {
+                cloudWatchMetricsEnabled: true,
+                metricName:'MetricForWebACLCDK-ManagedRules',
+                sampledRequestsEnabled: true,
+              },
+              overrideAction: {
+                none: {}
+              },
+            }]
+    });
+
+    const cfnWebACLRateLimit = new wafv2.CfnWebACL(this,'CustomIdentityWebACLRateLimit',{
       defaultAction: {
         allow: {}
       },
       scope: 'REGIONAL',
       visibilityConfig: {
         cloudWatchMetricsEnabled: true,
-        metricName: 'MetricForWebACLCDK',
+        metricName:'MetricForWebACLCDKRateLimit',
         sampledRequestsEnabled: true,
       },
-      name: 'CustomIdentityWebACL',
-      rules: [{
-        name: 'ManagedWafRules',
-        priority: 0,
+      name:'CustomIdentityWebACLRateLimit',
+      rules: [
+      // Add rate limiting rule to allow 3.33 TPS from a single IP (1000 per 5 minutes)
+      {
+        name: 'RateLimitingRule',
+        priority: 1,
+        action: {
+          block: {}
+        },
         statement: {
-          managedRuleGroupStatement: {
-            name: 'AWSManagedRulesCommonRuleSet', // The standard rule set provided by AWS: https://docs.aws.amazon.com/waf/latest/developerguide/aws-managed-rule-groups-baseline.html
-            vendorName: 'AWS'
+          rateBasedStatement: {
+            limit: 1000,
+            aggregateKeyType: 'IP'
           }
         },
         visibilityConfig: {
           cloudWatchMetricsEnabled: true,
-          metricName: 'MetricForWebACLCDK-ManagedRules',
+          metricName:'MetricForWebACLCDK-RateLimiting',
           sampledRequestsEnabled: true,
-        },
-        overrideAction: {
-          none: {}
-        },
+        }
       }]
-    });
-
-    const cfnWebACLRateLimit = new wafv2.CfnWebACL(this, 'CustomIdentityWebACLRateLimit', {
-      defaultAction: {
-        allow: {}
-      },
-      scope: 'REGIONAL',
-      visibilityConfig: {
-        cloudWatchMetricsEnabled: true,
-        metricName: 'MetricForWebACLCDKRateLimit',
-        sampledRequestsEnabled: true,
-      },
-      name: 'CustomIdentityWebACLRateLimit',
-      rules: [
-        // Add rate limiting rule to allow 3.33 TPS from a single IP (1000 per 5 minutes)
-        {
-          name: 'RateLimitingRule',
-          priority: 1,
-          action: {
-            block: {}
-          },
-          statement: {
-            rateBasedStatement: {
-              limit: 1000,
-              aggregateKeyType: 'IP'
-            }
-          },
-          visibilityConfig: {
-            cloudWatchMetricsEnabled: true,
-            metricName: 'MetricForWebACLCDK-RateLimiting',
-            sampledRequestsEnabled: true,
-          }
-        }]
     });
 
     // Define an API Gateway for the authentication component public endpoint
@@ -215,27 +214,27 @@ export class CustomIdentityComponentStack extends Stack {
       deployOptions: {
         accessLogDestination: new apigw.LogGroupLogDestination(logGroup),
         accessLogFormat: apigw.AccessLogFormat.clf(),
-        loggingLevel: MethodLoggingLevel.ERROR,
+        loggingLevel : MethodLoggingLevel.ERROR,
         tracingEnabled: true,
         stageName: 'prod',
       }
     });
     // cdk-nag suppression for the API Gateway default logs access
     NagSuppressions.addResourceSuppressions(
-      api_gateway, [{
-        id: 'AwsSolutions-IAM4',
-        reason: "We are using the default CW Logs access of API Gateway",
-      },], true);
+      api_gateway,[{
+          id: 'AwsSolutions-IAM4',
+          reason: "We are using the default CW Logs access of API Gateway",
+        },],true);
 
     // Attach the Web Application Firewall with the standard AWS provided rule set
-    new wafv2.CfnWebACLAssociation(this, 'ApiGatewayWebACLAssociation', {
+    new wafv2.CfnWebACLAssociation(this,'ApiGatewayWebACLAssociation',{
       resourceArn: api_gateway.deploymentStage.stageArn,
-      webAclArn: cfnWebACLManaged.attrArn,
+      webAclArn:cfnWebACLManaged.attrArn,
     });
     // Attach the WAF with the rate limit rules
-    new wafv2.CfnWebACLAssociation(this, 'ApiGatewayWebACLAssociationRateLimit', {
+    new wafv2.CfnWebACLAssociation(this,'ApiGatewayWebACLAssociationRateLimit',{
       resourceArn: api_gateway.deploymentStage.stageArn,
-      webAclArn: cfnWebACLRateLimit.attrArn,
+      webAclArn:cfnWebACLRateLimit.attrArn,
     });
 
     // Request validator for the API
@@ -255,20 +254,19 @@ export class CustomIdentityComponentStack extends Stack {
       role: login_as_guest_function_role,
       code: lambda.Code.fromAsset("lambda", {
         bundling: {
-          image: lambda.Runtime.PYTHON_3_11.bundlingImage,
+          image: lambda.Runtime.PYTHON_3_10.bundlingImage,
           command: [
             'bash', '-c',
             'pip install --platform manylinux2010_x86_64 --only-binary=:all: -r requirements.txt -t /asset-output && cp -ru . /asset-output'
           ],
-        },
-      }),
-      runtime: lambda.Runtime.PYTHON_3_11,
+      },}),
+      runtime: lambda.Runtime.PYTHON_3_10,
       handler: 'login_as_guest.lambda_handler',
       timeout: Duration.seconds(15),
       tracing: lambda.Tracing.ACTIVE,
       memorySize: 2048,
       environment: {
-        "ISSUER_URL": "https://" + distribution.domainName,
+        "ISSUER_URL": "https://"+distribution.domainName,
         "SECRET_KEY_ID": secret.secretName,
         "USER_TABLE": user_table.tableName
       }
@@ -281,7 +279,7 @@ export class CustomIdentityComponentStack extends Stack {
     ], true);
 
     // Map login_as_guest_function to the api_gateway GET requeste login_as_guest
-    api_gateway.root.addResource('login-as-guest').addMethod('GET', new apigw.LambdaIntegration(login_as_guest_function), {
+    api_gateway.root.addResource('login-as-guest').addMethod('GET', new apigw.LambdaIntegration(login_as_guest_function),{
       requestParameters: {
         'method.request.querystring.user_id': false,
         'method.request.querystring.guest_secret': false,
@@ -302,20 +300,19 @@ export class CustomIdentityComponentStack extends Stack {
       role: refresh_access_token_function_role,
       code: lambda.Code.fromAsset("lambda", {
         bundling: {
-          image: lambda.Runtime.PYTHON_3_11.bundlingImage,
+          image: lambda.Runtime.PYTHON_3_10.bundlingImage,
           command: [
             'bash', '-c',
             'pip install --platform manylinux2010_x86_64 --only-binary=:all: -r requirements.txt -t /asset-output && cp -ru . /asset-output'
           ],
-        },
-      }),
-      runtime: lambda.Runtime.PYTHON_3_11,
+      },}),
+      runtime: lambda.Runtime.PYTHON_3_10,
       handler: 'refresh_access_token.lambda_handler',
       timeout: Duration.seconds(15),
       tracing: lambda.Tracing.ACTIVE,
       memorySize: 2048,
       environment: {
-        "ISSUER_URL": "https://" + distribution.domainName,
+        "ISSUER_URL": "https://"+distribution.domainName,
         "SECRET_KEY_ID": secret.secretName,
         "USER_TABLE": user_table.tableName
       }
@@ -326,9 +323,9 @@ export class CustomIdentityComponentStack extends Stack {
     NagSuppressions.addResourceSuppressions(refresh_access_token_function_role, [
       { id: 'AwsSolutions-IAM5', reason: 'Using the standard Lambda execution role, all custom access resource restricted.' }
     ], true);
-
+    
     // Map login_as_guest_function to the api_gateway GET requeste login_as_guest
-    api_gateway.root.addResource('refresh-access-token').addMethod('GET', new apigw.LambdaIntegration(refresh_access_token_function), {
+    api_gateway.root.addResource('refresh-access-token').addMethod('GET', new apigw.LambdaIntegration(refresh_access_token_function),{
       requestParameters: {
         'method.request.querystring.refresh_token': true
       },
@@ -339,92 +336,91 @@ export class CustomIdentityComponentStack extends Stack {
     new CfnOutput(this, 'LoginEndpoint', { value: api_gateway.url });
 
     // If Apple ID App ID Defined, add a DynamoDB table and Lambda function for Apple login
-    if (props.appleIdAppId != "") {
-      this.setupAppleIdLogin(props.appleIdAppId, secret, user_table, distribution, api_gateway, lambdaBasicPolicy, requestValidator);
+    if(props.appleIdAppId != "") {
+        this.setupAppleIdLogin(props.appleIdAppId, secret, user_table, distribution, api_gateway, lambdaBasicPolicy, requestValidator);
     }
 
     // If Steam App ID defined, add a DynamoDB table and Lambda function for Steam login
-    if (props.steamAppId != "") {
-      this.setupSteamLogin(props.steamAppId, props.steamWebApiKeySecretArn, secret, user_table, distribution, api_gateway, lambdaBasicPolicy, requestValidator);
+    if(props.steamAppId != "") {
+        this.setupSteamLogin(props.steamAppId, props.steamWebApiKeySecretArn, secret, user_table, distribution, api_gateway, lambdaBasicPolicy, requestValidator);
     }
 
     // If Google Play App ID defined, add a DynamoDB table and Lambda function for Google Play login
-    if (props.googlePlayClientId != "") {
-      this.setupGooglePlayLogin(props.googlePlayClientId, props.googlePlayAppId, props.googlePlayClientSecretArn, secret, user_table, distribution, api_gateway, lambdaBasicPolicy, requestValidator);
+    if(props.googlePlayClientId != "") {
+        this.setupGooglePlayLogin(props.googlePlayClientId, props.googlePlayAppId, props.googlePlayClientSecretArn, secret, user_table, distribution, api_gateway, lambdaBasicPolicy, requestValidator);
     }
 
     // If Facebook App ID defined, add a DynamoDB table and Lambda function for Facebook login
-    if (props.facebookAppId != "") {
-      this.setupFacebookLogin(props.facebookAppId, secret, user_table, distribution, api_gateway, lambdaBasicPolicy, requestValidator);
+    if(props.facebookAppId != "") {
+        this.setupFacebookLogin(props.facebookAppId, secret, user_table, distribution, api_gateway, lambdaBasicPolicy, requestValidator);
     }
   }
 
   ///// *** IDENTITY PROVIDER SPECIFIC RESOURECE **** //////
 
   // Sets up Lambda endpoint and DynamoDB table for Apple ID Login
-  setupAppleIdLogin(appId: string, secret: secretsmanager.Secret, user_table: dynamodb.Table, distribution: cloudfront.Distribution, api_gateway: apigw.RestApi, lambdaBasicPolicy: iam.PolicyStatement, requestValidator: apigw.RequestValidator) {
-
-    // Define a DynamoDB table for AppleIdUsers
-    const appleIdUserTable = new dynamodb.Table(this, 'AppleIdUserTable', {
-      partitionKey: {
-        name: 'AppleId',
-        type: dynamodb.AttributeType.STRING
-      },
-      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
-      pointInTimeRecovery: true
-    });
-
-    // Lambda function for Apple Id login
-    const loginWithAppleIdFunctionRole = new iam.Role(this, 'LoginWithAppleIdFunctionRole', {
-      assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
-    });
-    loginWithAppleIdFunctionRole.addToPolicy(lambdaBasicPolicy);
-    const loginWithAppleIdFunction = new lambda.Function(this, 'LoginWithAppleId', {
-      role: loginWithAppleIdFunctionRole,
-      code: lambda.Code.fromAsset("lambda", {
-        bundling: {
-          image: lambda.Runtime.PYTHON_3_10.bundlingImage,
-          command: [
-            'bash', '-c',
-            'pip install --platform manylinux2010_x86_64 --only-binary=:all: -r requirements.txt -t /asset-output && cp -ru . /asset-output'
-          ],
+  setupAppleIdLogin(appId : string, secret: secretsmanager.Secret, user_table: dynamodb.Table, distribution: cloudfront.Distribution, api_gateway: apigw.RestApi, lambdaBasicPolicy: iam.PolicyStatement, requestValidator: apigw.RequestValidator) {
+    
+      // Define a DynamoDB table for AppleIdUsers
+      const appleIdUserTable = new dynamodb.Table(this, 'AppleIdUserTable', {
+        partitionKey: {
+          name: 'AppleId',
+          type: dynamodb.AttributeType.STRING
         },
-      }),
-      runtime: lambda.Runtime.PYTHON_3_10,
-      handler: 'login_with_apple_id.lambda_handler',
-      timeout: Duration.seconds(15),
-      tracing: lambda.Tracing.ACTIVE,
-      memorySize: 2048,
-      environment: {
-        "ISSUER_URL": "https://" + distribution.domainName,
-        "SECRET_KEY_ID": secret.secretName,
-        "USER_TABLE": user_table.tableName,
-        "APPLE_APP_ID": appId,
-        "APPLE_ID_USER_TABLE": appleIdUserTable.tableName
-      }
-    });
-    secret.grantRead(loginWithAppleIdFunction);
-    user_table.grantReadWriteData(loginWithAppleIdFunction);
-    appleIdUserTable.grantReadWriteData(loginWithAppleIdFunction);
+        billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+        pointInTimeRecovery: true
+      });
+ 
+      // Lambda function for Apple Id login
+      const loginWithAppleIdFunctionRole = new iam.Role(this, 'LoginWithAppleIdFunctionRole', {
+        assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
+      });
+      loginWithAppleIdFunctionRole.addToPolicy(lambdaBasicPolicy);
+      const loginWithAppleIdFunction = new lambda.Function(this, 'LoginWithAppleId', {
+        role: loginWithAppleIdFunctionRole,
+        code: lambda.Code.fromAsset("lambda", {
+          bundling: {
+            image: lambda.Runtime.PYTHON_3_10.bundlingImage,
+            command: [
+              'bash', '-c',
+              'pip install --platform manylinux2010_x86_64 --only-binary=:all: -r requirements.txt -t /asset-output && cp -ru . /asset-output'
+            ],
+        },}),
+        runtime: lambda.Runtime.PYTHON_3_10,
+        handler: 'login_with_apple_id.lambda_handler',
+        timeout: Duration.seconds(15),
+        tracing: lambda.Tracing.ACTIVE,
+        memorySize: 2048,
+        environment: {
+          "ISSUER_URL": "https://"+distribution.domainName,
+          "SECRET_KEY_ID": secret.secretName,
+          "USER_TABLE": user_table.tableName,
+          "APPLE_APP_ID": appId,
+          "APPLE_ID_USER_TABLE": appleIdUserTable.tableName
+        }
+      });
+      secret.grantRead(loginWithAppleIdFunction);
+      user_table.grantReadWriteData(loginWithAppleIdFunction);
+      appleIdUserTable.grantReadWriteData(loginWithAppleIdFunction);
 
-    NagSuppressions.addResourceSuppressions(loginWithAppleIdFunctionRole, [
-      { id: 'AwsSolutions-IAM5', reason: 'Using the standard Lambda execution role, all custom access resource restricted.' }
-    ], true);
+      NagSuppressions.addResourceSuppressions(loginWithAppleIdFunctionRole, [
+        { id: 'AwsSolutions-IAM5', reason: 'Using the standard Lambda execution role, all custom access resource restricted.' }
+      ], true);
 
-    // Map login_as_guest_function to the api_gateway GET requeste login_as_guest
-    api_gateway.root.addResource('login-with-apple-id').addMethod('GET', new apigw.LambdaIntegration(loginWithAppleIdFunction), {
-      requestParameters: {
-        'method.request.querystring.apple_auth_token': true,
-        'method.request.querystring.auth_token': false,
-        'method.request.querystring.link_to_existing_user': false
-      },
-      requestValidator: requestValidator
-    });
+      // Map login_as_guest_function to the api_gateway GET requeste login_as_guest
+      api_gateway.root.addResource('login-with-apple-id').addMethod('GET', new apigw.LambdaIntegration(loginWithAppleIdFunction),{
+        requestParameters: {
+          'method.request.querystring.apple_auth_token': true,
+          'method.request.querystring.auth_token': false,
+          'method.request.querystring.link_to_existing_user': false
+        },
+        requestValidator: requestValidator
+      });
   }
 
   // Sets up Lambda endpoint and DynamoDB table for Steam ID Login
   setupSteamLogin(appId: string, steamWebApiKeySecretArn: string, privateKeySecret: secretsmanager.Secret, user_table: dynamodb.Table, distribution: cloudfront.Distribution, api_gateway: apigw.RestApi, lambdaBasicPolicy: iam.PolicyStatement, requestValidator: apigw.RequestValidator) {
-
+  
     // Define a DynamoDB table for Steam Users
     const steamIdUserTable = new dynamodb.Table(this, 'SteamUserTable', {
       partitionKey: {
@@ -444,20 +440,19 @@ export class CustomIdentityComponentStack extends Stack {
       role: loginWithSteamIdFunctionRole,
       code: lambda.Code.fromAsset("lambda", {
         bundling: {
-          image: lambda.Runtime.PYTHON_3_11.bundlingImage,
+          image: lambda.Runtime.PYTHON_3_10.bundlingImage,
           command: [
             'bash', '-c',
             'pip install --platform manylinux2010_x86_64 --only-binary=:all: -r requirements.txt -t /asset-output && cp -ru . /asset-output'
           ],
-        },
-      }),
-      runtime: lambda.Runtime.PYTHON_3_11,
+      },}),
+      runtime: lambda.Runtime.PYTHON_3_10,
       handler: 'login_with_steam.lambda_handler',
       timeout: Duration.seconds(15),
       tracing: lambda.Tracing.ACTIVE,
       memorySize: 2048,
       environment: {
-        "ISSUER_URL": "https://" + distribution.domainName,
+        "ISSUER_URL": "https://"+distribution.domainName,
         "SECRET_KEY_ID": privateKeySecret.secretName,
         "USER_TABLE": user_table.tableName,
         "STEAM_APP_ID": appId,
@@ -481,7 +476,7 @@ export class CustomIdentityComponentStack extends Stack {
     ], true);
 
     // Map login_as_guest_function to the api_gateway GET requeste login_as_guest
-    api_gateway.root.addResource('login-with-steam').addMethod('GET', new apigw.LambdaIntegration(loginWithSteamIdFunction), {
+    api_gateway.root.addResource('login-with-steam').addMethod('GET', new apigw.LambdaIntegration(loginWithSteamIdFunction),{
       requestParameters: {
         'method.request.querystring.steam_auth_token': true,
         'method.request.querystring.auth_token': false,
@@ -493,8 +488,8 @@ export class CustomIdentityComponentStack extends Stack {
 
   // Sets up Lambda endpoint and DynamoDB table for Google Play Login
   setupGooglePlayLogin(googlePlayClientId: string, googlePlayAppId: string, googlePlayClientSecretArn: string,
-    privateKeySecret: secretsmanager.Secret, user_table: dynamodb.Table,
-    distribution: cloudfront.Distribution, api_gateway: apigw.RestApi, lambdaBasicPolicy: iam.PolicyStatement, requestValidator: apigw.RequestValidator) {
+                        privateKeySecret: secretsmanager.Secret, user_table: dynamodb.Table,
+                        distribution: cloudfront.Distribution, api_gateway: apigw.RestApi, lambdaBasicPolicy: iam.PolicyStatement, requestValidator: apigw.RequestValidator) {
 
     // Define a DynamoDB table for Google Play
     const googlePlayUserTable = new dynamodb.Table(this, 'GooglePlayUserTable', {
@@ -512,23 +507,22 @@ export class CustomIdentityComponentStack extends Stack {
     });
     loginWithGooglePlayFunctionRole.addToPolicy(lambdaBasicPolicy);
     const loginWithGooglePlayFunction = new lambda.Function(this, 'LoginWithGooglePlay', {
-      role: loginWithGooglePlayFunctionRole,
+      role:  loginWithGooglePlayFunctionRole,
       code: lambda.Code.fromAsset("lambda", {
         bundling: {
-          image: lambda.Runtime.PYTHON_3_11.bundlingImage,
+          image: lambda.Runtime.PYTHON_3_10.bundlingImage,
           command: [
             'bash', '-c',
             'pip install --platform manylinux2010_x86_64 --only-binary=:all: -r requirements.txt -t /asset-output && cp -ru . /asset-output'
           ],
-        },
-      }),
-      runtime: lambda.Runtime.PYTHON_3_11,
+      },}),
+      runtime: lambda.Runtime.PYTHON_3_10,
       handler: 'login_with_google_play.lambda_handler',
       timeout: Duration.seconds(15),
       tracing: lambda.Tracing.ACTIVE,
       memorySize: 2048,
       environment: {
-        "ISSUER_URL": "https://" + distribution.domainName,
+        "ISSUER_URL": "https://"+distribution.domainName,
         "SECRET_KEY_ID": privateKeySecret.secretName,
         "USER_TABLE": user_table.tableName,
         "GOOGLE_PLAY_CLIENT_ID": googlePlayClientId,
@@ -553,7 +547,7 @@ export class CustomIdentityComponentStack extends Stack {
     ], true);
 
     // Map login_as_guest_function to the api_gateway GET requeste login_as_guest
-    api_gateway.root.addResource('login-with-google-play').addMethod('GET', new apigw.LambdaIntegration(loginWithGooglePlayFunction), {
+    api_gateway.root.addResource('login-with-google-play').addMethod('GET', new apigw.LambdaIntegration(loginWithGooglePlayFunction),{
       requestParameters: {
         'method.request.querystring.google_play_auth_token': true,
         'method.request.querystring.auth_token': false,
@@ -563,9 +557,9 @@ export class CustomIdentityComponentStack extends Stack {
     });
   }
 
-  // Sets up Lambda endpoint and DynamoDB table for Facebook Login
-  setupFacebookLogin(appId: string, secret: secretsmanager.Secret, user_table: dynamodb.Table, distribution: cloudfront.Distribution, api_gateway: apigw.RestApi, lambdaBasicPolicy: iam.PolicyStatement, requestValidator: apigw.RequestValidator) {
-
+   // Sets up Lambda endpoint and DynamoDB table for Facebook Login
+   setupFacebookLogin(appId : string, secret: secretsmanager.Secret, user_table: dynamodb.Table, distribution: cloudfront.Distribution, api_gateway: apigw.RestApi, lambdaBasicPolicy: iam.PolicyStatement, requestValidator: apigw.RequestValidator) {
+    
     // Define a DynamoDB table for Facebook Users
     const facebookUserTable = new dynamodb.Table(this, 'FacebookUserTable', {
       partitionKey: {
@@ -585,23 +579,22 @@ export class CustomIdentityComponentStack extends Stack {
       role: loginWithFacebookFunctionRole,
       code: lambda.Code.fromAsset("lambda", {
         bundling: {
-          image: lambda.Runtime.PYTHON_3_11.bundlingImage,
+          image: lambda.Runtime.PYTHON_3_10.bundlingImage,
           command: [
             'bash', '-c',
             'pip install --platform manylinux2010_x86_64 --only-binary=:all: -r requirements.txt -t /asset-output && cp -ru . /asset-output'
           ],
-        },
-      }),
-      runtime: lambda.Runtime.PYTHON_3_11,
+      },}),
+      runtime: lambda.Runtime.PYTHON_3_10,
       handler: 'login_with_facebook.lambda_handler',
       timeout: Duration.seconds(15),
       tracing: lambda.Tracing.ACTIVE,
       memorySize: 2048,
       environment: {
-        "ISSUER_URL": "https://" + distribution.domainName,
+        "ISSUER_URL": "https://"+distribution.domainName,
         "SECRET_KEY_ID": secret.secretName,
         "USER_TABLE": user_table.tableName,
-        "FACEBOOK_APP_ID": appId,
+        "FACEBOOK_APP_ID" : appId,
         "FACEBOOK_USER_TABLE": facebookUserTable.tableName
       }
     });
@@ -614,7 +607,7 @@ export class CustomIdentityComponentStack extends Stack {
     ], true);
 
     // Map login_as_guest_function to the api_gateway GET requeste login_as_guest
-    api_gateway.root.addResource('login-with-facebook').addMethod('GET', new apigw.LambdaIntegration(loginWithFacebookFunction), {
+    api_gateway.root.addResource('login-with-facebook').addMethod('GET', new apigw.LambdaIntegration(loginWithFacebookFunction),{
       requestParameters: {
         'method.request.querystring.facebook_access_token': true,
         'method.request.querystring.facebook_user_id': true,
@@ -623,5 +616,5 @@ export class CustomIdentityComponentStack extends Stack {
       },
       requestValidator: requestValidator
     });
-  }
+}
 };
