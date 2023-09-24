@@ -104,7 +104,7 @@ export class CustomIdentityComponentStack extends Stack {
           image: lambda.Runtime.PYTHON_3_11.bundlingImage,
           command: [
             'bash', '-c',
-            'pip install --platform manylinux2010_x86_64 --only-binary=:all: -r requirements.txt -t /asset-output && cp -ru . /asset-output'
+            'pip install --platform manylinux2014_x86_64 --only-binary=:all: -r requirements.txt -t /asset-output && cp -ru . /asset-output'
           ],
       },}),
       runtime: lambda.Runtime.PYTHON_3_11,
@@ -257,7 +257,7 @@ export class CustomIdentityComponentStack extends Stack {
           image: lambda.Runtime.PYTHON_3_11.bundlingImage,
           command: [
             'bash', '-c',
-            'pip install --platform manylinux2010_x86_64 --only-binary=:all: -r requirements.txt -t /asset-output && cp -ru . /asset-output'
+            'pip install --platform manylinux2014_x86_64 --only-binary=:all: -r requirements.txt -t /asset-output && cp -ru . /asset-output'
           ],
       },}),
       runtime: lambda.Runtime.PYTHON_3_11,
@@ -303,7 +303,7 @@ export class CustomIdentityComponentStack extends Stack {
           image: lambda.Runtime.PYTHON_3_11.bundlingImage,
           command: [
             'bash', '-c',
-            'pip install --platform manylinux2010_x86_64 --only-binary=:all: -r requirements.txt -t /asset-output && cp -ru . /asset-output'
+            'pip install --platform manylinux2014_x86_64 --only-binary=:all: -r requirements.txt -t /asset-output && cp -ru . /asset-output'
           ],
       },}),
       runtime: lambda.Runtime.PYTHON_3_11,
@@ -383,7 +383,7 @@ export class CustomIdentityComponentStack extends Stack {
             image: lambda.Runtime.PYTHON_3_11.bundlingImage,
             command: [
               'bash', '-c',
-              'pip install --platform manylinux2010_x86_64 --only-binary=:all: -r requirements.txt -t /asset-output && cp -ru . /asset-output'
+              'pip install --platform manylinux2014_x86_64 --only-binary=:all: -r requirements.txt -t /asset-output && cp -ru . /asset-output'
             ],
         },}),
         runtime: lambda.Runtime.PYTHON_3_11,
@@ -443,7 +443,7 @@ export class CustomIdentityComponentStack extends Stack {
           image: lambda.Runtime.PYTHON_3_11.bundlingImage,
           command: [
             'bash', '-c',
-            'pip install --platform manylinux2010_x86_64 --only-binary=:all: -r requirements.txt -t /asset-output && cp -ru . /asset-output'
+            'pip install --platform manylinux2014_x86_64 --only-binary=:all: -r requirements.txt -t /asset-output && cp -ru . /asset-output'
           ],
       },}),
       runtime: lambda.Runtime.PYTHON_3_11,
@@ -513,7 +513,7 @@ export class CustomIdentityComponentStack extends Stack {
           image: lambda.Runtime.PYTHON_3_11.bundlingImage,
           command: [
             'bash', '-c',
-            'pip install --platform manylinux2010_x86_64 --only-binary=:all: -r requirements.txt -t /asset-output && cp -ru . /asset-output'
+            'pip install --platform manylinux2014_x86_64 --only-binary=:all: -r requirements.txt -t /asset-output && cp -ru . /asset-output'
           ],
       },}),
       runtime: lambda.Runtime.PYTHON_3_11,
@@ -582,7 +582,7 @@ export class CustomIdentityComponentStack extends Stack {
           image: lambda.Runtime.PYTHON_3_11.bundlingImage,
           command: [
             'bash', '-c',
-            'pip install --platform manylinux2010_x86_64 --only-binary=:all: -r requirements.txt -t /asset-output && cp -ru . /asset-output'
+            'pip install --platform manylinux2014_x86_64 --only-binary=:all: -r requirements.txt -t /asset-output && cp -ru . /asset-output'
           ],
       },}),
       runtime: lambda.Runtime.PYTHON_3_11,
