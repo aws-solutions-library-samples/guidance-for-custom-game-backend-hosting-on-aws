@@ -11,6 +11,7 @@ import json
 import requests
 from aws_lambda_powertools import Tracer
 from aws_lambda_powertools import Logger
+from aws_lambda_powertools.utilities import parameters
 import time
 
 tracer = Tracer()
@@ -22,30 +23,7 @@ dynamodb = boto3.resource('dynamodb', config=config)
 steam_token_validation_api_endpoint = "https://partner.steam-api.com/ISteamUserAuth/AuthenticateUserTicket/v1/"
 
 # Steam Web Api key from Secrets manager, cached between requests for 15 minutes
-steam_web_api_key = None
-last_steam_web_api_key_refresh = 0
-
-def refresh_steam_web_api_key_if_needed():
-    global steam_web_api_key, last_steam_web_api_key_refresh
-
-    # get time difference between current time and last_private_key_refresh
-    current_time = int(time.time())
-    time_difference = current_time - last_steam_web_api_key_refresh
-    logger.debug("Time difference between current time and last_steam_web_api_key_refresh: ", time_difference)
-
-    # check if we need to refresh the private key (every 30 minutes as this changes rarely if ever)
-    if time_difference > 1800 or steam_web_api_key == None:
-        logger.info("Refreshing Steam web api key")
-
-        # get private key from AWS Secrets Manager
-        secret_arn= os.environ['STEAM_WEB_API_KEY_SECRET_ARN']
-        session = boto3.session.Session()
-        client = session.client(service_name='secretsmanager')
-        get_secret_value_response = client.get_secret_value(
-            SecretId=secret_arn
-        )
-        steam_web_api_key = get_secret_value_response['SecretString']
-        last_steam_web_api_key_refresh = int(time.time())
+steam_web_api_secret_max_age = 15 * 60
 
 # Creates a new user when there's no existing user for the Steam ID
 @tracer.capture_method
@@ -127,7 +105,7 @@ def add_new_user_to_steam_table(user_id, steam_id):
         Item={
             'UserId': user_id,
             'SteamId': steam_id,
-        });
+        })
         return True
     except Exception as e:
         logger.info("Exception adding user to Steam ID table: ", e)
@@ -159,6 +137,7 @@ def check_steam_token(token: str) -> str:
     response = None
     response_body = {}
     while True:
+        steam_web_api_key = parameters.get_secret(os.environ['STEAM_WEB_API_KEY_SECRET_ARN'], max_age=steam_web_api_secret_max_age)
         send_time = datetime.datetime.utcnow()
         response = requests.get(steam_token_validation_api_endpoint, 
                                 params={'key': steam_web_api_key, 'appid': os.environ['STEAM_APP_ID'], 'ticket': token})
@@ -204,9 +183,6 @@ def check_steam_token(token: str) -> str:
 def lambda_handler(event, context):
     
     steam_auth_token = None
-
-    # Make sure we have the Steam Web Api Key for token validation
-    refresh_steam_web_api_key_if_needed()
 
     # Check if we have steam_auth_token in querystrings
     if 'queryStringParameters' in event and event['queryStringParameters'] is not None:         

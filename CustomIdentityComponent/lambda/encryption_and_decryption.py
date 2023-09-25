@@ -5,8 +5,9 @@ import json
 import jwt
 import requests
 import time
-import boto3
 import os
+
+from aws_lambda_powertools.utilities import parameters
 
 # Access token expiration in seconds
 access_token_expiration = 900
@@ -18,24 +19,8 @@ refresh_token_expiration_days = 6
 # Private key refresh rate (should be relatively often to pick up new keys after rotation)
 private_key_refresh_rate = 900
 
-# Private key from Secrets manager, cached between requests for 15 minutes
-private_key = None
-last_private_key_refresh = 0
-
 # Current key set from Issuer endpoint
 jwks_key_set = None
-
-def refresh_private_key():
-    global private_key, last_private_key_refresh
-    # get private key from AWS Secrets Manager
-    secret_name = os.environ['SECRET_KEY_ID']
-    session = boto3.session.Session()
-    client = session.client(service_name='secretsmanager')
-    get_secret_value_response = client.get_secret_value(
-        SecretId=secret_name
-    )
-    private_key = get_secret_value_response['SecretString']
-    last_private_key_refresh = int(time.time())
 
 def is_kid_in_jwks_key_set(kid):
     global jwks_key_set
@@ -70,16 +55,8 @@ def get_jwks_key_with_kid(kid):
     return None
 
 def encrypt(payload, scope, custom_refresh_token_exp_value=None):
-    global private_key, last_private_key_refresh
-    # get time difference between current time and last_private_key_refresh
-    current_time = int(time.time())
-    time_difference = current_time - last_private_key_refresh
-    print("Time difference between current time and last_private_key_refresh: ", time_difference)
 
-    # check if we need to refresh the private key (every 15 minutes). We're ok to sign with the old key for a few minutes as long as the public key is in the jwks.json
-    if time_difference > private_key_refresh_rate or private_key == None:
-        print("Refreshing private key")
-        refresh_private_key()
+    private_key = parameters.get_secret(os.environ['SECRET_KEY_ID'], max_age=private_key_refresh_rate)
 
     # Create both an auth token and a refresh token for returning
     auth_token, auth_token_expires_in = encrypt_payload(payload, private_key, scope, "gamebackend", access_token_expiration, scope)
