@@ -114,7 +114,8 @@ export class CustomIdentityComponentStack extends Stack {
       environment: {
         "ISSUER_BUCKET": issuer_bucket.bucketName,
         "ISSUER_ENDPOINT": "https://"+distribution.domainName,
-        "POWERTOOLS_SERVICE_NAME": "CustomIdentityComponentApi",
+        "POWERTOOLS_METRICS_NAMESPACE": "AWS Game Tech",
+        "POWERTOOLS_SERVICE_NAME": "CustomIdentityComponent",
         "SECRET_KEY_ID": secret.secretName,
       }
     });
@@ -210,7 +211,7 @@ export class CustomIdentityComponentStack extends Stack {
     // Define an API Gateway for the authentication component public endpoint
     const logGroup = new logs.LogGroup(this, "CustomIdentityAPiAccessLogs");
     const api_gateway = new apigw.RestApi(this, 'ApiGateway', {
-      restApiName: 'CustomIdentityComponentApi',
+      restApiName: 'CustomIdentityComponent',
       description: 'Custom Identity Component API',
       deployOptions: {
         accessLogDestination: new apigw.LogGroupLogDestination(logGroup),
@@ -268,7 +269,8 @@ export class CustomIdentityComponentStack extends Stack {
       memorySize: 2048,
       environment: {
         "ISSUER_URL": "https://"+distribution.domainName,
-        "POWERTOOLS_SERVICE_NAME": "CustomIdentityComponentApi",
+        "POWERTOOLS_METRICS_NAMESPACE": "AWS Game Tech",
+        "POWERTOOLS_SERVICE_NAME": "CustomIdentityComponent",
         "SECRET_KEY_ID": secret.secretName,
         "USER_TABLE": user_table.tableName
       }
@@ -315,7 +317,8 @@ export class CustomIdentityComponentStack extends Stack {
       memorySize: 2048,
       environment: {
         "ISSUER_URL": "https://"+distribution.domainName,
-        "POWERTOOLS_SERVICE_NAME": "CustomIdentityComponentApi",
+        "POWERTOOLS_METRICS_NAMESPACE": "AWS Game Tech",
+        "POWERTOOLS_SERVICE_NAME": "CustomIdentityComponent",
         "SECRET_KEY_ID": secret.secretName,
         "USER_TABLE": user_table.tableName
       }
@@ -396,7 +399,8 @@ export class CustomIdentityComponentStack extends Stack {
         memorySize: 2048,
         environment: {
           "ISSUER_URL": "https://"+distribution.domainName,
-          "POWERTOOLS_SERVICE_NAME": "CustomIdentityComponentApi",
+          "POWERTOOLS_METRICS_NAMESPACE": "AWS Game Tech",
+          "POWERTOOLS_SERVICE_NAME": "CustomIdentityComponent",
           "SECRET_KEY_ID": secret.secretName,
           "USER_TABLE": user_table.tableName,
           "APPLE_APP_ID": appId,
@@ -457,7 +461,8 @@ export class CustomIdentityComponentStack extends Stack {
       memorySize: 2048,
       environment: {
         "ISSUER_URL": "https://"+distribution.domainName,
-        "POWERTOOLS_SERVICE_NAME": "CustomIdentityComponentApi",
+        "POWERTOOLS_METRICS_NAMESPACE": "AWS Game Tech",
+        "POWERTOOLS_SERVICE_NAME": "CustomIdentityComponent",
         "SECRET_KEY_ID": privateKeySecret.secretName,
         "USER_TABLE": user_table.tableName,
         "STEAM_APP_ID": appId,
@@ -528,7 +533,8 @@ export class CustomIdentityComponentStack extends Stack {
       memorySize: 2048,
       environment: {
         "ISSUER_URL": "https://"+distribution.domainName,
-        "POWERTOOLS_SERVICE_NAME": "CustomIdentityComponentApi",
+        "POWERTOOLS_METRICS_NAMESPACE": "AWS Game Tech",
+        "POWERTOOLS_SERVICE_NAME": "CustomIdentityComponent",
         "SECRET_KEY_ID": privateKeySecret.secretName,
         "USER_TABLE": user_table.tableName,
         "GOOGLE_PLAY_CLIENT_ID": googlePlayClientId,
@@ -598,7 +604,8 @@ export class CustomIdentityComponentStack extends Stack {
       memorySize: 2048,
       environment: {
         "ISSUER_URL": "https://"+distribution.domainName,
-        "POWERTOOLS_SERVICE_NAME": "CustomIdentityComponentApi",
+        "POWERTOOLS_METRICS_NAMESPACE": "AWS Game Tech",
+        "POWERTOOLS_SERVICE_NAME": "CustomIdentityComponent",
         "SECRET_KEY_ID": secret.secretName,
         "USER_TABLE": user_table.tableName,
         "FACEBOOK_APP_ID" : appId,
