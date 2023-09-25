@@ -211,7 +211,7 @@ export class CustomIdentityComponentStack extends Stack {
     // Define an API Gateway for the authentication component public endpoint
     const logGroup = new logs.LogGroup(this, "CustomIdentityAPiAccessLogs");
     const api_gateway = new apigw.RestApi(this, 'ApiGateway', {
-      restApiName: 'CustomIdentityComponent',
+      restApiName: 'CustomIdentityComponentApi',
       description: 'Custom Identity Component API',
       deployOptions: {
         accessLogDestination: new apigw.LogGroupLogDestination(logGroup),
