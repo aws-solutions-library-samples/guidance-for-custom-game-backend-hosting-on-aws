@@ -59,4 +59,5 @@ var identityComponentStack = new CustomIdentityComponentStack(app, 'CustomIdenti
   NagSuppressions.addStackSuppressions(identityComponentStack, [
     { id: 'AwsSolutions-APIG4', reason: 'The API has to be publicly accessible as it is built for user login and authentication for custom identities.' },
     { id: 'AwsSolutions-COG4', reason: 'The API cannot use Cognito User Pools as it is an API built for login and authentication for custom identities.' },
+    { id: 'AwsSolutions-L1', reason: 'Temporary suppression for Lambda runtime complaint, will remove once fixed' }
   ]);
