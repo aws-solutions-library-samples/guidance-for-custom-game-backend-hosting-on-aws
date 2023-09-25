@@ -101,19 +101,20 @@ export class CustomIdentityComponentStack extends Stack {
       role: generate_keys_function_role,
       code: lambda.Code.fromAsset("lambda", {
         bundling: {
-          image: lambda.Runtime.PYTHON_3_10.bundlingImage,
+          image: lambda.Runtime.PYTHON_3_11.bundlingImage,
           command: [
             'bash', '-c',
-            'pip install --platform manylinux2010_x86_64 --only-binary=:all: -r requirements.txt -t /asset-output && cp -ru . /asset-output'
+            'pip install --platform manylinux2014_x86_64 --only-binary=:all: -r requirements.txt -t /asset-output && cp -ru . /asset-output'
           ],
       },}),
-      runtime: lambda.Runtime.PYTHON_3_10,
+      runtime: lambda.Runtime.PYTHON_3_11,
       handler: 'generate_keys.lambda_handler',
       timeout: Duration.seconds(300),
       memorySize: 2048,
       environment: {
         "ISSUER_BUCKET": issuer_bucket.bucketName,
         "ISSUER_ENDPOINT": "https://"+distribution.domainName,
+        "POWERTOOLS_SERVICE_NAME": "CustomIdentityComponentApi",
         "SECRET_KEY_ID": secret.secretName,
       }
     });
@@ -254,19 +255,20 @@ export class CustomIdentityComponentStack extends Stack {
       role: login_as_guest_function_role,
       code: lambda.Code.fromAsset("lambda", {
         bundling: {
-          image: lambda.Runtime.PYTHON_3_10.bundlingImage,
+          image: lambda.Runtime.PYTHON_3_11.bundlingImage,
           command: [
             'bash', '-c',
-            'pip install --platform manylinux2010_x86_64 --only-binary=:all: -r requirements.txt -t /asset-output && cp -ru . /asset-output'
+            'pip install --platform manylinux2014_x86_64 --only-binary=:all: -r requirements.txt -t /asset-output && cp -ru . /asset-output'
           ],
       },}),
-      runtime: lambda.Runtime.PYTHON_3_10,
+      runtime: lambda.Runtime.PYTHON_3_11,
       handler: 'login_as_guest.lambda_handler',
       timeout: Duration.seconds(15),
       tracing: lambda.Tracing.ACTIVE,
       memorySize: 2048,
       environment: {
         "ISSUER_URL": "https://"+distribution.domainName,
+        "POWERTOOLS_SERVICE_NAME": "CustomIdentityComponentApi",
         "SECRET_KEY_ID": secret.secretName,
         "USER_TABLE": user_table.tableName
       }
@@ -300,19 +302,20 @@ export class CustomIdentityComponentStack extends Stack {
       role: refresh_access_token_function_role,
       code: lambda.Code.fromAsset("lambda", {
         bundling: {
-          image: lambda.Runtime.PYTHON_3_10.bundlingImage,
+          image: lambda.Runtime.PYTHON_3_11.bundlingImage,
           command: [
             'bash', '-c',
-            'pip install --platform manylinux2010_x86_64 --only-binary=:all: -r requirements.txt -t /asset-output && cp -ru . /asset-output'
+            'pip install --platform manylinux2014_x86_64 --only-binary=:all: -r requirements.txt -t /asset-output && cp -ru . /asset-output'
           ],
       },}),
-      runtime: lambda.Runtime.PYTHON_3_10,
+      runtime: lambda.Runtime.PYTHON_3_11,
       handler: 'refresh_access_token.lambda_handler',
       timeout: Duration.seconds(15),
       tracing: lambda.Tracing.ACTIVE,
       memorySize: 2048,
       environment: {
         "ISSUER_URL": "https://"+distribution.domainName,
+        "POWERTOOLS_SERVICE_NAME": "CustomIdentityComponentApi",
         "SECRET_KEY_ID": secret.secretName,
         "USER_TABLE": user_table.tableName
       }
@@ -380,19 +383,20 @@ export class CustomIdentityComponentStack extends Stack {
         role: loginWithAppleIdFunctionRole,
         code: lambda.Code.fromAsset("lambda", {
           bundling: {
-            image: lambda.Runtime.PYTHON_3_10.bundlingImage,
+            image: lambda.Runtime.PYTHON_3_11.bundlingImage,
             command: [
               'bash', '-c',
-              'pip install --platform manylinux2010_x86_64 --only-binary=:all: -r requirements.txt -t /asset-output && cp -ru . /asset-output'
+              'pip install --platform manylinux2014_x86_64 --only-binary=:all: -r requirements.txt -t /asset-output && cp -ru . /asset-output'
             ],
         },}),
-        runtime: lambda.Runtime.PYTHON_3_10,
+        runtime: lambda.Runtime.PYTHON_3_11,
         handler: 'login_with_apple_id.lambda_handler',
         timeout: Duration.seconds(15),
         tracing: lambda.Tracing.ACTIVE,
         memorySize: 2048,
         environment: {
           "ISSUER_URL": "https://"+distribution.domainName,
+          "POWERTOOLS_SERVICE_NAME": "CustomIdentityComponentApi",
           "SECRET_KEY_ID": secret.secretName,
           "USER_TABLE": user_table.tableName,
           "APPLE_APP_ID": appId,
@@ -440,19 +444,20 @@ export class CustomIdentityComponentStack extends Stack {
       role: loginWithSteamIdFunctionRole,
       code: lambda.Code.fromAsset("lambda", {
         bundling: {
-          image: lambda.Runtime.PYTHON_3_10.bundlingImage,
+          image: lambda.Runtime.PYTHON_3_11.bundlingImage,
           command: [
             'bash', '-c',
-            'pip install --platform manylinux2010_x86_64 --only-binary=:all: -r requirements.txt -t /asset-output && cp -ru . /asset-output'
+            'pip install --platform manylinux2014_x86_64 --only-binary=:all: -r requirements.txt -t /asset-output && cp -ru . /asset-output'
           ],
       },}),
-      runtime: lambda.Runtime.PYTHON_3_10,
+      runtime: lambda.Runtime.PYTHON_3_11,
       handler: 'login_with_steam.lambda_handler',
       timeout: Duration.seconds(15),
       tracing: lambda.Tracing.ACTIVE,
       memorySize: 2048,
       environment: {
         "ISSUER_URL": "https://"+distribution.domainName,
+        "POWERTOOLS_SERVICE_NAME": "CustomIdentityComponentApi",
         "SECRET_KEY_ID": privateKeySecret.secretName,
         "USER_TABLE": user_table.tableName,
         "STEAM_APP_ID": appId,
@@ -510,19 +515,20 @@ export class CustomIdentityComponentStack extends Stack {
       role:  loginWithGooglePlayFunctionRole,
       code: lambda.Code.fromAsset("lambda", {
         bundling: {
-          image: lambda.Runtime.PYTHON_3_10.bundlingImage,
+          image: lambda.Runtime.PYTHON_3_11.bundlingImage,
           command: [
             'bash', '-c',
-            'pip install --platform manylinux2010_x86_64 --only-binary=:all: -r requirements.txt -t /asset-output && cp -ru . /asset-output'
+            'pip install --platform manylinux2014_x86_64 --only-binary=:all: -r requirements.txt -t /asset-output && cp -ru . /asset-output'
           ],
       },}),
-      runtime: lambda.Runtime.PYTHON_3_10,
+      runtime: lambda.Runtime.PYTHON_3_11,
       handler: 'login_with_google_play.lambda_handler',
       timeout: Duration.seconds(15),
       tracing: lambda.Tracing.ACTIVE,
       memorySize: 2048,
       environment: {
         "ISSUER_URL": "https://"+distribution.domainName,
+        "POWERTOOLS_SERVICE_NAME": "CustomIdentityComponentApi",
         "SECRET_KEY_ID": privateKeySecret.secretName,
         "USER_TABLE": user_table.tableName,
         "GOOGLE_PLAY_CLIENT_ID": googlePlayClientId,
@@ -579,19 +585,20 @@ export class CustomIdentityComponentStack extends Stack {
       role: loginWithFacebookFunctionRole,
       code: lambda.Code.fromAsset("lambda", {
         bundling: {
-          image: lambda.Runtime.PYTHON_3_10.bundlingImage,
+          image: lambda.Runtime.PYTHON_3_11.bundlingImage,
           command: [
             'bash', '-c',
-            'pip install --platform manylinux2010_x86_64 --only-binary=:all: -r requirements.txt -t /asset-output && cp -ru . /asset-output'
+            'pip install --platform manylinux2014_x86_64 --only-binary=:all: -r requirements.txt -t /asset-output && cp -ru . /asset-output'
           ],
       },}),
-      runtime: lambda.Runtime.PYTHON_3_10,
+      runtime: lambda.Runtime.PYTHON_3_11,
       handler: 'login_with_facebook.lambda_handler',
       timeout: Duration.seconds(15),
       tracing: lambda.Tracing.ACTIVE,
       memorySize: 2048,
       environment: {
         "ISSUER_URL": "https://"+distribution.domainName,
+        "POWERTOOLS_SERVICE_NAME": "CustomIdentityComponentApi",
         "SECRET_KEY_ID": secret.secretName,
         "USER_TABLE": user_table.tableName,
         "FACEBOOK_APP_ID" : appId,
