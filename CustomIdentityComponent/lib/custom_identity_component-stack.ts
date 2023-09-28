@@ -114,7 +114,7 @@ export class CustomIdentityComponentStack extends Stack {
       environment: {
         "ISSUER_BUCKET": issuer_bucket.bucketName,
         "ISSUER_ENDPOINT": "https://"+distribution.domainName,
-        "POWERTOOLS_METRICS_NAMESPACE": "AWS Game Tech",
+        "POWERTOOLS_METRICS_NAMESPACE": "AWS for Games",
         "POWERTOOLS_SERVICE_NAME": "CustomIdentityComponent",
         "SECRET_KEY_ID": secret.secretName,
       }
@@ -269,7 +269,7 @@ export class CustomIdentityComponentStack extends Stack {
       memorySize: 2048,
       environment: {
         "ISSUER_URL": "https://"+distribution.domainName,
-        "POWERTOOLS_METRICS_NAMESPACE": "AWS Game Tech",
+        "POWERTOOLS_METRICS_NAMESPACE": "AWS for Games",
         "POWERTOOLS_SERVICE_NAME": "CustomIdentityComponent",
         "SECRET_KEY_ID": secret.secretName,
         "USER_TABLE": user_table.tableName
@@ -317,7 +317,7 @@ export class CustomIdentityComponentStack extends Stack {
       memorySize: 2048,
       environment: {
         "ISSUER_URL": "https://"+distribution.domainName,
-        "POWERTOOLS_METRICS_NAMESPACE": "AWS Game Tech",
+        "POWERTOOLS_METRICS_NAMESPACE": "AWS for Games",
         "POWERTOOLS_SERVICE_NAME": "CustomIdentityComponent",
         "SECRET_KEY_ID": secret.secretName,
         "USER_TABLE": user_table.tableName
@@ -399,7 +399,7 @@ export class CustomIdentityComponentStack extends Stack {
         memorySize: 2048,
         environment: {
           "ISSUER_URL": "https://"+distribution.domainName,
-          "POWERTOOLS_METRICS_NAMESPACE": "AWS Game Tech",
+          "POWERTOOLS_METRICS_NAMESPACE": "AWS for Games",
           "POWERTOOLS_SERVICE_NAME": "CustomIdentityComponent",
           "SECRET_KEY_ID": secret.secretName,
           "USER_TABLE": user_table.tableName,
@@ -461,7 +461,7 @@ export class CustomIdentityComponentStack extends Stack {
       memorySize: 2048,
       environment: {
         "ISSUER_URL": "https://"+distribution.domainName,
-        "POWERTOOLS_METRICS_NAMESPACE": "AWS Game Tech",
+        "POWERTOOLS_METRICS_NAMESPACE": "AWS for Games",
         "POWERTOOLS_SERVICE_NAME": "CustomIdentityComponent",
         "SECRET_KEY_ID": privateKeySecret.secretName,
         "USER_TABLE": user_table.tableName,
@@ -533,7 +533,7 @@ export class CustomIdentityComponentStack extends Stack {
       memorySize: 2048,
       environment: {
         "ISSUER_URL": "https://"+distribution.domainName,
-        "POWERTOOLS_METRICS_NAMESPACE": "AWS Game Tech",
+        "POWERTOOLS_METRICS_NAMESPACE": "AWS for Games",
         "POWERTOOLS_SERVICE_NAME": "CustomIdentityComponent",
         "SECRET_KEY_ID": privateKeySecret.secretName,
         "USER_TABLE": user_table.tableName,
@@ -604,7 +604,7 @@ export class CustomIdentityComponentStack extends Stack {
       memorySize: 2048,
       environment: {
         "ISSUER_URL": "https://"+distribution.domainName,
-        "POWERTOOLS_METRICS_NAMESPACE": "AWS Game Tech",
+        "POWERTOOLS_METRICS_NAMESPACE": "AWS for Games",
         "POWERTOOLS_SERVICE_NAME": "CustomIdentityComponent",
         "SECRET_KEY_ID": secret.secretName,
         "USER_TABLE": user_table.tableName,
