@@ -161,6 +161,9 @@ def link_steam_id_to_existing_user(user_id, steam_id):
 def check_steam_token(token: str) -> str:
     response = None
     response_body = {}
+
+    # We will try validating the steam token if we get a 103 error (rare)
+    # Note: The Lambda function will time out in the very unlikely case of this error happening 15 times in a row
     while True:
         steam_web_api_key = parameters.get_secret(os.environ['STEAM_WEB_API_KEY_SECRET_ARN'], max_age=steam_web_api_secret_max_age)
         send_time = datetime.datetime.utcnow()
