@@ -346,7 +346,7 @@ export class CustomIdentityComponentStack extends Stack {
       bundling: {
         forcedDockerBundling: true,
       },
-      timeout: Duration.seconds(15),
+      timeout: Duration.seconds(5),
       tracing: lambda.Tracing.ACTIVE,
       memorySize: 256,
       environment: {

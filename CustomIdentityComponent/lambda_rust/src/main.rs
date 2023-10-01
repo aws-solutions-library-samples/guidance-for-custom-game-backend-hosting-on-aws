@@ -21,7 +21,7 @@ struct ClaimsIn {
     exp: i64,
 }
 
-// Output Jwt token claims with references to save some allocations
+/// Output Jwt token claims with references to save some allocations
 #[derive(Debug, Serialize)]
 struct ClaimsOut<'a> {
     sub: &'a str,
