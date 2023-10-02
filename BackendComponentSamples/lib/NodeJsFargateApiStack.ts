@@ -12,6 +12,7 @@ import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as s3  from 'aws-cdk-lib/aws-s3';
 import { NagSuppressions } from 'cdk-nag';
 import * as iam from 'aws-cdk-lib/aws-iam';
+import * as logs from 'aws-cdk-lib/aws-logs';
 
 export interface NodeJsFargateApiStackProps extends StackProps {
   // custom identity provider issuer URL
@@ -82,7 +83,8 @@ export class NodeJsFargateApiStack extends Stack {
           protocol: ecs.Protocol.TCP
         }],
       logging: new ecs.AwsLogDriver({
-        streamPrefix: 'NodeJsFargateSampleBackendService'
+        streamPrefix: 'NodeJsFargateSampleBackendService',
+        logRetention: logs.RetentionDays.ONE_MONTH
       })
     });
 
@@ -130,7 +132,7 @@ export class NodeJsFargateApiStack extends Stack {
       desiredCount: 3, // We start with 3 nodes in the service for the test
       taskDefinition: taskDefinition,
       memoryLimitMiB: 1024,
-      publicLoadBalancer: true,
+      publicLoadBalancer: true
     });
 
     // Setup scaling based on CPU load for the service scaling between 3 and 10 Tasks
