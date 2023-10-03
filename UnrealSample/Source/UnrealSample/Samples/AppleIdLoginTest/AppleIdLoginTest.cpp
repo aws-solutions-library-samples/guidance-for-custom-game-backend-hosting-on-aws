@@ -27,11 +27,12 @@ void UAppleIdLoginTest::BeginPlay()
     UAWSGameSDK* AWSGameSDK =  GameInstance->GetSubsystem<UAWSGameSDK>();
 
     // Init with the login endpoint defined in the Editor and a callback to handle errors for logging in and refresh
-    auto loginOrRefreshErrorCallback = std::bind(&UAppleIdLoginTest::OnLoginOrRefreshErrorCallback, this, std::placeholders::_1);
-    AWSGameSDK->Init(this->m_loginEndpoint, loginOrRefreshErrorCallback);
+	AWSGameSDK->Init(this->m_loginEndpoint);
+	AWSGameSDK->OnLoginFailure.AddUObject(this, &UAppleIdLoginTest::OnLoginOrRefreshErrorCallback);
 
 	// Define the OnLoginResult callback
-    auto loginCallback = std::bind(&UAppleIdLoginTest::OnGuestLoginResultCallback, this, std::placeholders::_1);
+	UAWSGameSDK::FLoginComplete loginCallback;
+	loginCallback.BindUObject(this, &UAppleIdLoginTest::OnGuestLoginResultCallback);
 
 	// Login as a new guest user first
     AWSGameSDK->LoginAsNewGuestUser(loginCallback);
@@ -39,7 +40,7 @@ void UAppleIdLoginTest::BeginPlay()
 }
 
 // Called when there is an error with login or token refresh. You will need to handle logging in again here
-void UAppleIdLoginTest::OnLoginOrRefreshErrorCallback(FString errorMessage){
+void UAppleIdLoginTest::OnLoginOrRefreshErrorCallback(const FString& errorMessage){
     UE_LOG(LogTemp, Display, TEXT("Received login error: %s \n"), *errorMessage);
     if(GEngine)
         GEngine->AddOnScreenDebugMessage(-1, 30.0f, FColor::Red, FString::Printf(TEXT("Received login error: \n %s \n"), *errorMessage), false, FVector2D(1.5f,1.5f));
@@ -48,13 +49,14 @@ void UAppleIdLoginTest::OnLoginOrRefreshErrorCallback(FString errorMessage){
 }
 
 // Called when guest login is done
-void UAppleIdLoginTest::OnGuestLoginResultCallback(UserInfo userInfo){
+void UAppleIdLoginTest::OnGuestLoginResultCallback(const UserInfo& userInfo){
     UE_LOG(LogTemp, Display, TEXT("Received guest login response: %s \n"), *userInfo.ToString());
     if(GEngine)
             GEngine->AddOnScreenDebugMessage(-1, 30.0f, FColor::Black, FString::Printf(TEXT("Received login response: \n %s \n"), *userInfo.ToString()), false, FVector2D(1.5f,1.5f));
 
     // Test linking apple id to the existing guest account
-    auto onLinkAppleIdCallback = std::bind(&UAppleIdLoginTest::OnLinkAppleIdResultCallback, this, std::placeholders::_1);
+	UAWSGameSDK::FLoginComplete onLinkAppleIdCallback;
+	onLinkAppleIdCallback.BindUObject(this, &UAppleIdLoginTest::OnLinkAppleIdResultCallback);
 	UGameInstance* GameInstance = Cast<UGameInstance>(UGameplayStatics::GetGameInstance(GetWorld()));
     UAWSGameSDK* AWSGameSDK = GameInstance->GetSubsystem<UAWSGameSDK>();
 
@@ -62,14 +64,15 @@ void UAppleIdLoginTest::OnGuestLoginResultCallback(UserInfo userInfo){
     AWSGameSDK->LinkAppleIdToCurrentUser("eyYourToken", onLinkAppleIdCallback);
 }
 
-void UAppleIdLoginTest::OnLinkAppleIdResultCallback(UserInfo userInfo){
+void UAppleIdLoginTest::OnLinkAppleIdResultCallback(const UserInfo& userInfo){
 
     UE_LOG(LogTemp, Display, TEXT("Received apple ID linking response: %s \n"), *userInfo.ToString());
     if(GEngine)
             GEngine->AddOnScreenDebugMessage(-1, 30.0f, FColor::Black, FString::Printf(TEXT("Received apple ID linking response: \n %s \n"), *userInfo.ToString()), false, FVector2D(1.5f,1.5f));
 
     // Test logging in with existing apple_id
-    auto onAppleIdLoginCallback = std::bind(&UAppleIdLoginTest::OnLoginWithAppleId, this, std::placeholders::_1);
+	UAWSGameSDK::FLoginComplete onAppleIdLoginCallback;
+	onAppleIdLoginCallback.BindUObject(this, &UAppleIdLoginTest::OnLoginWithAppleId);
 	UGameInstance* GameInstance = Cast<UGameInstance>(UGameplayStatics::GetGameInstance(GetWorld()));
     UAWSGameSDK* AWSGameSDK = GameInstance->GetSubsystem<UAWSGameSDK>();
 
@@ -77,7 +80,7 @@ void UAppleIdLoginTest::OnLinkAppleIdResultCallback(UserInfo userInfo){
     AWSGameSDK->LoginWithAppleIdToken("eyYourToken", onAppleIdLoginCallback);
 }
 
-void UAppleIdLoginTest::OnLoginWithAppleId(UserInfo userInfo){
+void UAppleIdLoginTest::OnLoginWithAppleId(const UserInfo& userInfo){
 
     UE_LOG(LogTemp, Display, TEXT("Received apple ID login response: %s \n"), *userInfo.ToString());
     if(GEngine)
