@@ -3,7 +3,6 @@
 
 #include "AWSGameSDK.h"
 #include "CoreMinimal.h"
-#include "Engine/World.h"
 #include "HttpModule.h"
 #include "Interfaces/IHttpRequest.h"
 #include "Interfaces/IHttpResponse.h"
