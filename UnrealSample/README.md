@@ -16,8 +16,8 @@ UGameInstance* GameInstance = Cast<UGameInstance>(UGameplayStatics::GetGameInsta
 UAWSGameSDK* AWSGameSDK =  GameInstance->GetSubsystem<UAWSGameSDK>();
 
 // Init with the login endpoint defined in the Editor and a callback to handle errors for logging in and refresh
-auto loginOrRefreshErrorCallback = std::bind(&UBackendIntegrationTest::OnLoginOrRefreshErrorCallback, this, std::placeholders::_1);
-AWSGameSDK->Init(this->m_loginEndpoint, loginOrRefreshErrorCallback);
+AWSGameSDK->Init(this->m_loginEndpoint);
+AWSGameSDK->OnLoginFailure.AddUObject(this, &UBackendIntegrationTest::OnLoginOrRefreshErrorCallback);
 ```
 
 ## SDK Public API
@@ -25,19 +25,19 @@ AWSGameSDK->Init(this->m_loginEndpoint, loginOrRefreshErrorCallback);
 The public API for the SDK includes the following methods. Most of them will require you to provide a callback for results (see the Unreal Integration Samples for sample code):
 
 ```cpp
-void LoginAsNewGuestUser(std::function<void(UserInfo userInfo)> callback);
-void LoginAsGuestUser(const FString& user_id, const FString& guest_secret, std::function<void(UserInfo userInfo)> callback);
-void BackendGetRequest(const FString& url, const FString& resource, TMap<FString, FString> queryParameters, std::function<void(FString response)> callback);
-void LoginWithAppleIdToken(const FString& appleAuthToken, std::function<void(UserInfo userInfo)> callback);
-void LinkAppleIdToCurrentUser(const FString& appleAuthToken, std::function<void(UserInfo userInfo)> callback);
-void LoginWithSteamToken(const FString& steamAuthToken, std::function<void(UserInfo userInfo)> callback);
-void LinkSteamIdToCurrentUser(const FString& steamAuthToken, std::function<void(UserInfo userInfo)> callback);
-void LoginWithGooglePlayToken(const FString& googlePlayAuthToken, std::function<void(UserInfo userInfo)> callback);
-void LinkGooglePlayIdToCurrentUser(const FString& googlePlayAuthToken, std::function<void(UserInfo userInfo)> callback);
-void LoginWithFacebookAccessToken(const FString& facebookAccessToken, const FString& facebookUserId, std::function<void(UserInfo userInfo)> callback);
-void LinkFacebookIdToCurrentUser(const FString& facebookAccessToken, const FString& facebookUserId, std::function<void(UserInfo userInfo)> callback);
-void LoginWithRefreshToken(const FString& refreshToken, std::function<void(UserInfo userInfo)> callback);
-void RefreshAccessToken(std::function<void(UserInfo userInfo)> callback);
+void LoginAsNewGuestUser(FLoginComplete callback);
+void LoginAsGuestUser(const FString& user_id, const FString& guest_secret, FLoginComplete callback);
+void BackendGetRequest(const FString& url, const FString& resource, const TMap<FString, FString>& queryParameters, FRequestComplete callback);
+void LoginWithAppleIdToken(const FString& appleAuthToken, FLoginComplete callback);
+void LinkAppleIdToCurrentUser(const FString& appleAuthToken, FLoginComplete callback);
+void LoginWithSteamToken(const FString& steamAuthToken, FLoginComplete callback);
+void LinkSteamIdToCurrentUser(const FString& steamAuthToken, FLoginComplete callback);
+void LoginWithGooglePlayToken(const FString& googlePlayAuthToken, FLoginComplete callback);
+void LinkGooglePlayIdToCurrentUser(const FString& googlePlayAuthToken, FLoginComplete callback);
+void LoginWithFacebookAccessToken(const FString& facebookAccessToken, const FString& facebookUserId, FLoginComplete callback);
+void LinkFacebookIdToCurrentUser(const FString& facebookAccessToken, const FString& facebookUserId, FLoginComplete callback);
+void LoginWithRefreshToken(const FString& refreshToken, FLoginComplete callback);
+void RefreshAccessToken(FLoginComplete callback);
 ```
 ## Adding the SDK to an existing project
 
