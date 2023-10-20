@@ -18,10 +18,10 @@ public:
 	// Sets default values for this component's properties
 	UFacebookLoginTest();
 
-	void OnGuestLoginResultCallback(UserInfo userInfo);
-	void OnLoginOrRefreshErrorCallback(FString error);
-	void OnLinkFacebookIdResultCallback(UserInfo userInfo);
-	void OnLoginWithFacebook(UserInfo userInfo);
+	void OnGuestLoginResultCallback(const UserInfo& userInfo);
+	void OnLoginOrRefreshErrorCallback(const FString& error);
+	void OnLinkFacebookIdResultCallback(const UserInfo& userInfo);
+	void OnLoginWithFacebook(const UserInfo& userInfo);
 
     UPROPERTY(EditAnywhere)
     FString m_loginEndpoint;

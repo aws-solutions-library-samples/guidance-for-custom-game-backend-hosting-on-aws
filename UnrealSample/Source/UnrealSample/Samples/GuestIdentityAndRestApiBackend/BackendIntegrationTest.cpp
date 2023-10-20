@@ -29,11 +29,12 @@ void UBackendIntegrationTest::BeginPlay()
     UPlayerDataManager* PlayerDataManager = GameInstance->GetSubsystem<UPlayerDataManager>(); 
     
     // Init with the login endpoint defined in the Editor and a callback to handle errors for logging in and refresh
-    auto loginOrRefreshErrorCallback = std::bind(&UBackendIntegrationTest::OnLoginOrRefreshErrorCallback, this, std::placeholders::_1);
-    AWSGameSDK->Init(this->m_loginEndpoint, loginOrRefreshErrorCallback);
+	AWSGameSDK->Init(this->m_loginEndpoint);
+	AWSGameSDK->OnLoginFailure.AddUObject(this, &UBackendIntegrationTest::OnLoginOrRefreshErrorCallback);
 
     // Define the OnLoginResult callback
-    auto loginCallback = std::bind(&UBackendIntegrationTest::OnLoginResultCallback, this, std::placeholders::_1);
+	UAWSGameSDK::FLoginComplete loginCallback;
+	loginCallback.BindUObject(this, &UBackendIntegrationTest::OnLoginResultCallback);
     
     // Get player data if we have any 
     auto playerData = PlayerDataManager->LoadGameData();
@@ -57,7 +58,7 @@ void UBackendIntegrationTest::BeginPlay()
 }
 
 // Called when there is an error with login or token refresh. You will need to handle logging in again here
-void UBackendIntegrationTest::OnLoginOrRefreshErrorCallback(FString errorMessage){
+void UBackendIntegrationTest::OnLoginOrRefreshErrorCallback(const FString& errorMessage){
     UE_LOG(LogTemp, Display, TEXT("Received login error: %s \n"), *errorMessage);
     if(GEngine)
         GEngine->AddOnScreenDebugMessage(-1, 30.0f, FColor::Red, FString::Printf(TEXT("Received login error: \n %s \n"), *errorMessage), false, FVector2D(1.5f,1.5f));
@@ -66,7 +67,7 @@ void UBackendIntegrationTest::OnLoginOrRefreshErrorCallback(FString errorMessage
 }
 
 // Called when login is done
-void UBackendIntegrationTest::OnLoginResultCallback(UserInfo userInfo){
+void UBackendIntegrationTest::OnLoginResultCallback(const UserInfo& userInfo){
     UE_LOG(LogTemp, Display, TEXT("Received login response: %s \n"), *userInfo.ToString());
     if(GEngine)
             GEngine->AddOnScreenDebugMessage(-1, 30.0f, FColor::Black, FString::Printf(TEXT("Received login response: \n %s \n"), *userInfo.ToString()), false, FVector2D(1.5f,1.5f));
@@ -80,7 +81,8 @@ void UBackendIntegrationTest::OnLoginResultCallback(UserInfo userInfo){
     // and login next time with the refresh token itself. This can be done by calling AWSGameSDK->LoginWithRefreshToken(refreshToken, loginCallback);
 
     // Test calling our custom backend system to set player data
-    auto setPlayerDataCallback = std::bind(&UBackendIntegrationTest::OnSetPlayerDataResponse, this, std::placeholders::_1);
+	UAWSGameSDK::FRequestComplete setPlayerDataCallback;
+	setPlayerDataCallback.BindUObject(this, &UBackendIntegrationTest::OnSetPlayerDataResponse);
     TMap<FString,FString> params;
     params.Add("player_name", "John Doe");
     UAWSGameSDK* AWSGameSDK =  GameInstance->GetSubsystem<UAWSGameSDK>();
@@ -88,13 +90,14 @@ void UBackendIntegrationTest::OnLoginResultCallback(UserInfo userInfo){
 }
 
 // Called when set-player-data gets a response
-void UBackendIntegrationTest::OnSetPlayerDataResponse(FString response){
+void UBackendIntegrationTest::OnSetPlayerDataResponse(const FString& response){
     UE_LOG(LogTemp, Display, TEXT("Received set-player-data response: %s \n"), *response);
     if(GEngine)
         GEngine->AddOnScreenDebugMessage(-1, 30.0f, FColor::Black, FString::Printf(TEXT("Received set-player-data response: \n %s \n"), *response), false, FVector2D(1.5f,1.5f));
 
     // Test getting the same player data
-    auto getPlayerDataCallback = std::bind(&UBackendIntegrationTest::OnGetPlayerDataResponse, this, std::placeholders::_1);
+	UAWSGameSDK::FRequestComplete getPlayerDataCallback;
+	getPlayerDataCallback.BindUObject(this, &UBackendIntegrationTest::OnGetPlayerDataResponse);
     TMap<FString,FString> params; // We don't have any params for this call
     UGameInstance* GameInstance = Cast<UGameInstance>(UGameplayStatics::GetGameInstance(GetWorld()));
     UAWSGameSDK* AWSGameSDK =  GameInstance->GetSubsystem<UAWSGameSDK>();
@@ -102,7 +105,7 @@ void UBackendIntegrationTest::OnSetPlayerDataResponse(FString response){
 }
 
 // Called when get-player-data gets a response
-void UBackendIntegrationTest::OnGetPlayerDataResponse(FString response){
+void UBackendIntegrationTest::OnGetPlayerDataResponse(const FString& response){
     UE_LOG(LogTemp, Display, TEXT("Received get-player-data response: %s \n"), *response);
     if(GEngine)
         GEngine->AddOnScreenDebugMessage(-1, 30.0f, FColor::Black, FString::Printf(TEXT("Received get-player-data response: \n %s \n"), *response), false, FVector2D(1.5f,1.5f));

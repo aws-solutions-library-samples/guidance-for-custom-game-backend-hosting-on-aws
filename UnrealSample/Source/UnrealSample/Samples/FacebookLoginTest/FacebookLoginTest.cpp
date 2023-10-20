@@ -27,11 +27,12 @@ void UFacebookLoginTest::BeginPlay()
     UAWSGameSDK* AWSGameSDK =  GameInstance->GetSubsystem<UAWSGameSDK>();
 
     // Init with the login endpoint defined in the Editor and a callback to handle errors for logging in and refresh
-    auto loginOrRefreshErrorCallback = std::bind(&UFacebookLoginTest::OnLoginOrRefreshErrorCallback, this, std::placeholders::_1);
-    AWSGameSDK->Init(this->m_loginEndpoint, loginOrRefreshErrorCallback);
+	AWSGameSDK->Init(this->m_loginEndpoint);
+	AWSGameSDK->OnLoginFailure.AddUObject(this, &UFacebookLoginTest::OnLoginOrRefreshErrorCallback);
 
 	// Define the OnLoginResult callback
-    auto loginCallback = std::bind(&UFacebookLoginTest::OnGuestLoginResultCallback, this, std::placeholders::_1);
+	UAWSGameSDK::FLoginComplete loginCallback;
+    loginCallback.BindUObject(this, &UFacebookLoginTest::OnGuestLoginResultCallback);
 
 	// Login as a new guest user first
     AWSGameSDK->LoginAsNewGuestUser(loginCallback);
@@ -39,7 +40,7 @@ void UFacebookLoginTest::BeginPlay()
 }
 
 // Called when there is an error with login or token refresh. You will need to handle logging in again here
-void UFacebookLoginTest::OnLoginOrRefreshErrorCallback(FString errorMessage){
+void UFacebookLoginTest::OnLoginOrRefreshErrorCallback(const FString& errorMessage){
     UE_LOG(LogTemp, Display, TEXT("Received login error: %s \n"), *errorMessage);
     if(GEngine)
         GEngine->AddOnScreenDebugMessage(-1, 30.0f, FColor::Red, FString::Printf(TEXT("Received login error: \n %s \n"), *errorMessage), false, FVector2D(1.5f,1.5f));
@@ -48,13 +49,14 @@ void UFacebookLoginTest::OnLoginOrRefreshErrorCallback(FString errorMessage){
 }
 
 // Called when guest login is done
-void UFacebookLoginTest::OnGuestLoginResultCallback(UserInfo userInfo){
+void UFacebookLoginTest::OnGuestLoginResultCallback(const UserInfo& userInfo){
     UE_LOG(LogTemp, Display, TEXT("Received guest login response: %s \n"), *userInfo.ToString());
     if(GEngine)
             GEngine->AddOnScreenDebugMessage(-1, 30.0f, FColor::Black, FString::Printf(TEXT("Received login response: \n %s \n"), *userInfo.ToString()), false, FVector2D(1.5f,1.5f));
 
     // Test linking facebook id to the existing guest account
-    auto onLinkFacebookIdCallback = std::bind(&UFacebookLoginTest::OnLinkFacebookIdResultCallback, this, std::placeholders::_1);
+	UAWSGameSDK::FLoginComplete onLinkFacebookIdCallback;
+    onLinkFacebookIdCallback.BindUObject(this, &UFacebookLoginTest::OnLinkFacebookIdResultCallback);
 	UGameInstance* GameInstance = Cast<UGameInstance>(UGameplayStatics::GetGameInstance(GetWorld()));
     UAWSGameSDK* AWSGameSDK = GameInstance->GetSubsystem<UAWSGameSDK>();
 
@@ -63,14 +65,15 @@ void UFacebookLoginTest::OnGuestLoginResultCallback(UserInfo userInfo){
 	AWSGameSDK->LinkFacebookIdToCurrentUser("tokenHere", "userIDHere", onLinkFacebookIdCallback);
 }
 
-void UFacebookLoginTest::OnLinkFacebookIdResultCallback(UserInfo userInfo){
+void UFacebookLoginTest::OnLinkFacebookIdResultCallback(const UserInfo& userInfo){
 
     UE_LOG(LogTemp, Display, TEXT("Received Facebook ID linking response: %s \n"), *userInfo.ToString());
     if(GEngine)
             GEngine->AddOnScreenDebugMessage(-1, 30.0f, FColor::Black, FString::Printf(TEXT("Received Facebook ID linking response: \n %s \n"), *userInfo.ToString()), false, FVector2D(1.5f,1.5f));
 
     // Test logging in with existing facebook_id
-    auto onFacebookLoginCallback = std::bind(&UFacebookLoginTest::OnLoginWithFacebook, this, std::placeholders::_1);
+	UAWSGameSDK::FLoginComplete onFacebookLoginCallback;
+    onFacebookLoginCallback.BindUObject(this, &UFacebookLoginTest::OnLoginWithFacebook);
 	UGameInstance* GameInstance = Cast<UGameInstance>(UGameplayStatics::GetGameInstance(GetWorld()));
     UAWSGameSDK* AWSGameSDK = GameInstance->GetSubsystem<UAWSGameSDK>();
 
@@ -78,7 +81,7 @@ void UFacebookLoginTest::OnLinkFacebookIdResultCallback(UserInfo userInfo){
     AWSGameSDK->LoginWithFacebookAccessToken("tokenHere", "userIdHere", onFacebookLoginCallback);
 }
 
-void UFacebookLoginTest::OnLoginWithFacebook(UserInfo userInfo){
+void UFacebookLoginTest::OnLoginWithFacebook(const UserInfo& userInfo){
 
     UE_LOG(LogTemp, Display, TEXT("Received Facebook login response: %s \n"), *userInfo.ToString());
     if(GEngine)

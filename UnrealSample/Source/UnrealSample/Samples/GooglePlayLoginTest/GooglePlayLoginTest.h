@@ -18,9 +18,9 @@ public:
 	// Sets default values for this component's properties
 	UGooglePlayLoginTest();
 
-	void OnGuestLoginResultCallback(UserInfo userInfo);
-	void OnLinkGooglePlayIdResultCallback(UserInfo userInfo);
-	void OnLoginOrRefreshErrorCallback(FString error);
+	void OnGuestLoginResultCallback(const UserInfo& userInfo);
+	void OnLinkGooglePlayIdResultCallback(const UserInfo& userInfo);
+	void OnLoginOrRefreshErrorCallback(const FString& error);
 
     UPROPERTY(EditAnywhere)
     FString m_loginEndpoint;

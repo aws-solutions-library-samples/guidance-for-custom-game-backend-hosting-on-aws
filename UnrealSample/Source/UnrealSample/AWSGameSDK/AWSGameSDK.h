@@ -4,6 +4,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "HttpRetrySystem.h"
 #include "Subsystems/Subsystem.h"
 #include "AWSGameSDK.generated.h"
 
@@ -22,18 +23,18 @@ struct UserInfo
         int auth_token_expires_in;
         int refresh_token_expires_in;
         // Define ToString() method
-        FString ToString()
-        {
-            return FString::Printf(TEXT("user_id=%s\n guest_secret=%s\n auth_token=%s\n apple_id=%s\n steam_id=%s\n google_play_id=%s \n facebook_id=%s \n refresh_token=%s \n auth_token_expires_in=%d \n refresh_token_expires_in=%d"), 
-                                        *user_id, *guest_secret, *auth_token, *apple_id, *steam_id, *google_play_id, *facebook_id, *refresh_token, auth_token_expires_in, refresh_token_expires_in);
-        }
+		FString ToString() const
+		{
+			return FString::Printf(TEXT("user_id=%s\n guest_secret=%s\n auth_token=%s\n apple_id=%s\n steam_id=%s\n google_play_id=%s \n facebook_id=%s \n refresh_token=%s \n auth_token_expires_in=%d \n refresh_token_expires_in=%d"),
+				*user_id, *guest_secret, *auth_token, *apple_id, *steam_id, *google_play_id, *facebook_id, *refresh_token, auth_token_expires_in, refresh_token_expires_in);
+		}
 };
 
 /**
  * 
  */
 UCLASS()
-class UNREALSAMPLE_API UAWSGameSDK : public UGameInstanceSubsystem, public FTickableGameObject
+class UNREALSAMPLE_API UAWSGameSDK : public UGameInstanceSubsystem
 {
 	GENERATED_BODY()
     
@@ -46,41 +47,46 @@ public:
     virtual void Deinitialize() override;
     // End USubsystem
     
-    void Init(const FString& loginEndpoint, std::function<void(const FString&)> loginOrRefreshErrorCallback);
-    
-    void LoginAsNewGuestUser(std::function<void(UserInfo userInfo)> callback);
-    void LoginAsGuestUser(const FString& user_id, const FString& guest_secret, std::function<void(UserInfo userInfo)> callback);
-    void BackendGetRequest(const FString& url, const FString& resource, TMap<FString, FString> queryParameters, std::function<void(FString response)> callback);
-    void LoginWithAppleIdToken(const FString& appleAuthToken, std::function<void(UserInfo userInfo)> callback);
-    void LinkAppleIdToCurrentUser(const FString& appleAuthToken, std::function<void(UserInfo userInfo)> callback);
-    void LoginWithSteamToken(const FString& steamAuthToken, std::function<void(UserInfo userInfo)> callback);
-    void LinkSteamIdToCurrentUser(const FString& steamAuthToken, std::function<void(UserInfo userInfo)> callback);
-    void LoginWithGooglePlayToken(const FString& googlePlayAuthToken, std::function<void(UserInfo userInfo)> callback);
-    void LinkGooglePlayIdToCurrentUser(const FString& googlePlayAuthToken, std::function<void(UserInfo userInfo)> callback);
-    void LoginWithFacebookAccessToken(const FString& facebookAccessToken, const FString& facebookUserId, std::function<void(UserInfo userInfo)> callback);
-    void LinkFacebookIdToCurrentUser(const FString& facebookAccessToken, const FString& facebookUserId, std::function<void(UserInfo userInfo)> callback);
-    void LoginWithRefreshToken(const FString& refreshToken, std::function<void(UserInfo userInfo)> callback);
-    void RefreshAccessToken(std::function<void(UserInfo userInfo)> callback);
+    void Init(const FString& loginEndpoint);
 
-    //Tickable object methods
-    virtual UWorld* GetTickableGameObjectWorld() const override { return GetWorld(); }
-	virtual ETickableTickType GetTickableTickType() const override { return ETickableTickType::Always; }
-	virtual bool IsAllowedToTick() const override { return true; }
-	virtual void Tick(float DeltaTime) override;
-	virtual TStatId GetStatId() const override { return TStatId(); }
+	DECLARE_DELEGATE_OneParam(FLoginComplete, const UserInfo& userInfo);
+    
+    void LoginAsNewGuestUser(FLoginComplete callback);
+    void LoginAsGuestUser(const FString& user_id, const FString& guest_secret, FLoginComplete callback);
+    void LoginWithAppleIdToken(const FString& appleAuthToken, FLoginComplete callback);
+    void LinkAppleIdToCurrentUser(const FString& appleAuthToken, FLoginComplete callback);
+    void LoginWithSteamToken(const FString& steamAuthToken, FLoginComplete callback);
+    void LinkSteamIdToCurrentUser(const FString& steamAuthToken, FLoginComplete callback);
+    void LoginWithGooglePlayToken(const FString& googlePlayAuthToken, FLoginComplete callback);
+    void LinkGooglePlayIdToCurrentUser(const FString& googlePlayAuthToken, FLoginComplete callback);
+    void LoginWithFacebookAccessToken(const FString& facebookAccessToken, const FString& facebookUserId, FLoginComplete callback);
+    void LinkFacebookIdToCurrentUser(const FString& facebookAccessToken, const FString& facebookUserId, FLoginComplete callback);
+    void LoginWithRefreshToken(const FString& refreshToken, FLoginComplete callback);
+    void RefreshAccessToken(FLoginComplete callback);
+
+	// Simplified GET interface with parameters on the query string
+	DECLARE_DELEGATE_OneParam(FRequestComplete, const FString& response);
+	void BackendGetRequest(const FString& url, const FString& resource, const TMap<FString, FString>& queryParameters, FRequestComplete callback);
+
+	// Alternate interface allowing usage of IHttpRequest for different verbs, headers, etc.
+	TSharedRef<IHttpRequest, ESPMode::ThreadSafe> NewBackendRequest();
+
+	DECLARE_MULTICAST_DELEGATE_OneParam(FLoginFailure, const FString&);
+	FLoginFailure OnLoginFailure;
 
 private:
     
     FString m_loginEndpoint;
-    std::function<void(const FString&)> m_loginOrRefreshErrorCallback;
-
-    FDateTime AuthTokenExpirationUTC = FDateTime::MinValue();
-    FDateTime RefreshTokenExpirationUTC = FDateTime::MinValue();
+	FTimerHandle m_updateTimerHandle;
+	FTimerHandle m_refreshTokenTimer;
+	TSharedPtr<class FHttpRetrySystem::FManager> m_httpRetryManager;
     
-    void CallRestApiGetUserLogin(const FString& url, const FString& resource, TMap<FString, FString> queryParameters, std::function<void(UserInfo userInfo)> callback);
-    void LoginWithAppleId(const FString& appleAuthToken, const FString& authToken, bool linkToExistingUser, std::function<void(UserInfo userInfo)> callback);
-    void LoginWithSteam(const FString& steamAuthToken, const FString& authToken, bool linkToExistingUser, std::function<void(UserInfo userInfo)> callback);
-    void LoginWithGooglePlay(const FString& googlePlayAuthToken, const FString& authToken, bool linkToExistingUser, std::function<void(UserInfo userInfo)> callback);
-    void LoginWithFacebook(const FString& facebookAccessToken, const FString& facebookUserId, const FString& authToken, bool linkToExistingUser, std::function<void(UserInfo userInfo)> callback);
-    void CallRestApiGetWithAuth(const FString& url, const FString& resource, const FString& authToken, TMap<FString, FString> queryParameters, std::function<void(FString response)> callback);
+	TSharedRef<IHttpRequest, ESPMode::ThreadSafe> NewBackendRequest_NoAuth();
+    void CallRestApiGetUserLogin(const FString& url, const FString& resource, const TMap<FString, FString>& queryParameters, FLoginComplete callback);
+    void LoginWithAppleId(const FString& appleAuthToken, const FString& authToken, bool linkToExistingUser, FLoginComplete callback);
+    void LoginWithSteam(const FString& steamAuthToken, const FString& authToken, bool linkToExistingUser, FLoginComplete callback);
+    void LoginWithGooglePlay(const FString& googlePlayAuthToken, const FString& authToken, bool linkToExistingUser, FLoginComplete callback);
+    void LoginWithFacebook(const FString& facebookAccessToken, const FString& facebookUserId, const FString& authToken, bool linkToExistingUser, FLoginComplete callback);
+    void CallRestApiGetWithAuth(const FString& url, const FString& resource, TMap<FString, FString> queryParameters, FRequestComplete callback);
+	void ScheduleTokenRefresh(float expiresIn);
 };

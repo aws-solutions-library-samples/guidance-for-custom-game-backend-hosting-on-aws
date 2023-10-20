@@ -10,39 +10,40 @@
 
 void UAWSGameSDK::Initialize(FSubsystemCollectionBase& Collection){
     UE_LOG(LogTemp, Display, TEXT("Init AWSGameSDK Subsystem") );
+
+	m_httpRetryManager = MakeShared<FHttpRetrySystem::FManager>(
+		FHttpRetrySystem::FRetryLimitCountSetting(2),
+		FHttpRetrySystem::FRetryTimeoutRelativeSecondsSetting()
+		);
+
+	FTimerDelegate updateDelegate;
+	updateDelegate.BindWeakLambda(this, [this]()
+		{
+			m_httpRetryManager->Update();
+		});
+
+	const float tickFrequency = 0.25f;
+	const bool repeat = true;
+	GetWorld()->GetTimerManager().SetTimer(this->m_updateTimerHandle, updateDelegate, tickFrequency, repeat);
 }
 
 void UAWSGameSDK::Deinitialize(){
 
 }
 
-// Called every frame
-void UAWSGameSDK::Tick(float DeltaTime)
-{
-    // If AuthTokenExpirationUTC is not min value and difference to current UTCNow is less than 5 seconds, refresh the token
-    if(this->AuthTokenExpirationUTC != FDateTime::MinValue() && this->AuthTokenExpirationUTC - FDateTime::UtcNow() < FTimespan(0, 0, 5)) {
-        UE_LOG(LogTemp, Display, TEXT("AWSGameSDK: Access token expiring, refresh."));
-        // Reset the expiration time
-        this->AuthTokenExpirationUTC = FDateTime::MinValue();
-        // Call the refresh token method
-        this->RefreshAccessToken(nullptr);
-    }
-}
-
 /// PUBLIC API ///
 
-void UAWSGameSDK::Init(const FString& loginEndpoint, std::function<void(const FString&)> loginErrorCallback){
+void UAWSGameSDK::Init(const FString& loginEndpoint){
     this->m_loginEndpoint = loginEndpoint;
-    this->m_loginOrRefreshErrorCallback = loginErrorCallback;
 }
 
-void UAWSGameSDK::LoginAsNewGuestUser(std::function<void(UserInfo userInfo)> callback){
+void UAWSGameSDK::LoginAsNewGuestUser(FLoginComplete callback){
     
     // Login as new guest (NULL, NULL for user_id and guest_secret)
     this->LoginAsGuestUser("", "", callback);
 }
 
-void UAWSGameSDK::LoginAsGuestUser(const FString& user_id, const FString& guest_secret, std::function<void(UserInfo userInfo)> callback){
+void UAWSGameSDK::LoginAsGuestUser(const FString& user_id, const FString& guest_secret, FLoginComplete callback){
 
     // Define an FString, FString map for the query parameters
     TMap<FString, FString> queryParameters;
@@ -56,7 +57,7 @@ void UAWSGameSDK::LoginAsGuestUser(const FString& user_id, const FString& guest_
     this->CallRestApiGetUserLogin(this->m_loginEndpoint, "login-as-guest",  queryParameters, callback);
 }
 
-void UAWSGameSDK::LoginWithRefreshToken(const FString& refreshToken, std::function<void(UserInfo userInfo)> callback){
+void UAWSGameSDK::LoginWithRefreshToken(const FString& refreshToken, FLoginComplete callback){
 
     // Define an FString, FString map for the query parameters
     TMap<FString, FString> queryParameters;
@@ -69,7 +70,7 @@ void UAWSGameSDK::LoginWithRefreshToken(const FString& refreshToken, std::functi
     this->CallRestApiGetUserLogin(this->m_loginEndpoint, "refresh-access-token",  queryParameters, callback);
 }
 
-void UAWSGameSDK::RefreshAccessToken(std::function<void(UserInfo userInfo)> callback){
+void UAWSGameSDK::RefreshAccessToken(FLoginComplete callback){
     
     // Check that we have login endpoint
     if(this->m_loginEndpoint == "") {
@@ -86,59 +87,59 @@ void UAWSGameSDK::RefreshAccessToken(std::function<void(UserInfo userInfo)> call
     this->LoginWithRefreshToken(this->m_userInfo.refresh_token, callback);
 }
 
-void UAWSGameSDK::LoginWithAppleIdToken(const FString& appleAuthToken, std::function<void(UserInfo userInfo)> callback){
+void UAWSGameSDK::LoginWithAppleIdToken(const FString& appleAuthToken, FLoginComplete callback){
     UE_LOG(LogTemp, Display, TEXT("Logging in with Apple ID auth token"));
     this->LoginWithAppleId(appleAuthToken, "", false, callback);
 }
 
-void UAWSGameSDK::LinkAppleIdToCurrentUser(const FString& appleAuthToken, std::function<void(UserInfo userInfo)> callback){
+void UAWSGameSDK::LinkAppleIdToCurrentUser(const FString& appleAuthToken, FLoginComplete callback){
     UE_LOG(LogTemp, Display, TEXT("Linking Apple ID to existing user"));
     this->LoginWithAppleId(appleAuthToken, this->m_userInfo.auth_token, true, callback);
 }
 
-void UAWSGameSDK::LoginWithSteamToken(const FString& steamAuthToken, std::function<void(UserInfo userInfo)> callback){
+void UAWSGameSDK::LoginWithSteamToken(const FString& steamAuthToken, FLoginComplete callback){
     UE_LOG(LogTemp, Display, TEXT("Logging in with Steam auth token"));
     this->LoginWithSteam(steamAuthToken, "", false, callback);
 }
 
-void UAWSGameSDK::LinkSteamIdToCurrentUser(const FString& steamAuthToken, std::function<void(UserInfo userInfo)> callback){
+void UAWSGameSDK::LinkSteamIdToCurrentUser(const FString& steamAuthToken, FLoginComplete callback){
     UE_LOG(LogTemp, Display, TEXT("Linking Steam ID to existing user"));
     this->LoginWithSteam(steamAuthToken, this->m_userInfo.auth_token, true, callback);
 }
 
-void UAWSGameSDK::LoginWithGooglePlayToken(const FString& googlePlayToken, std::function<void(UserInfo userInfo)> callback){
+void UAWSGameSDK::LoginWithGooglePlayToken(const FString& googlePlayToken, FLoginComplete callback){
     UE_LOG(LogTemp, Display, TEXT("Logging in with Google Play auth token"));
     this->LoginWithGooglePlay(googlePlayToken, "", false, callback);
 }
 
-void UAWSGameSDK::LinkGooglePlayIdToCurrentUser(const FString& googlePlayToken, std::function<void(UserInfo userInfo)> callback){
+void UAWSGameSDK::LinkGooglePlayIdToCurrentUser(const FString& googlePlayToken, FLoginComplete callback){
     UE_LOG(LogTemp, Display, TEXT("Linking Google Play ID to existing user"));
     this->LoginWithGooglePlay(googlePlayToken, this->m_userInfo.auth_token, true, callback);
 }
 
-void UAWSGameSDK::LoginWithFacebookAccessToken(const FString& facebookAccessToken, const FString& facebookUserId, std::function<void(UserInfo userInfo)> callback){
+void UAWSGameSDK::LoginWithFacebookAccessToken(const FString& facebookAccessToken, const FString& facebookUserId, FLoginComplete callback){
     UE_LOG(LogTemp, Display, TEXT("Logging in with Facebook auth token"));
     this->LoginWithFacebook(facebookAccessToken, facebookUserId, "", false, callback);
 }
-void UAWSGameSDK::LinkFacebookIdToCurrentUser(const FString& facebookAccessToken, const FString& facebookUserId, std::function<void(UserInfo userInfo)> callback){
+void UAWSGameSDK::LinkFacebookIdToCurrentUser(const FString& facebookAccessToken, const FString& facebookUserId, FLoginComplete callback){
     UE_LOG(LogTemp, Display, TEXT("Linking Facebook ID to existing user"));
     this->LoginWithFacebook(facebookAccessToken, facebookUserId, this->m_userInfo.auth_token, true, callback);
 }
 
-void UAWSGameSDK::BackendGetRequest(const FString& url, const FString& resource, TMap<FString, FString> queryParameters, std::function<void(FString response)> callback){
+void UAWSGameSDK::BackendGetRequest(const FString& url, const FString& resource, const TMap<FString, FString>& queryParameters, FRequestComplete callback){
     // If Url doesn't end with '/', add it
     FString urlWithTrailingSlash = url;
     if(url.EndsWith(TEXT("/")) == false) {
         urlWithTrailingSlash += TEXT("/");
     }
 
-    this->CallRestApiGetWithAuth(urlWithTrailingSlash, resource, this->m_userInfo.auth_token, queryParameters, callback);
+    this->CallRestApiGetWithAuth(urlWithTrailingSlash, resource, queryParameters, callback);
 }
 
 
 /// PRIVATE ///
 
-void UAWSGameSDK::CallRestApiGetUserLogin(const FString& url, const FString& resource, TMap<FString, FString> queryParameters, std::function<void(UserInfo userInfo)> callback) {
+void UAWSGameSDK::CallRestApiGetUserLogin(const FString& url, const FString& resource, const TMap<FString, FString>& queryParameters, FLoginComplete callback) {
 
     FString resourceForUrl = resource;
     if(queryParameters.Num() > 0) {
@@ -153,8 +154,7 @@ void UAWSGameSDK::CallRestApiGetUserLogin(const FString& url, const FString& res
     
     UE_LOG(LogTemp, Display, TEXT("Making API request: %s"), *fullUrl );
 
-    FHttpModule& httpModule = FHttpModule::Get();
-    TSharedRef<IHttpRequest, ESPMode::ThreadSafe> pRequest = httpModule.CreateRequest();
+    TSharedRef<IHttpRequest, ESPMode::ThreadSafe> pRequest = NewBackendRequest_NoAuth();
     pRequest->SetVerb(TEXT("GET"));
     pRequest->SetURL(fullUrl);
 
@@ -230,35 +230,25 @@ void UAWSGameSDK::CallRestApiGetUserLogin(const FString& url, const FString& res
                 this->m_userInfo.auth_token_expires_in = AccessTokenExpiration;
                 this->m_userInfo.refresh_token_expires_in = RefreshTokenExpiration;
 
-                // Generate the FDateTimes from access and refresh token expiration times
-                FTimespan authTokenExpirationSeconds;
-                authTokenExpirationSeconds = authTokenExpirationSeconds.FromSeconds(AccessTokenExpiration);
-                FTimespan refreshTokenExpirationSeconds;
-                refreshTokenExpirationSeconds = refreshTokenExpirationSeconds.FromSeconds(RefreshTokenExpiration);
-                this->AuthTokenExpirationUTC = FDateTime::UtcNow() + authTokenExpirationSeconds;
-                this->RefreshTokenExpirationUTC = FDateTime::UtcNow() + refreshTokenExpirationSeconds;
+				ScheduleTokenRefresh(FGenericPlatformMath::Min(AccessTokenExpiration, RefreshTokenExpiration));
 
                 // Send the info back to the original requester through the callback (if set)
-                if(callback != nullptr)
-                    callback(this->m_userInfo);
+				callback.ExecuteIfBound(this->m_userInfo);
             }
             else {
                 // Failed to deserialize the JSON response, report a login error back to the client
                 UE_LOG(LogTemp, Error, TEXT("Failed to deserialize JSON response."));
-                if(this->m_loginOrRefreshErrorCallback != nullptr)
-                    this->m_loginOrRefreshErrorCallback("Failed to login or refresh token");
+				OnLoginFailure.Broadcast(TEXT("Failed to login or refresh token"));
             }
         }
         else {
             switch (pRequest->GetStatus()) {
             case EHttpRequestStatus::Failed_ConnectionError:
                 UE_LOG(LogTemp, Error, TEXT("Connection failed."));
-                if(this->m_loginOrRefreshErrorCallback != nullptr)
-                    this->m_loginOrRefreshErrorCallback("Connection failed.");
+				OnLoginFailure.Broadcast(TEXT("Connection failed."));
             default:
                 UE_LOG(LogTemp, Error, TEXT("Request failed."));
-                if(this->m_loginOrRefreshErrorCallback != nullptr)
-                    this->m_loginOrRefreshErrorCallback("Request failed.");
+				OnLoginFailure.Broadcast(TEXT("Connection failed."));
             }
         }
     });
@@ -266,7 +256,7 @@ void UAWSGameSDK::CallRestApiGetUserLogin(const FString& url, const FString& res
      pRequest->ProcessRequest();
 }
 
-void UAWSGameSDK::LoginWithAppleId(const FString& appleAuthToken, const FString& authToken, bool linkToExistingUser, std::function<void(UserInfo userInfo)> callback){
+void UAWSGameSDK::LoginWithAppleId(const FString& appleAuthToken, const FString& authToken, bool linkToExistingUser, FLoginComplete callback){
     
     // Set up query params for the request (either new/existing AppleID user or linking)
     TMap<FString, FString> queryParameters;
@@ -288,7 +278,7 @@ void UAWSGameSDK::LoginWithAppleId(const FString& appleAuthToken, const FString&
     }
 }
 
-void UAWSGameSDK::LoginWithSteam(const FString& steamAuthToken, const FString& authToken, bool linkToExistingUser, std::function<void(UserInfo userInfo)> callback){
+void UAWSGameSDK::LoginWithSteam(const FString& steamAuthToken, const FString& authToken, bool linkToExistingUser, FLoginComplete callback){
     
     // Set up query params for the request (either new/existing SteamID user or linking)
     TMap<FString, FString> queryParameters;
@@ -310,7 +300,7 @@ void UAWSGameSDK::LoginWithSteam(const FString& steamAuthToken, const FString& a
     }
 }
 
-void UAWSGameSDK::LoginWithGooglePlay(const FString& googlePlayAuthToken, const FString& authToken, bool linkToExistingUser, std::function<void(UserInfo userInfo)> callback){
+void UAWSGameSDK::LoginWithGooglePlay(const FString& googlePlayAuthToken, const FString& authToken, bool linkToExistingUser, FLoginComplete callback){
 
     // Set up query params for the request (either new/existing GooglePlay user or linking)
     TMap<FString, FString> queryParameters;
@@ -332,7 +322,7 @@ void UAWSGameSDK::LoginWithGooglePlay(const FString& googlePlayAuthToken, const 
     }
 }
 
-void UAWSGameSDK::LoginWithFacebook(const FString& facebookAccessToken, const FString& facebookUserId, const FString& authToken, bool linkToExistingUser, std::function<void(UserInfo userInfo)> callback){
+void UAWSGameSDK::LoginWithFacebook(const FString& facebookAccessToken, const FString& facebookUserId, const FString& authToken, bool linkToExistingUser, FLoginComplete callback){
     
     // Set up query params for the request (either new/existing Facebook user or linking)
     TMap<FString, FString> queryParameters;
@@ -356,7 +346,37 @@ void UAWSGameSDK::LoginWithFacebook(const FString& facebookAccessToken, const FS
     }
 }
 
-void UAWSGameSDK::CallRestApiGetWithAuth(const FString& url, const FString& resource, const FString& authToken, TMap<FString, FString> queryParameters, std::function<void(FString response)> callback){
+TSharedRef<IHttpRequest, ESPMode::ThreadSafe> UAWSGameSDK::NewBackendRequest()
+{
+	TSharedRef<IHttpRequest, ESPMode::ThreadSafe> request = NewBackendRequest_NoAuth();
+	request->SetHeader(TEXT("Authorization"), this->m_userInfo.auth_token);
+
+	return request;
+}
+
+TSharedRef<IHttpRequest, ESPMode::ThreadSafe> UAWSGameSDK::NewBackendRequest_NoAuth()
+{
+	return FHttpModule::Get().CreateRequest();
+
+	static const TSet<int32> retryCodes(TArray<int32>({ 400, 500, 501, 502, 503, 504 }));
+	static const TSet<FName> retryVerbs(TArray<FName>({ FName(TEXT("GET")), FName(TEXT("HEAD")), FName(TEXT("POST")) }));
+
+	if (m_httpRetryManager == nullptr) {
+		// Fallback to the Http Manager without retries
+		return FHttpModule::Get().CreateRequest();
+	}
+
+	TSharedRef<IHttpRequest, ESPMode::ThreadSafe> request = m_httpRetryManager->CreateRequest(
+		2,
+		FHttpRetrySystem::FRetryTimeoutRelativeSecondsSetting(),
+		retryCodes,
+		retryVerbs);
+	request->SetTimeout(30.0f);
+
+	return request;
+}
+
+void UAWSGameSDK::CallRestApiGetWithAuth(const FString& url, const FString& resource, TMap<FString, FString> queryParameters, FRequestComplete callback){
     
     FString resourceForUrl = resource;
     if(queryParameters.Num() > 0) {
@@ -371,11 +391,9 @@ void UAWSGameSDK::CallRestApiGetWithAuth(const FString& url, const FString& reso
     
     UE_LOG(LogTemp, Display, TEXT("Making authenticated API request: %s"), *fullUrl );
 
-    FHttpModule& httpModule = FHttpModule::Get();
-    TSharedRef<IHttpRequest, ESPMode::ThreadSafe> pRequest = httpModule.CreateRequest();
+    TSharedRef<IHttpRequest, ESPMode::ThreadSafe> pRequest = NewBackendRequest();
     pRequest->SetVerb(TEXT("GET"));
     pRequest->SetURL(fullUrl);
-    pRequest->SetHeader(TEXT("Authorization"), authToken);
 
     // Callback executed after request is complete
     pRequest->OnProcessRequestComplete().BindWeakLambda(this, [this, callback](FHttpRequestPtr pRequest, FHttpResponsePtr pResponse, bool connectedSuccessfully)
@@ -387,7 +405,7 @@ void UAWSGameSDK::CallRestApiGetWithAuth(const FString& url, const FString& reso
             UE_LOG(LogTemp, Display, TEXT("Received response: %s"), *responseString );
 
             // Send the info back to the original requester through the callback
-            callback(responseString);
+            callback.ExecuteIfBound(responseString);
         }
         else {
             switch (pRequest->GetStatus()) {
@@ -400,4 +418,25 @@ void UAWSGameSDK::CallRestApiGetWithAuth(const FString& url, const FString& reso
     });
      // Submit the request for processing
      pRequest->ProcessRequest();
+}
+
+void UAWSGameSDK::ScheduleTokenRefresh(float expiresIn)
+{
+	// Don't refresh if we have less than 30 seconds to avoid DDOSing our own service
+	if (expiresIn < 30.0f)
+	{
+		OnLoginFailure.Broadcast(TEXT("Access token lasts less than 30 seconds, will not refresh"));
+	}
+
+	FTimerDelegate refreshDelegate;
+	refreshDelegate.BindWeakLambda(this, [this]()
+		{
+			FLoginComplete noCallback;
+			this->RefreshAccessToken(noCallback);
+		});
+
+	// Refresh the token 10 seconds before it expires
+	const float refreshTimeBeforeExpiration = 10.0f;
+	const bool repeat = false;
+	GetWorld()->GetTimerManager().SetTimer(this->m_refreshTokenTimer, refreshDelegate, expiresIn - refreshTimeBeforeExpiration, repeat);
 }

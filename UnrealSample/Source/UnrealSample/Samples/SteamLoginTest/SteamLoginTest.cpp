@@ -27,11 +27,12 @@ void USteamLoginTest::BeginPlay()
     UAWSGameSDK* AWSGameSDK =  GameInstance->GetSubsystem<UAWSGameSDK>();
 
     // Init with the login endpoint defined in the Editor and a callback to handle errors for logging in and refresh
-    auto loginOrRefreshErrorCallback = std::bind(&USteamLoginTest::OnLoginOrRefreshErrorCallback, this, std::placeholders::_1);
-    AWSGameSDK->Init(this->m_loginEndpoint, loginOrRefreshErrorCallback);
+	AWSGameSDK->Init(this->m_loginEndpoint);
+	AWSGameSDK->OnLoginFailure.AddUObject(this, &USteamLoginTest::OnLoginOrRefreshErrorCallback);
 
 	// Define the OnLoginResult callback
-    auto loginCallback = std::bind(&USteamLoginTest::OnGuestLoginResultCallback, this, std::placeholders::_1);
+	UAWSGameSDK::FLoginComplete loginCallback;
+	loginCallback.BindUObject(this, &USteamLoginTest::OnGuestLoginResultCallback);
 
 	// Login as a new guest user first
     AWSGameSDK->LoginAsNewGuestUser(loginCallback);
@@ -39,7 +40,7 @@ void USteamLoginTest::BeginPlay()
 }
 
 // Called when there is an error with login or token refresh. You will need to handle logging in again here
-void USteamLoginTest::OnLoginOrRefreshErrorCallback(FString errorMessage){
+void USteamLoginTest::OnLoginOrRefreshErrorCallback(const FString& errorMessage){
     UE_LOG(LogTemp, Display, TEXT("Received login error: %s \n"), *errorMessage);
     if(GEngine)
         GEngine->AddOnScreenDebugMessage(-1, 30.0f, FColor::Red, FString::Printf(TEXT("Received login error: \n %s \n"), *errorMessage), false, FVector2D(1.5f,1.5f));
@@ -48,13 +49,14 @@ void USteamLoginTest::OnLoginOrRefreshErrorCallback(FString errorMessage){
 }
 
 // Called when guest login is done
-void USteamLoginTest::OnGuestLoginResultCallback(UserInfo userInfo){
+void USteamLoginTest::OnGuestLoginResultCallback(const UserInfo& userInfo){
     UE_LOG(LogTemp, Display, TEXT("Received guest login response: %s \n"), *userInfo.ToString());
     if(GEngine)
             GEngine->AddOnScreenDebugMessage(-1, 30.0f, FColor::Black, FString::Printf(TEXT("Received login response: \n %s \n"), *userInfo.ToString()), false, FVector2D(1.5f,1.5f));
 
     // Test linking steam id to the existing guest account
-    auto onLinkSteamIdCallback = std::bind(&USteamLoginTest::OnLinkSteamIdResultCallback, this, std::placeholders::_1);
+	UAWSGameSDK::FLoginComplete onLinkSteamIdCallback;
+	onLinkSteamIdCallback.BindUObject(this, &USteamLoginTest::OnLinkSteamIdResultCallback);
 	UGameInstance* GameInstance = Cast<UGameInstance>(UGameplayStatics::GetGameInstance(GetWorld()));
     UAWSGameSDK* AWSGameSDK = GameInstance->GetSubsystem<UAWSGameSDK>();
 
@@ -63,14 +65,15 @@ void USteamLoginTest::OnGuestLoginResultCallback(UserInfo userInfo){
 	AWSGameSDK->LinkSteamIdToCurrentUser("tokenHere", onLinkSteamIdCallback);
 }
 
-void USteamLoginTest::OnLinkSteamIdResultCallback(UserInfo userInfo){
+void USteamLoginTest::OnLinkSteamIdResultCallback(const UserInfo& userInfo){
 
     UE_LOG(LogTemp, Display, TEXT("Received Steam ID linking response: %s \n"), *userInfo.ToString());
     if(GEngine)
             GEngine->AddOnScreenDebugMessage(-1, 30.0f, FColor::Black, FString::Printf(TEXT("Received Steam ID linking response: \n %s \n"), *userInfo.ToString()), false, FVector2D(1.5f,1.5f));
 
     // Test logging in with existing steam_id
-    auto onSteamIdLoginCallback = std::bind(&USteamLoginTest::OnLoginWithSteam, this, std::placeholders::_1);
+	UAWSGameSDK::FLoginComplete onSteamIdLoginCallback;
+	onSteamIdLoginCallback.BindUObject(this, &USteamLoginTest::OnLoginWithSteam);
 	UGameInstance* GameInstance = Cast<UGameInstance>(UGameplayStatics::GetGameInstance(GetWorld()));
     UAWSGameSDK* AWSGameSDK = GameInstance->GetSubsystem<UAWSGameSDK>();
 
@@ -78,7 +81,7 @@ void USteamLoginTest::OnLinkSteamIdResultCallback(UserInfo userInfo){
     AWSGameSDK->LoginWithSteamToken("tokenHere", onSteamIdLoginCallback);
 }
 
-void USteamLoginTest::OnLoginWithSteam(UserInfo userInfo){
+void USteamLoginTest::OnLoginWithSteam(const UserInfo& userInfo){
 
     UE_LOG(LogTemp, Display, TEXT("Received Steam login response: %s \n"), *userInfo.ToString());
     if(GEngine)

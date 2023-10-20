@@ -17,10 +17,10 @@ public:
 	// Sets default values for this component's properties
 	UBackendIntegrationTest();
 
-    void OnLoginResultCallback(UserInfo userInfo);
-	void OnLoginOrRefreshErrorCallback(FString error);
-	void OnSetPlayerDataResponse(FString response);
-    void OnGetPlayerDataResponse(FString response);
+    void OnLoginResultCallback(const UserInfo& userInfo);
+	void OnLoginOrRefreshErrorCallback(const FString& error);
+	void OnSetPlayerDataResponse(const FString& response);
+    void OnGetPlayerDataResponse(const FString& response);
 
     UPROPERTY(EditAnywhere)
     FString m_loginEndpoint;

@@ -18,10 +18,10 @@ public:
 	// Sets default values for this component's properties
 	USteamLoginTest();
 
-	void OnGuestLoginResultCallback(UserInfo userInfo);
-	void OnLoginOrRefreshErrorCallback(FString error);
-	void OnLinkSteamIdResultCallback(UserInfo userInfo);
-	void OnLoginWithSteam(UserInfo userInfo);
+	void OnGuestLoginResultCallback(const UserInfo& userInfo);
+	void OnLoginOrRefreshErrorCallback(const FString& error);
+	void OnLinkSteamIdResultCallback(const UserInfo& userInfo);
+	void OnLoginWithSteam(const UserInfo& userInfo);
 
     UPROPERTY(EditAnywhere)
     FString m_loginEndpoint;

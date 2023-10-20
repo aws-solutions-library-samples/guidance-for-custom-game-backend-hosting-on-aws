@@ -18,10 +18,10 @@ public:
 	// Sets default values for this component's properties
 	UAppleIdLoginTest();
 
-	void OnGuestLoginResultCallback(UserInfo userInfo);
-	void OnLinkAppleIdResultCallback(UserInfo userInfo);
-	void OnLoginWithAppleId(UserInfo userInfo);
-	void OnLoginOrRefreshErrorCallback(FString error);
+	void OnGuestLoginResultCallback(const UserInfo& userInfo);
+	void OnLinkAppleIdResultCallback(const UserInfo& userInfo);
+	void OnLoginWithAppleId(const UserInfo& userInfo);
+	void OnLoginOrRefreshErrorCallback(const FString& error);
 
     UPROPERTY(EditAnywhere)
     FString m_loginEndpoint;
