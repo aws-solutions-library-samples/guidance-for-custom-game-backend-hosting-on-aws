@@ -50,7 +50,7 @@ To add the SDK to an existing project:
 
 # Unreal Integration Samples
 
-To test the integrations with Unreal, open the Unreal sample project (`UnrealSample`) in Unreal Engine 5 first.
+To test the integrations with Unreal, open the Unreal sample project (`UnrealSample`) in Unreal Engine 5 first. You will need to right click and generate the project files for your OS before opening the project. If you have problems generating the project files on MacOS, [this forum post](https://forums.unrealengine.com/t/generate-xcode-project-doesnt-do-anything/123149/3) can help run the shell script correctly.
 
 ## Guest Identity and Rest API test level
 
