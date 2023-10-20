@@ -2,7 +2,7 @@
 
 The AWS Game Backend Framework Unreal SDK provides integrations to the custom identity component, managed refreshing of access tokens, helper methods for calling custom backend features, and samples for integrating with different game platforms.
 
-**NOTE:** The Unreal sample is built with Unreal 5.1.1, but as it leverages very basic Unreal features, you should be able to build it on any version of Unreal Engine 5. The solution will require Visual Studio 2022 (Windows) or XCode (MacOS) installed as well as the .NET 6 capability. You can upgrade the project to UE 5.2, which has been tested to work well.
+**NOTE:** The Unreal sample is built with Unreal 5.1.1, but as it leverages very basic Unreal features, you should be able to build it on any version of Unreal Engine 5. The solution will require Visual Studio 2022 (Windows) or XCode (MacOS) installed as well as the .NET 6 capability. You can upgrade the project to UE 5.2 or UE 5.3, which have been tested to work well.
 
 # SDK Overview
 
@@ -50,7 +50,9 @@ To add the SDK to an existing project:
 
 # Unreal Integration Samples
 
-To test the integrations with Unreal, open the Unreal sample project (`UnrealSample`) in Unreal Engine 5 first. You will need to right click and generate the project files for your OS before opening the project. If you have problems generating the project files on MacOS, [this forum post](https://forums.unrealengine.com/t/generate-xcode-project-doesnt-do-anything/123149/3) can help run the shell script correctly.
+To test the integrations with Unreal, open the Unreal sample project (`UnrealSample`) in Unreal Engine 5 first.
+
+**NOTE:** On Windows it will prompt you if you don't have Visual Studio installed yet. Once you have Visual Studio installed and set up for Unreal, you can open the project in the Unreal Editor and generate the project files from *Tools -> Generate Visual Studio Project*. On MacOS, you need to do *right click -> Services -> Generate XCode Project* on the uproject file in Finder. If you have problems generating the project files on MacOS, [this forum post](https://forums.unrealengine.com/t/generate-xcode-project-doesnt-do-anything/123149/3) can help run the shell script correctly from your UE installation folder against the project in the terminal.
 
 ## Guest Identity and Rest API test level
 
