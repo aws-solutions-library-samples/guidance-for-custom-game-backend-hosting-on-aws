@@ -8,10 +8,13 @@ import os
 from encryption_and_decryption import encrypt
 import json
 
-from aws_lambda_powertools import Tracer
 from aws_lambda_powertools import Logger
-tracer = Tracer()
+from aws_lambda_powertools import Metrics
+from aws_lambda_powertools.metrics import MetricUnit
+from aws_lambda_powertools import Tracer
 logger = Logger()
+metrics = Metrics()
+tracer = Tracer()
 config = Config(connect_timeout=2, read_timeout=2)
 dynamodb = boto3.resource('dynamodb', config=config)
 
@@ -27,7 +30,7 @@ def create_user():
 
     # Check that user_id doesn't exist in DynamoDB table defined in environment variable USER_TABLE
     table = dynamodb.Table(os.environ['USER_TABLE'])
-    # Try to write a new iteam to the table with user_id as partition key
+    # Try to write a new item to the table with user_id as partition key
     try:
         table.put_item(
             Item={
@@ -36,9 +39,9 @@ def create_user():
             },
             ConditionExpression='attribute_not_exists(UserId)'
         )
-    except:
+    except dynamodb.meta.client.exceptions.ConditionalCheckFailedException as e:
         logger.info("User already exists")
-        return None
+        return None, None
     
     return user_id, guest_secret
 
@@ -66,6 +69,7 @@ def check_user_exists(existing_user_id, guest_secret):
     return False
 
 # define a lambda function that returns a user_id
+@metrics.log_metrics(capture_cold_start_metric=True)
 @tracer.capture_lambda_handler
 def lambda_handler(event, context):
 
@@ -102,10 +106,13 @@ def lambda_handler(event, context):
             # Try to create a new user
             user_id, guest_secret = create_user()
             tries += 1
+            if user_id is None:
+                metrics.add_metric(name="UserAlreadyExists", unit=MetricUnit.Count, value=1)
 
     # At this point we either have a user_id we received from the event or we created a new one, or we failed at creating one
     if user_id is None:
-        # return 500 error
+        # return 401 code
+        metrics.add_metric(name="UnsuccessfulUserCreation", unit=MetricUnit.Count, value=1)
         return {
             'statusCode': 401,
             'body': 'Error: Could not create user'
