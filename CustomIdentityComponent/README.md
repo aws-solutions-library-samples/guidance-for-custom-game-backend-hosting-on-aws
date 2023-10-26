@@ -84,9 +84,13 @@ You can modify the keys rotation by modifying `const eventRule = new events.Rule
 
 The API is protected by the default managed rule set provided by AWS for blocking common attacks. In addition, a rate limit rule is applied to allow a maximum of 1000 requests per 5 minutes from a single IP (3.33 transactions per second).
 
-### Logs and Distributed Tracing
+### Logs, Metrics and Distributed Tracing
 
 The identity component leverages **Powertools for AWS Lambda (Python)** to generate log output to Amazon CloudWatch Logs. In addition, the tools are used to push tracing information to **AWS X-Ray**. You can find both the logs and the tracing map and individual trace information the **Amazon CloudWatch** management console. 
+
+Some of the integrations collect also CloudWatch Metrics, which can be found under the *AWS for Games* namespace in CloudWatch:
+* *login_as_guest*: collects cold starts, user creation errors, and user exist errors
+* *login_with_steam*: collects duration, exceptions, success and failures
 
 ## API Reference
 
