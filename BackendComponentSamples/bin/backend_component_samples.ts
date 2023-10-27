@@ -8,7 +8,7 @@ import { NagSuppressions } from 'cdk-nag';
 import { App, Aspects, Tags } from 'aws-cdk-lib';
 
 // TODO: Set your identity component issuer URL endpoint here
-const issuerEndpointUrl = "https://d30srqt3hx5xbn.cloudfront.net"
+const issuerEndpointUrl = "https://YOURENDPOINT.cloudfront.net"
 
 // Set these tags to values that make sense to your company. You can define applicable tags as billing tags as well: https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/custom-tags.html
 let tags: { [key: string]: string } = {};
