@@ -8,7 +8,7 @@ import { NagSuppressions } from 'cdk-nag';
 import { App, Aspects, Tags } from 'aws-cdk-lib';
 
 // TODO: Set your identity component issuer URL endpoint here
-const issuerEndpointUrl = "https://YOURENDPOINT.cloudfront.net"
+const issuerEndpointUrl = "https://d30srqt3hx5xbn.cloudfront.net"
 
 // Set these tags to values that make sense to your company. You can define applicable tags as billing tags as well: https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/custom-tags.html
 let tags: { [key: string]: string } = {};
@@ -46,6 +46,5 @@ Aspects.of(app).add(new AwsSolutionsChecks());
 
 // Add nag suppresssion for AwsSolutions-EC23
 NagSuppressions.addStackSuppressions(nodeJsFargateStack, [
-  { id: 'AwsSolutions-EC23', reason: 'We have to allow 0.0.0.0/0 for the ALB for game client access' },
-  { id: 'AwsSolutions-L1', reason: 'Temporary suppression for Lambda runtime complaint, will remove once fixed' }
+  { id: 'AwsSolutions-EC23', reason: 'We have to allow 0.0.0.0/0 for the ALB for game client access' }
 ]);
