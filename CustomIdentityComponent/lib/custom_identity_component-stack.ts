@@ -17,6 +17,8 @@ import * as logs from 'aws-cdk-lib/aws-logs';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import { NagSuppressions } from 'cdk-nag';
 import * as wafv2 from 'aws-cdk-lib/aws-wafv2';
+import cloudwatch = require('aws-cdk-lib/aws-cloudwatch');
+import {GraphWidget, Metric} from "aws-cdk-lib/aws-cloudwatch";
 
 export interface CustomIdentityComponentStackProps extends StackProps {
   // If defined, login-with-apple endpoint will be created
@@ -35,6 +37,9 @@ export interface CustomIdentityComponentStackProps extends StackProps {
   // This is the app ID of the facebook app
   facebookAppId: string;
 }
+
+const POWERTOOLS_METRICS_NAMESPACE = "AWS for Games";
+const POWERTOOLS_SERVICE_NAME = "CustomIdentityComponent";
 
 export class CustomIdentityComponentStack extends Stack {
   constructor(scope: Construct, id: string, props: CustomIdentityComponentStackProps) {
@@ -133,8 +138,8 @@ export class CustomIdentityComponentStack extends Stack {
       environment: {
         "ISSUER_BUCKET": issuer_bucket.bucketName,
         "ISSUER_ENDPOINT": "https://"+distribution.domainName,
-        "POWERTOOLS_METRICS_NAMESPACE": "AWS for Games",
-        "POWERTOOLS_SERVICE_NAME": "CustomIdentityComponent",
+        "POWERTOOLS_METRICS_NAMESPACE": POWERTOOLS_METRICS_NAMESPACE,
+        "POWERTOOLS_SERVICE_NAME": POWERTOOLS_SERVICE_NAME,
         "SECRET_KEY_ID": secret.secretName,
       }
     });
@@ -299,8 +304,8 @@ export class CustomIdentityComponentStack extends Stack {
       logRetentionRole: lambdaLoggingRole,
       environment: {
         "ISSUER_URL": "https://"+distribution.domainName,
-        "POWERTOOLS_METRICS_NAMESPACE": "AWS for Games",
-        "POWERTOOLS_SERVICE_NAME": "CustomIdentityComponent",
+        "POWERTOOLS_METRICS_NAMESPACE": POWERTOOLS_METRICS_NAMESPACE,
+        "POWERTOOLS_SERVICE_NAME": POWERTOOLS_SERVICE_NAME,
         "SECRET_KEY_ID": secret.secretName,
         "USER_TABLE": user_table.tableName
       }
@@ -349,8 +354,8 @@ export class CustomIdentityComponentStack extends Stack {
       logRetentionRole: lambdaLoggingRole,
       environment: {
         "ISSUER_URL": "https://"+distribution.domainName,
-        "POWERTOOLS_METRICS_NAMESPACE": "AWS for Games",
-        "POWERTOOLS_SERVICE_NAME": "CustomIdentityComponent",
+        "POWERTOOLS_METRICS_NAMESPACE": POWERTOOLS_METRICS_NAMESPACE,
+        "POWERTOOLS_SERVICE_NAME": POWERTOOLS_SERVICE_NAME,
         "SECRET_KEY_ID": secret.secretName,
         "USER_TABLE": user_table.tableName
       }
@@ -372,6 +377,25 @@ export class CustomIdentityComponentStack extends Stack {
 
     // Login endpoint to CloudFormation Output
     new CfnOutput(this, 'LoginEndpoint', { value: api_gateway.url });
+
+    const dashboard = new cloudwatch.Dashboard(this, 'IdentityDashboard', {dashboardName: 'IdentityDashboard'});
+    dashboard.addWidgets(new GraphWidget({
+      title: 'User Already Exists',
+      left: [new Metric({
+        namespace: POWERTOOLS_METRICS_NAMESPACE,
+        dimensionsMap: {'service' : POWERTOOLS_SERVICE_NAME},
+        metricName: 'UserAlreadyExists',
+        statistic: 'avg'
+      })]
+    }), new GraphWidget({
+      title: 'Unsuccessful User Creation',
+      left: [new Metric({
+        namespace: POWERTOOLS_METRICS_NAMESPACE,
+        dimensionsMap: {'service' : POWERTOOLS_SERVICE_NAME},
+        metricName: 'UnsuccessfulUserCreation',
+        statistic: 'avg'
+      })]
+    }))
 
     // If Apple ID App ID Defined, add a DynamoDB table and Lambda function for Apple login
     if(props.appleIdAppId != "") {
@@ -435,8 +459,8 @@ export class CustomIdentityComponentStack extends Stack {
         logRetentionRole: lambdaLoggingRole,
         environment: {
           "ISSUER_URL": "https://"+distribution.domainName,
-          "POWERTOOLS_METRICS_NAMESPACE": "AWS for Games",
-          "POWERTOOLS_SERVICE_NAME": "CustomIdentityComponent",
+          "POWERTOOLS_METRICS_NAMESPACE": POWERTOOLS_METRICS_NAMESPACE,
+          "POWERTOOLS_SERVICE_NAME": POWERTOOLS_SERVICE_NAME,
           "SECRET_KEY_ID": secret.secretName,
           "USER_TABLE": user_table.tableName,
           "APPLE_APP_ID": appId,
@@ -501,8 +525,8 @@ export class CustomIdentityComponentStack extends Stack {
       logRetentionRole: lambdaLoggingRole,
       environment: {
         "ISSUER_URL": "https://"+distribution.domainName,
-        "POWERTOOLS_METRICS_NAMESPACE": "AWS for Games",
-        "POWERTOOLS_SERVICE_NAME": "CustomIdentityComponent",
+        "POWERTOOLS_METRICS_NAMESPACE": POWERTOOLS_METRICS_NAMESPACE,
+        "POWERTOOLS_SERVICE_NAME": POWERTOOLS_SERVICE_NAME,
         "SECRET_KEY_ID": privateKeySecret.secretName,
         "USER_TABLE": user_table.tableName,
         "STEAM_APP_ID": appId,
@@ -576,8 +600,8 @@ export class CustomIdentityComponentStack extends Stack {
       logRetentionRole: lambdaLoggingRole,
       environment: {
         "ISSUER_URL": "https://"+distribution.domainName,
-        "POWERTOOLS_METRICS_NAMESPACE": "AWS for Games",
-        "POWERTOOLS_SERVICE_NAME": "CustomIdentityComponent",
+        "POWERTOOLS_METRICS_NAMESPACE": POWERTOOLS_METRICS_NAMESPACE,
+        "POWERTOOLS_SERVICE_NAME": POWERTOOLS_SERVICE_NAME,
         "SECRET_KEY_ID": privateKeySecret.secretName,
         "USER_TABLE": user_table.tableName,
         "GOOGLE_PLAY_CLIENT_ID": googlePlayClientId,
@@ -651,8 +675,8 @@ export class CustomIdentityComponentStack extends Stack {
       logRetentionRole: lambdaLoggingRole,
       environment: {
         "ISSUER_URL": "https://"+distribution.domainName,
-        "POWERTOOLS_METRICS_NAMESPACE": "AWS for Games",
-        "POWERTOOLS_SERVICE_NAME": "CustomIdentityComponent",
+        "POWERTOOLS_METRICS_NAMESPACE": POWERTOOLS_METRICS_NAMESPACE,
+        "POWERTOOLS_SERVICE_NAME": POWERTOOLS_SERVICE_NAME,
         "SECRET_KEY_ID": secret.secretName,
         "USER_TABLE": user_table.tableName,
         "FACEBOOK_APP_ID" : appId,
