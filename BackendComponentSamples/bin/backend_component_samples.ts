@@ -46,6 +46,5 @@ Aspects.of(app).add(new AwsSolutionsChecks());
 
 // Add nag suppresssion for AwsSolutions-EC23
 NagSuppressions.addStackSuppressions(nodeJsFargateStack, [
-  { id: 'AwsSolutions-EC23', reason: 'We have to allow 0.0.0.0/0 for the ALB for game client access' },
-  { id: 'AwsSolutions-L1', reason: 'Temporary suppression for Lambda runtime complaint, will remove once fixed' }
+  { id: 'AwsSolutions-EC23', reason: 'We have to allow 0.0.0.0/0 for the ALB for game client access' }
 ]);
