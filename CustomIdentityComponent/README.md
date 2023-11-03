@@ -92,6 +92,8 @@ Some of the integrations collect also CloudWatch Metrics, which can be found und
 * *login_as_guest*: collects cold starts, user creation errors, and user exist errors
 * *login_with_steam*: collects duration, exceptions, success and failures
 
+In addition, the solution provides a simple **CloudWatch Dashboard** that you can extend to your needs by modifying the CDK application. The dashboard is called *PlayerIdentityDashboard* adn it contains metrics for unsuccessful guest user creations and user already exists erros (trying to use the same UUID). You should generally never see either one of these metrics increment, and can define CloudWatch alarms in case they do for your operations team.
+
 ## API Reference
 
 The API integrations are built into the SDK:s provided for Unreal, Unity, and Godot. For other engines, you can easily build integrations by calling the API endpoints with appropriate parameters. The identity component doesn't expect authorization in the header, as it is itself generating the authorization tokens for other backend API:s to consume. It does require valid login information in the form of a guest_secret for guest users, or appropriate authentication tokens when integrating with game platforms.

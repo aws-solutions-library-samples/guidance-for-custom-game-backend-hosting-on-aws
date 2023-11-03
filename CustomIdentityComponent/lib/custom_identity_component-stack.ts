@@ -378,14 +378,14 @@ export class CustomIdentityComponentStack extends Stack {
     // Login endpoint to CloudFormation Output
     new CfnOutput(this, 'LoginEndpoint', { value: api_gateway.url });
 
-    const dashboard = new cloudwatch.Dashboard(this, 'IdentityDashboard', {dashboardName: 'IdentityDashboard'});
+    const dashboard = new cloudwatch.Dashboard(this, 'PlayerIdentityDashboard', {dashboardName: 'PlayerIdentityDashboard'});
     dashboard.addWidgets(new GraphWidget({
       title: 'User Already Exists',
       left: [new Metric({
         namespace: POWERTOOLS_METRICS_NAMESPACE,
         dimensionsMap: {'service' : POWERTOOLS_SERVICE_NAME},
         metricName: 'UserAlreadyExists',
-        statistic: 'avg'
+        statistic: 'sum'
       })]
     }), new GraphWidget({
       title: 'Unsuccessful User Creation',
@@ -393,7 +393,7 @@ export class CustomIdentityComponentStack extends Stack {
         namespace: POWERTOOLS_METRICS_NAMESPACE,
         dimensionsMap: {'service' : POWERTOOLS_SERVICE_NAME},
         metricName: 'UnsuccessfulUserCreation',
-        statistic: 'avg'
+        statistic: 'sum'
       })]
     }))
 
