@@ -3,6 +3,7 @@
 
 import { Stack, StackProps, CfnOutput, Duration } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
+import { RustFunction } from 'cargo-lambda-cdk';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 import * as s3 from 'aws-cdk-lib/aws-s3';
@@ -367,8 +368,38 @@ export class CustomIdentityComponentStack extends Stack {
       { id: 'AwsSolutions-IAM5', reason: 'Using the standard Lambda execution role, all custom access resource restricted.' }
     ], true);
     
-    // Map login_as_guest_function to the api_gateway GET requeste login_as_guest
-    api_gateway.root.addResource('refresh-access-token').addMethod('GET', new apigw.LambdaIntegration(refresh_access_token_function),{
+    // Map refresh_access_token_function to the api_gateway GET requeste refresh_access_token_function
+    api_gateway.root.addResource('refresh-access-token').addMethod('GET', new apigw.LambdaIntegration(refresh_access_token_function), {
+      requestParameters: {
+        'method.request.querystring.refresh_token': true
+      },
+      requestValidator: requestValidator
+    });
+
+    const refresh_access_token_rust_function = new RustFunction(this, 'RefreshAccessToken_Rust', {
+      role: refresh_access_token_function_role,
+      manifestPath: 'lambda_rust/Cargo.toml',
+      architecture: lambda.Architecture.ARM_64,
+      bundling: {
+        forcedDockerBundling: true,
+      },
+      timeout: Duration.seconds(5),
+      tracing: lambda.Tracing.ACTIVE,
+      memorySize: 256,
+      environment: {
+        "ISSUER_URL": "https://" + distribution.domainName,
+        "POWERTOOLS_METRICS_NAMESPACE": "AWS for Games",
+        "POWERTOOLS_SERVICE_NAME": "CustomIdentityComponent",
+        "RUST_LOG": "info",
+        "SECRET_KEY_ID": secret.secretName,
+        "USER_TABLE": user_table.tableName
+      }
+    });
+    secret.grantRead(refresh_access_token_rust_function);
+    user_table.grantReadWriteData(refresh_access_token_rust_function);
+
+    // Map refresh_access_token_function to the api_gateway GET requeste refresh_access_token_function
+    api_gateway.root.addResource('refresh-access-token-rust').addMethod('GET', new apigw.LambdaIntegration(refresh_access_token_rust_function), {
       requestParameters: {
         'method.request.querystring.refresh_token': true
       },
