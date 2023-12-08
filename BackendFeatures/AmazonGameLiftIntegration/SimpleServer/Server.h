@@ -16,7 +16,8 @@ public:
     void OnProcessTerminate();
     bool OnHealthCheck() { return mActivated; }
     void TerminateGameSession();
-
+    bool HasGameSessionStarted() { return mActivated; } 
+    
 private:
     bool mActivated;
 

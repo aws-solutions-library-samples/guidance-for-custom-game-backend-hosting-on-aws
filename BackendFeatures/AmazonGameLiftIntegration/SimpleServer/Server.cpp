@@ -53,7 +53,7 @@ void AcceptNewPlayerConnection(int server_fd, int addrlen, sockaddr_in address, 
 }
 
 // Creates a TCP server and received connections from two players
-int SetupTcpServerAndAcceptTwoPlayer(Server *server, int PORT)
+int SetupTcpServerAndStartAcceptingPlayers(Server *server, int PORT)
 {
     int server_fd;
     struct sockaddr_in address;
@@ -95,10 +95,13 @@ int SetupTcpServerAndAcceptTwoPlayer(Server *server, int PORT)
         return -1;
     }
     
-    // Accept first player
-    AcceptNewPlayerConnection(server_fd, addrlen, address, server);
-    // Accept second player
-    AcceptNewPlayerConnection(server_fd, addrlen, address, server);
+    // Just keep accepting players in this thread until the game server loop ends the server
+    while(true){
+        std::cout << "Waiting for next player to join..." << std::endl;
+        // Accept first player
+        AcceptNewPlayerConnection(server_fd, addrlen, address, server);
+    }
+
 }
 
 int main (int argc, char* argv[]) {
@@ -120,8 +123,8 @@ int main (int argc, char* argv[]) {
     mkdir("./logs", 0777);
     std::string logfile = std::string("logs/myserver");
     logfile += std::to_string(PORT) + ".log";
-    freopen(logfile.c_str(),"a",stdout);
-    freopen(logfile.c_str(),"a",stderr);
+    freopen(logfile.c_str(),"w",stdout);
+    freopen(logfile.c_str(),"w",stderr);
     
     std::cout << "Server port: " << PORT << std::endl;
 
@@ -132,13 +135,24 @@ int main (int argc, char* argv[]) {
 	
 	// NOTE: You should Wait for a game to start before accepting connetions
 	
-	// Setup the simple blocking TCP Server and accept two players
-    int serverResult = SetupTcpServerAndAcceptTwoPlayer(server, PORT);
+	// Setup the simple blocking TCP Server thread and start accepting and validating players
+	std::thread my_thread(SetupTcpServerAndStartAcceptingPlayers,server, PORT);
+    //int serverResult = SetupTcpServerAndAcceptPlayers(server, PORT);
     
-    std::cout << "Then the actual game session would run..." << std::endl;
-    
-    // Wait a while to simulate a "game session"
-    sleep(10);
+    while (true) {
+        
+        // TODO: Wait for session to start to start the fake game loop
+        std::cout << "Waiting for game session to start..." << std::endl;
+        
+        // Check if we have a started game session and wait for a minute to end game
+        if(server->HasGameSessionStarted()) {
+            std::cout << "Game session started! We'll just wait 60 seconds to give time for players to connect in the other thread and termiante" << std::endl;
+            sleep(60);
+            exit(0);
+        }
+        // Otherwise just sleep 1 second and keep waiting
+        sleep(1);
+    }
     
     std::cout << "Game Session done! Clean up session and shutdown" << std::endl;
     
@@ -147,6 +161,8 @@ int main (int argc, char* argv[]) {
 
     return 0;
 }
+
+
 
 
 /// SERVER CLASS FOR GAMELIFT FUNCTIONALITY ////
@@ -189,8 +205,6 @@ bool Server::InitializeGameLift(int listenPort, std::string logfile)
 			
 		std::cout << "Process Ready Done!\n";
 
-		mActivated = true;
-
 		return true;
 
 	}
@@ -223,6 +237,7 @@ bool Server::AcceptPlayerSession(const std::string& playerSessionId)
 void Server::OnStartGameSession(Aws::GameLift::Server::Model::GameSession myGameSession)
 {
 	Aws::GameLift::Server::ActivateGameSession();
+	mActivated = true;
 	std::cout << "OnStartGameSession Success\n";
 }
 
