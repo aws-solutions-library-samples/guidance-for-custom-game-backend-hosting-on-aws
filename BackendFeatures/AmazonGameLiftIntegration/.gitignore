@@ -12,3 +12,5 @@ LinuxServerBuild/include
 LinuxServerBuild/lib
 LinuxServerBuild/GameLiftSampleServer
 LinuxServerBuild/lib*
+LinuxServerBuild/Dockerfile
+LinuxServerBuild/buildserver.sh
