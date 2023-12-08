@@ -72,7 +72,7 @@ export class AmazonGameLiftIntegrationStack extends cdk.Stack {
       assumedBy: new iam.ServicePrincipal('gamelift.amazonaws.com'),
     });
     const asset = new assets.Asset(this, 'BuildAsset', {
-      path: path.join(__dirname, './LinuxServerBuild'),
+      path: path.join(__dirname, '../LinuxServerBuild'),
     });
     gameliftBuildRole.addToPolicy(
       new iam.PolicyStatement({
@@ -82,7 +82,7 @@ export class AmazonGameLiftIntegrationStack extends cdk.Stack {
     const now = new Date();
     const gameliftBuild = new gamelift.CfnBuild(this, "Build", {
           name: 'AmazonGameLiftSampleServer'+ now.toUTCString(),
-          operatingSystem: 'AMAZON_LINUX_2',
+          operatingSystem: 'AMAZON_LINUX_2023',
           serverSdkVersion: '5.0.0',
           storageLocation: {
             bucket: asset.bucket.bucketName,

@@ -26,8 +26,8 @@ cp -r ./lib/*  /server/lib/ && \
 cp -r ./include/*  /server/include/
 
 # Copy the Open SSL files to server folder
-RUN cp /usr/lib64/libssl.so.3.0.8 /server/ && \
-cp /usr/lib64/libcrypto.so.3.0.8 /server/
+RUN cp /usr/lib64/libssl.so.3 /server/ && \
+cp /usr/lib64/libcrypto.so.3 /server/
 
 # Build the binary
 RUN echo "Building the server binary" && \

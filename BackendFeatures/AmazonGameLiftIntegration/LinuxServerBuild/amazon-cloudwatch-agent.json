@@ -1,10 +1,7 @@
 {
   "agent": {
     "metrics_collection_interval": 10,
-    "logfile": "/opt/aws/amazon-cloudwatch-agent/logs/amazon-cloudwatch-agent.log",
-    "credentials": {
-        "role_arn": "arn:aws:iam::XXXX:<YOURROLE>"
-    }
+    "logfile": "/opt/aws/amazon-cloudwatch-agent/logs/amazon-cloudwatch-agent.log"
   },
   "metrics":{
       "metrics_collected":{
