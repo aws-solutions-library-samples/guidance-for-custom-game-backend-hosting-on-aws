@@ -14,11 +14,11 @@ public:
     bool AcceptPlayerSession(const std::string& playerSessionId);
     void OnStartGameSession(Aws::GameLift::Server::Model::GameSession myGameSession);
     void OnProcessTerminate();
-    bool OnHealthCheck() { return mActivated; }
+    bool OnHealthCheck() { return true; }
     void TerminateGameSession();
-    bool HasGameSessionStarted() { return mActivated; } 
-    
+    bool HasGameSessionStarted() { return mGameSessionStarted; } 
+
 private:
-    bool mActivated;
+    bool mGameSessionStarted;
 
 };

@@ -146,12 +146,12 @@ int main (int argc, char* argv[]) {
         
         // Check if we have a started game session and wait for a minute to end game
         if(server->HasGameSessionStarted()) {
-            std::cout << "Game session started! We'll just wait 60 seconds to give time for players to connect in the other thread and termiante" << std::endl;
+            std::cout << "Game session started! We'll just wait 60 seconds to give time for players to connect in the other thread and terminate" << std::endl;
             sleep(60);
             exit(0);
         }
-        // Otherwise just sleep 1 second and keep waiting
-        sleep(1);
+        // Otherwise just sleep 5 second and keep waiting
+        sleep(5);
     }
     
     std::cout << "Game Session done! Clean up session and shutdown" << std::endl;
@@ -167,7 +167,7 @@ int main (int argc, char* argv[]) {
 
 /// SERVER CLASS FOR GAMELIFT FUNCTIONALITY ////
 
-Server::Server() : mActivated(false)
+Server::Server() : mGameSessionStarted(false)
 {
 }
 
@@ -237,7 +237,7 @@ bool Server::AcceptPlayerSession(const std::string& playerSessionId)
 void Server::OnStartGameSession(Aws::GameLift::Server::Model::GameSession myGameSession)
 {
 	Aws::GameLift::Server::ActivateGameSession();
-	mActivated = true;
+	mGameSessionStarted = true;
 	std::cout << "OnStartGameSession Success\n";
 }
 
@@ -247,7 +247,7 @@ void Server::OnProcessTerminate()
     std::cout << "[GAMELIFT] OnProcessTerminate\n";
 	// game-specific tasks required to gracefully shut down a game session, 
 	// such as notifying players, preserving game state data, and other cleanup
-	if (mActivated)
+	if (mGameSessionStarted)
 	{
 		std::cout << "GameLift activated, terminating process\n";
 		TerminateGameSession();
@@ -260,5 +260,5 @@ void Server::OnProcessTerminate()
 void Server::TerminateGameSession()
 {
 	Aws::GameLift::Server::ProcessEnding();
-	mActivated = false;
+	mGameSessionStarted = false;
 }
