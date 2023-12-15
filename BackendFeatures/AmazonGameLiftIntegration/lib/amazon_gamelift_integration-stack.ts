@@ -5,7 +5,7 @@ import { NagSuppressions } from 'cdk-nag';
 import * as assets from 'aws-cdk-lib/aws-s3-assets';
 import * as path from 'path';
 import * as gamelift from 'aws-cdk-lib/aws-gamelift';
-// import * as sqs from 'aws-cdk-lib/aws-sqs';
+import * as sns from 'aws-cdk-lib/aws-sns';
 
 // Define custom stack properties
 interface AmazonGameLiftIntegrationStackProps extends cdk.StackProps {
@@ -27,6 +27,23 @@ export class AmazonGameLiftIntegrationStack extends cdk.Stack {
 
     // Define the GameLift fleet
     var fleet = this.defineGameLiftFleet(locations, gameServerBuild, fleetRole, props.serverBinaryName);
+
+    // Define the GameLift Queue
+    var queue = this.defineGameLiftQueue(fleet);
+
+    // NOTE: This will move to the backend stack!
+    // Define an SNS topic as the FlexMatch notification target
+    const topic = new sns.Topic(this, 'FlexMatchEventsTopic');
+    // Add a policy that allows gamelift.amazonaws.com to publish events
+    topic.addToResourcePolicy(new iam.PolicyStatement({
+      actions: ['sns:Publish'],
+      effect: iam.Effect.ALLOW,
+      principals: [new iam.ServicePrincipal('gamelift.amazonaws.com')],
+      resources: [topic.topicArn],
+    }));
+
+    // Define the FlexMatch configuration and rule set
+    this.defineFlexMatchConfiguration(queue, topic);
   }
 
   // Defines an IAM Role with access to CloudWatch Logs and metrics that can be assumed by a GameLift Fleet
@@ -159,6 +176,90 @@ export class AmazonGameLiftIntegrationStack extends cdk.Stack {
       }
     });
     gameLiftFleet.node.addDependency(gameServerBuild);
+
+    return gameLiftFleet;
   }
 
+  defineGameLiftQueue(fleet: gamelift.CfnFleet) {
+  
+    // The GameLift Fleet Queue
+    const cfnGameSessionQueue = new gamelift.CfnGameSessionQueue(this, 'Sample GameLift Queue', {
+      name: 'SampleGameLiftQueue',
+      
+      // Set the multi-region fleet as the destination
+      destinations: [{
+        destinationArn: 'arn:aws:gamelift:'+this.region+':'+this.account+':fleet/'+fleet.ref,
+      }],
+      // Try to find a < 100ms latency location for the first 5 seconds. FlexMatch should already target this too
+      playerLatencyPolicies: [{
+        maximumIndividualPlayerLatencyMilliseconds: 100,
+        policyDurationSeconds: 5,
+        },{
+          maximumIndividualPlayerLatencyMilliseconds: 20000
+        }
+      ],
+      timeoutInSeconds: 20 // Timeout after 20 seconds of searching for a session
+    });
+
+    return cfnGameSessionQueue;
+  }
+
+  defineFlexMatchConfiguration(queue: gamelift.CfnGameSessionQueue, topic: sns.Topic) {
+
+    // Define FlexMatch rule set that matches based on similar skill level and optimizes latency
+    const cfnMatchmakingRuleSet = new gamelift.CfnMatchmakingRuleSet(this, 'MyCfnMatchmakingRuleSet', {
+      name: 'SampleRuleSet',
+      ruleSetBody: `{
+        "name": "simplerule",
+        "ruleLanguageVersion": "1.0",
+        "playerAttributes": [{
+            "name": "skill",
+            "type": "number",
+            "default": 10
+        }],
+        "teams": [{
+            "name": "oneteam",
+            "maxPlayers": 5,
+            "minPlayers": 1
+        }], \
+        "rules": [{
+            "name": "FairSkill",
+            "description": "The average skill of players is within 10 points from the average skill of all players in the match",
+            "type": "distance",
+            // get skill value for each player
+            "measurements": [ "teams[oneteam].players.attributes[skill]" ],
+            // get skill values for all players and average to produce an overall average
+            "referenceValue": "avg(teams[oneteam].players.attributes[skill])",
+            "maxDistance": 10
+        },{
+          "name": "FastConnection",
+          "description": "Prefer matches with fast player connections first",
+          "type": "latency",
+          "maxLatency": 80
+        }],
+        "expansions": [{
+              "target": "rules[FastConnection].maxLatency",
+              "steps": [{
+                  "waitTimeSeconds": 5,
+                  "value": 1000
+            }]
+        }]
+      }`
+    });
+
+    // Define FlexMatch configuration
+    const cfnMatchmakingConfiguration = new gamelift.CfnMatchmakingConfiguration(this, 'Sample FlexMatch Configuration', {
+      name: 'SampleFlexMatchConfiguration',
+      description: 'Sample FlexMatch Configuration',
+      gameSessionQueueArns: [queue.attrArn],
+      requestTimeoutSeconds: 20,
+      acceptanceRequired: false,
+      ruleSetName: 'SampleRuleSet',
+      backfillMode: 'AUTOMATIC', // We use automatic backfill to allow starting with one player and fill the sessions up once to max players
+      notificationTarget: topic.topicArn // Receive FlexMatch events to this topic to inform players
+    });
+    cfnMatchmakingConfiguration.node.addDependency(queue);
+
+    return topic;
+  }
 }
