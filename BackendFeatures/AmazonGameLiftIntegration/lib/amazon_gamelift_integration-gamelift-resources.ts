@@ -31,19 +31,11 @@ export class AmazonGameLiftIntegrationStack extends cdk.Stack {
     // Define the GameLift Queue
     var queue = this.defineGameLiftQueue(fleet);
 
-    // NOTE: This will move to the backend stack!
-    // Define an SNS topic as the FlexMatch notification target
-    const topic = new sns.Topic(this, 'FlexMatchEventsTopic');
-    // Add a policy that allows gamelift.amazonaws.com to publish events
-    topic.addToResourcePolicy(new iam.PolicyStatement({
-      actions: ['sns:Publish'],
-      effect: iam.Effect.ALLOW,
-      principals: [new iam.ServicePrincipal('gamelift.amazonaws.com')],
-      resources: [topic.topicArn],
-    }));
+    // Import the SNS topic ARN from the backend stack
+    const topicArn = cdk.Fn.importValue('AmazonGameLiftSampleSnsTopicArn');
 
     // Define the FlexMatch configuration and rule set
-    this.defineFlexMatchConfiguration(queue, topic);
+    this.defineFlexMatchConfiguration(queue, topicArn);
   }
 
   // Defines an IAM Role with access to CloudWatch Logs and metrics that can be assumed by a GameLift Fleet
@@ -204,7 +196,7 @@ export class AmazonGameLiftIntegrationStack extends cdk.Stack {
     return cfnGameSessionQueue;
   }
 
-  defineFlexMatchConfiguration(queue: gamelift.CfnGameSessionQueue, topic: sns.Topic) {
+  defineFlexMatchConfiguration(queue: gamelift.CfnGameSessionQueue, topicArn: string) {
 
     // Define FlexMatch rule set that matches based on similar skill level and optimizes latency
     const cfnMatchmakingRuleSet = new gamelift.CfnMatchmakingRuleSet(this, 'MyCfnMatchmakingRuleSet', {
@@ -256,10 +248,9 @@ export class AmazonGameLiftIntegrationStack extends cdk.Stack {
       acceptanceRequired: false,
       ruleSetName: 'SampleRuleSet',
       backfillMode: 'AUTOMATIC', // We use automatic backfill to allow starting with one player and fill the sessions up once to max players
-      notificationTarget: topic.topicArn // Receive FlexMatch events to this topic to inform players
+      notificationTarget: topicArn // Receive FlexMatch events to this topic to inform players
     });
     cfnMatchmakingConfiguration.node.addDependency(queue);
-
-    return topic;
+    
   }
 }
