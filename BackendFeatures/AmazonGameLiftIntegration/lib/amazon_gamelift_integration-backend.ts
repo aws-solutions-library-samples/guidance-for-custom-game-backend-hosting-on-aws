@@ -76,6 +76,18 @@ export class AmazonGameLiftIntegrationBackend extends cdk.Stack {
       }
     });
 
+    // DATABASE RESOURCES
+
+    // Define a DynamoDB table for matchmaking tickets
+    const matchmakingTable = new cdk.aws_dynamodb.Table(this, 'MatchmakingTable', {
+      partitionKey: {
+        name: 'TicketID',
+        type: cdk.aws_dynamodb.AttributeType.STRING
+        },
+      billingMode: cdk.aws_dynamodb.BillingMode.PAY_PER_REQUEST, // automatic scaling and billing per request
+      pointInTimeRecovery: true, // enable point in time recovery backups
+    });
+
     // LAMBDA FUNCTIONS ///
 
     // The shared policy for basic Lambda access needs for logging. This is similar to the managed Lambda Execution Policy
@@ -135,7 +147,7 @@ export class AmazonGameLiftIntegrationBackend extends cdk.Stack {
     });
 
     // Allow the HttpApi to invoke the set_player_data function
-    request_matchmaking.addPermission('InvokeSetPlayerDataFunction', {
+    request_matchmaking.addPermission('InvokeRequestMatchmakingFunction', {
       principal: new iam.ServicePrincipal('apigateway.amazonaws.com'),
       sourceAccount: this.account,
       sourceArn: `arn:aws:execute-api:${this.region}:${this.account}:${httpApi.ref}/prod/*`,
@@ -146,12 +158,12 @@ export class AmazonGameLiftIntegrationBackend extends cdk.Stack {
       { id: 'AwsSolutions-IAM5', reason: 'Using the standard Lambda execution role, all custom access resource restricted.' }
     ], true);
 
-    // Define set-player-data integration and route
+    // Define request matchmaking integration and route
     const requestMatchmakingIntegration = new apigateway.CfnIntegration(this, 'RequestMatchmakingIntegration', {
       apiId: httpApi.ref,
       integrationType: 'AWS_PROXY',
       integrationUri: request_matchmaking.functionArn,
-      integrationMethod: 'GET',
+      integrationMethod: 'POST',
       payloadFormatVersion: '2.0'
     });
 
@@ -161,6 +173,63 @@ export class AmazonGameLiftIntegrationBackend extends cdk.Stack {
       authorizationType: 'JWT',
       authorizerId: authorizer.ref,
       target: "integrations/" + requestMatchmakingIntegration.ref,
+      authorizationScopes: ["guest", "authenticated"]
+    });
+
+    const get_match_status_role = new iam.Role(this, 'GetMatchStatusRole', {
+      assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
+    });
+    get_match_status_role.addToPolicy(lambdaBasicPolicy);
+    const get_match_status = new lambda.Function(this, 'GetMatchStatus', {
+      role: get_match_status_role,
+      code: lambda.Code.fromAsset("lambda", {
+        bundling: {
+          image: lambda.Runtime.PYTHON_3_11.bundlingImage,
+          command: [
+            'bash', '-c',
+            'pip install -r requirements.txt -t /asset-output && cp -ru . /asset-output'
+          ],
+      },}),
+      runtime: lambda.Runtime.PYTHON_3_11,
+      handler: 'get_match_status.lambda_handler',
+      timeout: Duration.seconds(15),
+      tracing: lambda.Tracing.ACTIVE,
+      memorySize: 1024,
+      logRetention: logs.RetentionDays.ONE_MONTH,
+      logRetentionRole: lambdaLoggingRole,
+      environment: {
+        "MATCHMAKING_TICKETS_TABLE" : matchmakingTable.tableName
+      }
+    });
+    matchmakingTable.grantReadData(get_match_status);
+
+    // Allow the HttpApi to invoke the get_match_status function
+    get_match_status.addPermission('InvokeMatchStatusFunction', {
+      principal: new iam.ServicePrincipal('apigateway.amazonaws.com'),
+      sourceAccount: this.account,
+      sourceArn: `arn:aws:execute-api:${this.region}:${this.account}:${httpApi.ref}/prod/*`,
+      action: 'lambda:InvokeFunction'
+    });
+
+    NagSuppressions.addResourceSuppressions(get_match_status_role, [
+      { id: 'AwsSolutions-IAM5', reason: 'Using the standard Lambda execution role, all custom access resource restricted.' }
+    ], true);
+
+    // Define set-player-data integration and route
+    const getMatchStatusIntegration = new apigateway.CfnIntegration(this, 'GetMatchStatusIntegration', {
+      apiId: httpApi.ref,
+      integrationType: 'AWS_PROXY',
+      integrationUri: get_match_status.functionArn,
+      integrationMethod: 'GET',
+      payloadFormatVersion: '2.0'
+    });
+
+    new apigateway.CfnRoute(this, 'GetMatchStatusRoute', {
+      apiId: httpApi.ref,
+      routeKey: 'GET /get-match-status',
+      authorizationType: 'JWT',
+      authorizerId: authorizer.ref,
+      target: "integrations/" + getMatchStatusIntegration.ref,
       authorizationScopes: ["guest", "authenticated"]
     });
     
