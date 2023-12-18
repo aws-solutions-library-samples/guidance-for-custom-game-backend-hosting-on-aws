@@ -20,6 +20,8 @@
     "typescript": "~5.2.2"
   },
   "dependencies": {
+    "@aws-cdk/aws-apigatewayv2-authorizers-alpha": "^2.114.1-alpha.0",
+    "@aws-cdk/aws-apigatewayv2-integrations-alpha": "^2.114.1-alpha.0",
     "aws-cdk-lib": "^2.114.0",
     "cdk-nag": "^2.27.210",
     "constructs": "^10.0.0",
