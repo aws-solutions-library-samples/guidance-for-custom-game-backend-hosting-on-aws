@@ -44,7 +44,7 @@ def lambda_handler(event, context):
     response = client.get_item(
         TableName=os.environ['MATCHMAKING_TICKETS_TABLE'],
         Key={
-            'TicketId': {
+            'TicketID': {
                 'S': ticketId
             }
         }

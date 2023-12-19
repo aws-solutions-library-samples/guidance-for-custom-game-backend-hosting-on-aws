@@ -232,7 +232,52 @@ export class AmazonGameLiftIntegrationBackend extends cdk.Stack {
       target: "integrations/" + getMatchStatusIntegration.ref,
       authorizationScopes: ["guest", "authenticated"]
     });
+
+    // Lambda for processing matchmaking events
+
+    const process_matchmaking_events_role = new iam.Role(this, 'ProcessMatchmakingEventsRole', {
+      assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
+    });
+    process_matchmaking_events_role.addToPolicy(lambdaBasicPolicy);
+
+    const process_matchmaking_events = new lambda.Function(this, 'ProcessMatchmakingEvents', {
+      role: process_matchmaking_events_role,
+      code: lambda.Code.fromAsset("lambda", {
+        bundling: {
+          image: lambda.Runtime.PYTHON_3_11.bundlingImage,
+          command: [
+            'bash', '-c',
+            'pip install -r requirements.txt -t /asset-output && cp -ru . /asset-output'
+          ],
+      },}),
+      runtime: lambda.Runtime.PYTHON_3_11,
+      handler: 'process_matchmaking_events.lambda_handler',
+      timeout: Duration.seconds(15),
+      tracing: lambda.Tracing.ACTIVE,
+      memorySize: 1024,
+      logRetention: logs.RetentionDays.ONE_MONTH,
+      logRetentionRole: lambdaLoggingRole,
+      environment: {
+        "MATCHMAKING_TICKETS_TABLE" : matchmakingTable.tableName
+      }
+    });
+    // Add write access to the Matchmaking tickets table
+    matchmakingTable.grantReadWriteData(process_matchmaking_events);
     
+    // subscribe to the topic
+    const subscription = new sns.Subscription(this, 'ProcessMatchmakingEventsSubscription', {
+      topic: topic,
+      protocol: sns.SubscriptionProtocol.LAMBDA,
+      endpoint: process_matchmaking_events.functionArn
+    });
+
+    // Grant SNS access to invoke the function
+    process_matchmaking_events.addPermission('InvokeProcessMatchmakingEventsFunction', {
+      principal: new iam.ServicePrincipal('sns.amazonaws.com'),
+      sourceAccount: this.account,
+      sourceArn: topic.topicArn,
+      action: 'lambda:InvokeFunction'
+    });
   }
 
 }
