@@ -79,7 +79,7 @@ export class AmazonGameLiftIntegrationBackend extends cdk.Stack {
     // DATABASE RESOURCES
 
     // Define a DynamoDB table for matchmaking tickets
-    const matchmakingTable = new cdk.aws_dynamodb.Table(this, 'MatchmakingTable', {
+    const matchmakingTicketsTable = new cdk.aws_dynamodb.Table(this, 'MatchmakingTable', {
       partitionKey: {
         name: 'TicketID',
         type: cdk.aws_dynamodb.AttributeType.STRING
@@ -112,6 +112,20 @@ export class AmazonGameLiftIntegrationBackend extends cdk.Stack {
         })
       }
     });
+
+    // Backend API functions
+    this.create_backend_lambda_functions(lambdaBasicPolicy, httpApi, authorizer, lambdaLoggingRole, matchmakingTicketsTable);
+
+    // Matchmaking tickets processing
+    this.create_process_matchmaking(lambdaBasicPolicy, lambdaLoggingRole, topic, matchmakingTicketsTable);
+
+  }
+
+
+  // Creates the backend APIs as Lambda functions that register to the HttpAPI
+  private create_backend_lambda_functions(lambdaBasicPolicy : iam.PolicyStatement, httpApi : apigateway.CfnApi, 
+                                          authorizer: apigateway.CfnAuthorizer, lambdaLoggingRole : iam.Role,
+                                          matchmakingTicketsTable : cdk.aws_dynamodb.Table) {
 
     // Define functions to request matchmaking and check match status
     const request_matchmaking_function_role = new iam.Role(this, 'RequestMatchmakingFunctionRole', {
@@ -198,10 +212,10 @@ export class AmazonGameLiftIntegrationBackend extends cdk.Stack {
       logRetention: logs.RetentionDays.ONE_MONTH,
       logRetentionRole: lambdaLoggingRole,
       environment: {
-        "MATCHMAKING_TICKETS_TABLE" : matchmakingTable.tableName
+        "MATCHMAKING_TICKETS_TABLE" : matchmakingTicketsTable.tableName
       }
     });
-    matchmakingTable.grantReadData(get_match_status);
+    matchmakingTicketsTable.grantReadData(get_match_status);
 
     // Allow the HttpApi to invoke the get_match_status function
     get_match_status.addPermission('InvokeMatchStatusFunction', {
@@ -232,9 +246,11 @@ export class AmazonGameLiftIntegrationBackend extends cdk.Stack {
       target: "integrations/" + getMatchStatusIntegration.ref,
       authorizationScopes: ["guest", "authenticated"]
     });
+  }
 
-    // Lambda for processing matchmaking events
-
+  // Defines the Lambda function to process matchmaking tickets and subscribes it to the SNS topic
+  private create_process_matchmaking(lambdaBasicPolicy : iam.PolicyStatement, lambdaLoggingRole : iam.Role, subscriptionTopic : sns.Topic, ticketsTable : cdk.aws_dynamodb.Table) {
+    
     const process_matchmaking_events_role = new iam.Role(this, 'ProcessMatchmakingEventsRole', {
       assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
     });
@@ -258,15 +274,15 @@ export class AmazonGameLiftIntegrationBackend extends cdk.Stack {
       logRetention: logs.RetentionDays.ONE_MONTH,
       logRetentionRole: lambdaLoggingRole,
       environment: {
-        "MATCHMAKING_TICKETS_TABLE" : matchmakingTable.tableName
+        "MATCHMAKING_TICKETS_TABLE" : ticketsTable.tableName
       }
     });
     // Add write access to the Matchmaking tickets table
-    matchmakingTable.grantReadWriteData(process_matchmaking_events);
+    ticketsTable.grantReadWriteData(process_matchmaking_events);
     
     // subscribe to the topic
     const subscription = new sns.Subscription(this, 'ProcessMatchmakingEventsSubscription', {
-      topic: topic,
+      topic: subscriptionTopic,
       protocol: sns.SubscriptionProtocol.LAMBDA,
       endpoint: process_matchmaking_events.functionArn
     });
@@ -275,7 +291,7 @@ export class AmazonGameLiftIntegrationBackend extends cdk.Stack {
     process_matchmaking_events.addPermission('InvokeProcessMatchmakingEventsFunction', {
       principal: new iam.ServicePrincipal('sns.amazonaws.com'),
       sourceAccount: this.account,
-      sourceArn: topic.topicArn,
+      sourceArn: subscriptionTopic.topicArn,
       action: 'lambda:InvokeFunction'
     });
   }
