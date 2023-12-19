@@ -10,9 +10,9 @@ from aws_lambda_powertools import Logger
 tracer = Tracer()
 logger = Logger()
 
-def error_response(message):
+def error_response(message, code):
     return {
-        "statusCode": 500,
+        "statusCode": code,
         "body": json.dumps(message),
         'headers': {
             'Access-Control-Allow-Origin': '*',
@@ -31,11 +31,11 @@ def lambda_handler(event, context):
         print("user_id: ", user_id)
     except Exception as e:
         print("Exception: ", e)
-        return error_response("user_id not available in claims")
+        return error_response("user_id not available in claims", 500)
     
     # Check that we have ticketId in the querystrings
     if 'ticketId' not in event['queryStringParameters']:
-        return error_response("ticketId not available in querystrings")
+        return error_response("ticketId not available in querystrings", 500)
     
     ticketId = event['queryStringParameters']['ticketId']
 
@@ -51,7 +51,7 @@ def lambda_handler(event, context):
     )
 
     if 'Item' not in response:
-        return error_response("TicketId not found in DynamoDB table")
+        return error_response("TicketId not found in DynamoDB table", 400)
 
     return {
         "statusCode": 200,
