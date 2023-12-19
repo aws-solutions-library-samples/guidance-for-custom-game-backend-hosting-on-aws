@@ -86,6 +86,7 @@ export class AmazonGameLiftIntegrationBackend extends cdk.Stack {
         },
       billingMode: cdk.aws_dynamodb.BillingMode.PAY_PER_REQUEST, // automatic scaling and billing per request
       pointInTimeRecovery: true, // enable point in time recovery backups
+      timeToLiveAttribute: 'ExpirationTime', // TTL field to get rid off old matchmaking tickets. Backend has to set this!
     });
 
     // LAMBDA FUNCTIONS ///

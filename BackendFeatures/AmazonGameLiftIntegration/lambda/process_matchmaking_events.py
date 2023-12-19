@@ -7,6 +7,7 @@ import boto3
 
 from aws_lambda_powertools import Tracer
 from aws_lambda_powertools import Logger
+import time
 tracer = Tracer()
 logger = Logger()
 
@@ -75,6 +76,9 @@ def write_ticket_to_dynamoDB(ticket_id, matchmaking_status, player_session_id = 
     dynamodb = boto3.resource('dynamodb')
     table = dynamodb.Table(os.environ['MATCHMAKING_TICKETS_TABLE'])
 
+    # Define an epoch time 3 hours from now for automatically deleting old tickets
+    epoch_time = int(time.time()) + 10800
+
     # We expect we have all the info if we have a succeeded matchmaking status
     if matchmaking_status == 'MatchmakingSucceeded':
         table.put_item(
@@ -84,7 +88,8 @@ def write_ticket_to_dynamoDB(ticket_id, matchmaking_status, player_session_id = 
                 'PlayerSessionId': player_session_id,
                 'IpAddress': ipAddress,
                 'DnsName': dnsName,
-                'Port': port
+                'Port': port,
+                'ExpirationTime': epoch_time
             }
         )
     # Else we just have the ticketId and the status
@@ -93,6 +98,7 @@ def write_ticket_to_dynamoDB(ticket_id, matchmaking_status, player_session_id = 
             Item={
                 'TicketID': ticket_id,
                 'MatchmakingStatus': matchmaking_status,
+                'ExpirationTime': epoch_time
             }
         )
 
