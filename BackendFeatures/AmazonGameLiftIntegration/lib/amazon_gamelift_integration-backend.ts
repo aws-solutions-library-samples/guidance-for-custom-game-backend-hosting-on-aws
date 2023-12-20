@@ -184,7 +184,7 @@ export class AmazonGameLiftIntegrationBackend extends cdk.Stack {
 
     new apigateway.CfnRoute(this, 'RequestMatchmakingRoute', {
       apiId: httpApi.ref,
-      routeKey: 'GET /request-matchmaking',
+      routeKey: 'POST /request-matchmaking',
       authorizationType: 'JWT',
       authorizerId: authorizer.ref,
       target: "integrations/" + requestMatchmakingIntegration.ref,

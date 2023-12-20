@@ -38,8 +38,17 @@ def lambda_handler(event, context):
     if 'body' not in event:
         return error_response("No latency data provided")
     
+    print("event['body']: ", event['body'])
+    
+    # If the event body is string, load it as a dictionary
+    if isinstance(event['body'], str):
+        print("Event body is not a dictionary, convert")
+        event['body']= eval(event['body'])
+
     # Get the latency json from the event post attributes
     latency_json = event['body']['latencyInMs']
+
+    print("latency_json: ", latency_json)
 
     # Request matchmaking through GameLift
     client = boto3.client('gamelift')
@@ -62,5 +71,5 @@ def lambda_handler(event, context):
         'headers': {
             'Access-Control-Allow-Origin': '*',
             'Access-Control-Allow-Credentials': True
-        },
+        }
     }
