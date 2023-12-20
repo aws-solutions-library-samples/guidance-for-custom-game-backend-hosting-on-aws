@@ -139,6 +139,10 @@ export class AmazonGameLiftIntegrationBackend extends cdk.Stack {
       resources: ['*'],
       effect: iam.Effect.ALLOW
     }));
+    NagSuppressions.addResourceSuppressions(request_matchmaking_function_role, [
+      { id: 'AwsSolutions-IAM5', reason: 'Using the standard Lambda execution role, all custom access resource restricted.' }
+    ], true);
+
     const request_matchmaking = new lambda.Function(this, 'RequestMatchmaking', {
       role: request_matchmaking_function_role,
       code: lambda.Code.fromAsset("lambda", {
@@ -169,10 +173,6 @@ export class AmazonGameLiftIntegrationBackend extends cdk.Stack {
       action: 'lambda:InvokeFunction'
     });
 
-    NagSuppressions.addResourceSuppressions(request_matchmaking_function_role, [
-      { id: 'AwsSolutions-IAM5', reason: 'Using the standard Lambda execution role, all custom access resource restricted.' }
-    ], true);
-
     // Define request matchmaking integration and route
     const requestMatchmakingIntegration = new apigateway.CfnIntegration(this, 'RequestMatchmakingIntegration', {
       apiId: httpApi.ref,
@@ -195,6 +195,10 @@ export class AmazonGameLiftIntegrationBackend extends cdk.Stack {
       assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
     });
     get_match_status_role.addToPolicy(lambdaBasicPolicy);
+    NagSuppressions.addResourceSuppressions(get_match_status_role, [
+      { id: 'AwsSolutions-IAM5', reason: 'Using the standard Lambda execution role, all custom access resource restricted.' }
+    ], true);
+
     const get_match_status = new lambda.Function(this, 'GetMatchStatus', {
       role: get_match_status_role,
       code: lambda.Code.fromAsset("lambda", {
@@ -225,10 +229,6 @@ export class AmazonGameLiftIntegrationBackend extends cdk.Stack {
       sourceArn: `arn:aws:execute-api:${this.region}:${this.account}:${httpApi.ref}/prod/*`,
       action: 'lambda:InvokeFunction'
     });
-
-    NagSuppressions.addResourceSuppressions(get_match_status_role, [
-      { id: 'AwsSolutions-IAM5', reason: 'Using the standard Lambda execution role, all custom access resource restricted.' }
-    ], true);
 
     // Define set-player-data integration and route
     const getMatchStatusIntegration = new apigateway.CfnIntegration(this, 'GetMatchStatusIntegration', {
