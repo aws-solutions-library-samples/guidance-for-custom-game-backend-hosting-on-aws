@@ -52,12 +52,26 @@ def lambda_handler(event, context):
 
     if 'Item' not in response:
         return error_response("TicketId not found in DynamoDB table", 400)
+    
+    # Extract MatchmakingStatus, Port, IPAddress and DnsEndpoint from the response to a dictionary
+    response_to_client = {
+        'MatchmakingStatus': response['Item']['MatchmakingStatus']['S']
+    }
 
+    # If response conatins Port, IPAddress and DnsEndpoint, add them to the dictionary
+    if 'Port' in response['Item']:
+        response_to_client['Port'] = response['Item']['Port']['N']
+    if 'IpAddress' in response['Item']:
+        response_to_client['IpAddress'] = response['Item']['IpAddress']['S']
+    if 'DnsName'in response['Item']:
+        response_to_client['DnsName'] = response['Item']['DnsName']['S']
+    if 'PlayerSessionId' in response['Item']:
+        response_to_client['PlayerSessionId'] = response['Item']['PlayerSessionId']['S']
     return {
         "statusCode": 200,
-        "body": json.dumps(response, default=str),
+        "body": json.dumps(response_to_client, default=str),
         'headers': {
             'Access-Control-Allow-Origin': '*',
             'Access-Control-Allow-Credentials': True
-        },
+        }
     }

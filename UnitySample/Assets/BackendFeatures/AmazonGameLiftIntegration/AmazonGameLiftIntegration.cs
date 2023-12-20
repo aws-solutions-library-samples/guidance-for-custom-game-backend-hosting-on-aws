@@ -16,8 +16,11 @@ public class MatchmakingRequestData
 
 public class MatchmakingStatusData
 {
-    public string TicketId = null;
-    public string Status = null;
+    public string MatchmakingStatus = null;
+    public string DnsName;
+    public string IpAddress;
+    public int Port;
+    public string PlayerSessionId;
 }
 
 public class AmazonGameLiftIntegration : MonoBehaviour
@@ -126,11 +129,11 @@ public class AmazonGameLiftIntegration : MonoBehaviour
             matchmakingStatusData = JsonUtility.FromJson<MatchmakingStatusData>(response.downloadHandler.text);
         }
   
-        // If the match is not yet ready, keep trying to get the match status
-        if(matchmakingStatusData.Status == null || matchmakingStatusData.Status != "MatchmakingSucceeded")
+        // If the match is not yet ready or it hasn't failed, timed out or cancelled, keep trying to get the match status
+        if(matchmakingStatusData.MatchmakingStatus == null || matchmakingStatusData.MatchmakingStatus == "MatchmakingQueued" || matchmakingStatusData.MatchmakingStatus == "MatchmakingSearching" || matchmakingStatusData.MatchmakingStatus == "PotentialMatchCreated")
         {
             this.totalMatchStatusRequests++;
-            if(this.totalMatchStatusRequests < 20)
+            if(this.totalMatchStatusRequests < 15)
             {
                 var queryParameters = new Dictionary<string, string>();
                 queryParameters.Add("ticketId", this.ticketId);
@@ -147,7 +150,7 @@ public class AmazonGameLiftIntegration : MonoBehaviour
 
     IEnumerator DelayedCallToGetMatchStatus(string endpoint, string path, Action<UnityWebRequest> callback, Dictionary<string, string> queryParameters)
     {
-        yield return new WaitForSeconds(1);
+        yield return new WaitForSeconds(1.5f);
         AWSGameSDKClient.Instance.BackendGetRequest(this.gameliftIntegrationBackendEndpointUrl, "get-match-status", this.OnGetMatchStatusResponse, queryParameters);
     }
 }
