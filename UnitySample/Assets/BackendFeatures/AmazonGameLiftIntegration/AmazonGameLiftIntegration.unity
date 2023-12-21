@@ -406,8 +406,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c6f4d74c3b4d2473fb714ef9fa5b4f9a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  loginEndpointUrl: 
-  gameliftIntegrationBackendEndpointUrl: 
+  loginEndpointUrl: YOUR-LOGIN-ENDPOINT-HERE
+  gameliftIntegrationBackendEndpointUrl: YOUR-GAMELIFT-INTEGRAITON-BACKEND-ENDPOiNT-HERE
   logOutput: {fileID: 451320948}
 --- !u!1 &903145065
 GameObject:

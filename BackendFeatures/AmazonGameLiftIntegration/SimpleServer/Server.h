@@ -3,6 +3,7 @@
 
 #include <cstring>
 #include <aws/gamelift/server/model/GameSession.h>
+#include <aws/gamelift/server/model/UpdateGameSession.h>
 
 class Server
 {
@@ -13,6 +14,7 @@ public:
     void FinalizeGameLift();
     bool AcceptPlayerSession(const std::string& playerSessionId);
     void OnStartGameSession(Aws::GameLift::Server::Model::GameSession myGameSession);
+    void OnUpdateGameSession(Aws::GameLift::Server::Model::UpdateGameSession myGameSession);
     void OnProcessTerminate();
     bool OnHealthCheck() { return true; }
     void TerminateGameSession();

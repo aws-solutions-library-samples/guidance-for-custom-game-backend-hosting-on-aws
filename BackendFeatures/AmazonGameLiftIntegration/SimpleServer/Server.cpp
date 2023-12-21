@@ -33,7 +33,7 @@ void AcceptNewPlayerConnection(int server_fd, int addrlen, sockaddr_in address, 
     }
     
     // We read just one message from the client with blocking I/O
-    // For an actual game server you will want to use Boost.Asio or other asynchronous higher level library for the socket communication
+    // For an actual game server you will want to use Boost.Asio, game engine-specific libraries, or other asynchronous higher level library for the socket communication
     valread = read( new_socket , buffer, 1024);
     std::cout << buffer << std::endl;
 
@@ -140,18 +140,18 @@ int main (int argc, char* argv[]) {
     //int serverResult = SetupTcpServerAndAcceptPlayers(server, PORT);
     
     while (true) {
-        
-        // TODO: Wait for session to start to start the fake game loop
-        std::cout << "Waiting for game session to start..." << std::endl;
+    
+        //std::cout << "Waiting for game session to start..." << std::endl;
         
         // Check if we have a started game session and wait for a minute to end game
         if(server->HasGameSessionStarted()) {
             std::cout << "Game session started! We'll just wait 60 seconds to give time for players to connect in the other thread and terminate" << std::endl;
             sleep(60);
-            exit(0);
+            exit(0);    
         }
-        // Otherwise just sleep 5 second and keep waiting
-        sleep(5);
+        // Otherwise just sleep 10 seconds and keep waiting
+        sleep(10);
+
     }
     
     std::cout << "Game Session done! Clean up session and shutdown" << std::endl;
@@ -180,7 +180,7 @@ bool Server::InitializeGameLift(int listenPort, std::string logfile)
 
 		if (!initOutcome.IsSuccess())
 		{
-			return false;
+			return false; 
 		}
 
         std::cout << "InitSDK Done!\n";
@@ -192,6 +192,7 @@ bool Server::InitializeGameLift(int listenPort, std::string logfile)
 
 		auto processReadyParameter = Aws::GameLift::Server::ProcessParameters(
 			std::bind(&Server::OnStartGameSession, this, std::placeholders::_1),
+            std::bind(&Server::OnUpdateGameSession, this, std::placeholders::_1),
 			std::bind(&Server::OnProcessTerminate, this),
 			std::bind(&Server::OnHealthCheck, this),
 			listenPort, Aws::GameLift::Server::LogParameters(logPaths)
@@ -239,6 +240,11 @@ void Server::OnStartGameSession(Aws::GameLift::Server::Model::GameSession myGame
 	Aws::GameLift::Server::ActivateGameSession();
 	mGameSessionStarted = true;
 	std::cout << "OnStartGameSession Success\n";
+}
+
+void Server::OnUpdateGameSession(Aws::GameLift::Server::Model::UpdateGameSession myGameSession)
+{
+	std::cout << "OnUpdateGameSession \n";
 }
 
 // Called when GameLift ends your process as part of a scaling event or terminating the Fleet

@@ -146,11 +146,43 @@ public class AmazonGameLiftIntegration : MonoBehaviour
                 Debug.Log("Timed out, didn't receive an end state for matchmaking");
             }
         }
+        else if(matchmakingStatusData.MatchmakingStatus == "MatchmakingSucceeded")
+        {
+            Debug.Log("Matchmaking succeeded, connect to game server");
+            this.logOutput.text += "Matchmaking succeeded, connect to game server... " + "\n";
+            StartCoroutine(ConnectToServer(matchmakingStatusData));
+        }
+        else
+        {  
+            Debug.Log("Matchmaking failed");
+        }
     }
 
     IEnumerator DelayedCallToGetMatchStatus(string endpoint, string path, Action<UnityWebRequest> callback, Dictionary<string, string> queryParameters)
     {
         yield return new WaitForSeconds(1.5f);
         AWSGameSDKClient.Instance.BackendGetRequest(this.gameliftIntegrationBackendEndpointUrl, "get-match-status", this.OnGetMatchStatusResponse, queryParameters);
+    }
+
+    IEnumerator ConnectToServer(MatchmakingStatusData matchmakingStatusData){
+        SimpleServerClient client = new SimpleServerClient(matchmakingStatusData.IpAddress, matchmakingStatusData.Port, this.logOutput);
+        
+        // Connect to the server and send our player session ID
+        client.ConnectToServer();
+        this.logOutput.text += "Connected. Sending Player Session ID: " + matchmakingStatusData.PlayerSessionId + "\n";
+        client.SendMessage(matchmakingStatusData.PlayerSessionId);
+
+        // Wait for response for up to 10 seconds (should arrive almost immediately)
+        for (int i = 0; i < 200; i++)
+        {
+            string message = client.ReceiveMessage();
+            if(message != null)
+            {
+                Debug.Log("Received message: " + message);
+                this.logOutput.text += "Received message from server: " + message + "\n";
+                break;
+            }
+            yield return new WaitForSeconds(0.05f);
+        }
     }
 }
