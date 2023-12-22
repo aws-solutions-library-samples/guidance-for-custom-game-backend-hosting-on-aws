@@ -169,6 +169,12 @@ export class AmazonGameLiftIntegrationStack extends cdk.Stack {
     });
     gameLiftFleet.node.addDependency(gameServerBuild);
 
+    // Define a CloudFormation output value for the fleet ARN
+    new cdk.CfnOutput(this, 'SampleGameLiftFleetID', {
+      value: gameLiftFleet.ref,
+      exportName: 'SampleGameLiftFleetID',
+    });
+
     return gameLiftFleet;
   }
 
