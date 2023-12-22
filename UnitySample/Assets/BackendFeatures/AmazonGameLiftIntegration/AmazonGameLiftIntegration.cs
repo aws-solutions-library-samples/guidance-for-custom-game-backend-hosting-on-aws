@@ -81,25 +81,29 @@ public class AmazonGameLiftIntegration : MonoBehaviour
     // Helper method to measure TCP latencies to the two sample locatiosn we use
     void MeasureLatencies()
     {
-        // We'll ping the two Regions we are using, you can extend to any amount
+        // We'll ping Regions we are using in the sample deployment, you can extend to any amount
         var region1 = "us-east-1";
         var region2 = "us-west-2";
+        var region3 = "eu-west-1";
 
         // Check latencies to Regions by pinging DynamoDB endpoints (they just report health but we use them here for latency)
         var response = Task.Run(() => this.SendHTTPSPingRequest("https://dynamodb."+ region1 + ".amazonaws.com"));
         response.Wait(1000); // We'll expect a response in 1 second
         string latency1 = "Latency " + region1 + ": " + response.Result + " ms";
-        print(latency1);
         this.latencies.Add(region1, response.Result);
         response = Task.Run(() => this.SendHTTPSPingRequest("https://dynamodb." + region2 + ".amazonaws.com"));
         response.Wait(1000); // We'll expect a response in 1 second
         string latency2 = "Latency " + region2 + ": " + response.Result + " ms";
-        print(latency2);
         this.latencies.Add(region2, response.Result);
+        response = Task.Run(() => this.SendHTTPSPingRequest("https://dynamodb." + region3 + ".amazonaws.com"));
+        response.Wait(1000); // We'll expect a response in 1 second
+        string latency3 = "Latency " + region3 + ": " + response.Result + " ms";
+        this.latencies.Add(region3, response.Result);
 
         // Write latencies to logOutput
         this.logOutput.text += latency1 + " ";
-        this.logOutput.text += latency2 + "\n";
+        this.logOutput.text += latency2 + " ";
+        this.logOutput.text += latency3 + "\n";
     }
 
     // Start is called before the first frame update
