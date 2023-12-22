@@ -15,6 +15,7 @@ public:
     bool AcceptPlayerSession(const std::string& playerSessionId);
     void OnStartGameSession(Aws::GameLift::Server::Model::GameSession myGameSession);
     void OnUpdateGameSession(Aws::GameLift::Server::Model::UpdateGameSession myGameSession);
+    void ExtractValuesFromMatchmakerData(std::string matchmakerData);
     void OnProcessTerminate();
     bool OnHealthCheck() { return true; }
     void TerminateGameSession();
@@ -22,5 +23,7 @@ public:
 
 private:
     bool mGameSessionStarted;
+    std::string backfillTicketId; // Used for terminating backfill when we end the session
+    std::string matchmakingConfigurationArn; // Used for terminating backfill when we end the session
 
 };

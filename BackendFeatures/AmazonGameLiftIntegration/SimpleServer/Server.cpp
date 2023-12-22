@@ -147,17 +147,18 @@ int main (int argc, char* argv[]) {
         if(server->HasGameSessionStarted()) {
             std::cout << "Game session started! We'll just wait 60 seconds to give time for players to connect in the other thread and terminate" << std::endl;
             sleep(60);
-            exit(0);    
+                
+            std::cout << "Game Session done! Clean up session and shutdown" << std::endl;
+            // Inform GameLift we're shutting down so it can replace the process with a new one
+            server->TerminateGameSession();
+
+            exit(0);
         }
         // Otherwise just sleep 10 seconds and keep waiting
         sleep(10);
 
     }
-    
-    std::cout << "Game Session done! Clean up session and shutdown" << std::endl;
-    
-    // Inform GameLift we're shutting down so it can replace the process with a new one
-    server->TerminateGameSession();
+
 
     return 0;
 }
@@ -237,14 +238,52 @@ bool Server::AcceptPlayerSession(const std::string& playerSessionId)
 
 void Server::OnStartGameSession(Aws::GameLift::Server::Model::GameSession myGameSession)
 {
-	Aws::GameLift::Server::ActivateGameSession();
 	mGameSessionStarted = true;
+    std::string matchmakerData = myGameSession.GetMatchmakerData();
+    std::cout << "MatchmakerData: " << matchmakerData << std::endl;
+    this->ExtractValuesFromMatchmakerData(matchmakerData);
+    
+    Aws::GameLift::Server::ActivateGameSession();
 	std::cout << "OnStartGameSession Success\n";
 }
 
-void Server::OnUpdateGameSession(Aws::GameLift::Server::Model::UpdateGameSession myGameSession)
+void Server::ExtractValuesFromMatchmakerData(std::string matchmakerData)
+{
+    // Search for AutoBackFillTicketId and manually parse the JSON value (you should use any JSON parser you have in your project)
+    std::string autoBackFillTicketId = "";
+    int start = matchmakerData.find("autoBackfillTicketId");
+    if(start != std::string::npos)
+    {
+        int end = matchmakerData.find("}", start);
+        autoBackFillTicketId = matchmakerData.substr(start, end-start);
+        autoBackFillTicketId = autoBackFillTicketId.substr(autoBackFillTicketId.find(":")+2);
+        autoBackFillTicketId = autoBackFillTicketId.substr(0, autoBackFillTicketId.find("\""));
+        std::cout << "AutoBackFillTicketId: " << autoBackFillTicketId << std::endl;
+        this->backfillTicketId = autoBackFillTicketId;
+    }
+    // Search for MatchmakingConfigurationArn and manually parse the JSON value
+    std::string matchmakingConfigurationArn = "";
+    start = matchmakerData.find("matchmakingConfigurationArn");
+    if(start != std::string::npos)
+    {
+        int end = matchmakerData.find("}", start);
+        matchmakingConfigurationArn = matchmakerData.substr(start, end-start);
+        matchmakingConfigurationArn = matchmakingConfigurationArn.substr(matchmakingConfigurationArn.find(":")+2);
+        matchmakingConfigurationArn = matchmakingConfigurationArn.substr(0, matchmakingConfigurationArn.find("\""));
+        std::cout << "MatchmakingConfigurationArn: " << matchmakingConfigurationArn << std::endl;
+        this->matchmakingConfigurationArn = matchmakingConfigurationArn;
+    }
+}
+
+void Server::OnUpdateGameSession(Aws::GameLift::Server::Model::UpdateGameSession updateGameSession)
 {
 	std::cout << "OnUpdateGameSession \n";
+
+    if (updateGameSession.GetBackfillTicketId().empty() == false)
+    {
+        std::cout << "Updating backfill ticked ID: " + updateGameSession.GetBackfillTicketId();
+        this->backfillTicketId = updateGameSession.GetBackfillTicketId();
+    }
 }
 
 // Called when GameLift ends your process as part of a scaling event or terminating the Fleet
@@ -258,13 +297,25 @@ void Server::OnProcessTerminate()
 		std::cout << "GameLift activated, terminating process\n";
 		TerminateGameSession();
 		std::cout << "Done!\n";
-		// We will just brutally exit here, you would commonly have more sophisticated logic to gracefully shutdown your server
+		// We will exit here as GameLift will start a new game server process right after
 		std::exit(0);
 	}
 }
 
 void Server::TerminateGameSession()
 {
+    // Terminate backfill if we have an existing backfill ticket
+    if(this->backfillTicketId.empty() == false)
+    {
+        std::cout << "Terminating backfill as we're closing the process\n";
+        auto stopMatchBackfillRequest = new Aws::GameLift::Server::Model::StopMatchBackfillRequest();
+        stopMatchBackfillRequest->SetTicketId(this->backfillTicketId);
+        stopMatchBackfillRequest->SetGameSessionArn(Aws::GameLift::Server::GetGameSessionId().GetResult());
+        stopMatchBackfillRequest->SetMatchmakingConfigurationArn(this->matchmakingConfigurationArn);
+        Aws::GameLift::Server::StopMatchBackfill(*stopMatchBackfillRequest);
+    }
+    std::cout << "Terminating game session\n";
+    sleep(3); // Sleep for a few seconds to let CW Logs agent send final logs before we terminate
 	Aws::GameLift::Server::ProcessEnding();
 	mGameSessionStarted = false;
 }
