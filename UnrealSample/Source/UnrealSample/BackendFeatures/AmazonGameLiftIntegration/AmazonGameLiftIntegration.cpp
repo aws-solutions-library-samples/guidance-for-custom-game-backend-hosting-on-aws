@@ -70,7 +70,7 @@ void UAmazonGameLiftIntegration::OnLoginOrRefreshErrorCallback(const FString& er
 void UAmazonGameLiftIntegration::OnLoginResultCallback(const UserInfo& userInfo){
     UE_LOG(LogTemp, Display, TEXT("Received login response: %s \n"), *userInfo.ToString());
     if(GEngine)
-            GEngine->AddOnScreenDebugMessage(-1, 30.0f, FColor::Black, FString::Printf(TEXT("Received login response: \n %s \n"), *userInfo.ToString()), false, FVector2D(1.5f,1.5f));
+        GEngine->AddOnScreenDebugMessage(-1, 30.0f, FColor::Black, FString::Printf(TEXT("Received login response: \n %s \n"), *userInfo.ToString()), false, FVector2D(1.5f,1.5f));
 
     // Save the player data
     UGameInstance* GameInstance = Cast<UGameInstance>(UGameplayStatics::GetGameInstance(GetWorld()));
@@ -83,19 +83,33 @@ void UAmazonGameLiftIntegration::OnLoginResultCallback(const UserInfo& userInfo)
     // Test calling our custom backend system to set player data
 	UAWSGameSDK::FRequestComplete requestMatchmakingCallback;
 	requestMatchmakingCallback.BindUObject(this, &UAmazonGameLiftIntegration::OnRequestMatchmakingResponse);
-    UAWSGameSDK* AWSGameSDK =  GameInstance->GetSubsystem<UAWSGameSDK>();
-	// TODO: POST request to matchmaking backend
-    //AWSGameSDK->BackendGetRequest(this->m_gameliftIntegrationBackendEndpointUrl, "request-matchmaking", params, setPlayerDataCallback);
+    UAWSGameSDK* AWSGameSDK = GameInstance->GetSubsystem<UAWSGameSDK>();
+	// POST Request with latencyInMs JSON to the gamelift backend endpoint
+    AWSGameSDK->BackendPostRequest(this->m_gameliftIntegrationBackendEndpointUrl, "request-matchmaking", "{ \"latencyInMs\": { \"us-east-1\" : 50 }}", requestMatchmakingCallback);
 }
 
 // Callback for matchmaking request
 void UAmazonGameLiftIntegration::OnRequestMatchmakingResponse(const FString& response){
 	UE_LOG(LogTemp, Display, TEXT("Received matchmaking response: %s \n"), *response);
+    if(GEngine)
+        GEngine->AddOnScreenDebugMessage(-1, 30.0f, FColor::Black, FString::Printf(TEXT("Received matchmaking response: \n %s \n"), *response), false, FVector2D(1.5f,1.5f));
+
+    // Test calling our custom backend system to get match status
+    UAWSGameSDK::FRequestComplete getMatchStatusCallback;
+    getMatchStatusCallback.BindUObject(this, &UAmazonGameLiftIntegration::OnGetMatchStatusResponse);
+    TMap<FString,FString> params;
+    params.Add("ticketId", "12345"); //TODO
+    UGameInstance* GameInstance = Cast<UGameInstance>(UGameplayStatics::GetGameInstance(GetWorld()));
+    UAWSGameSDK* AWSGameSDK = GameInstance->GetSubsystem<UAWSGameSDK>();
+    AWSGameSDK->BackendGetRequest(this->m_gameliftIntegrationBackendEndpointUrl, "get-match-status", params, getMatchStatusCallback);
 }
 
 // Callback for match status request
 void UAmazonGameLiftIntegration::OnGetMatchStatusResponse(const FString& response){
 	UE_LOG(LogTemp, Display, TEXT("Received match status response: %s \n"), *response);
+
+    if(GEngine)
+        GEngine->AddOnScreenDebugMessage(-1, 30.0f, FColor::Black, FString::Printf(TEXT("Received match status response: \n %s \n"), *response), false, FVector2D(1.5f,1.5f));
 }
 
 // Called every frame
