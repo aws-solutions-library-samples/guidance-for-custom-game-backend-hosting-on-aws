@@ -41,5 +41,7 @@ private:
 
 	void ScheduleGetMatchStatus(float waitTime);
 
+	FString m_ticketId;
+
 		
 };

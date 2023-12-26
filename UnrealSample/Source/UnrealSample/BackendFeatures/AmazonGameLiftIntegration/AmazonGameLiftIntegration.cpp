@@ -95,19 +95,18 @@ void UAmazonGameLiftIntegration::OnRequestMatchmakingResponse(const FString& res
         GEngine->AddOnScreenDebugMessage(-1, 30.0f, FColor::Black, FString::Printf(TEXT("Received matchmaking response: %s \n"), *response), false, FVector2D(1.5f,1.5f));
 
     // Get TicketID from the response
-    FString ticketId = "";
     TSharedPtr<FJsonObject> JsonObject;
     TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(response);
     if (FJsonSerializer::Deserialize(Reader, JsonObject)) {
         // Get the ticket ID from the response
-        ticketId = JsonObject->GetStringField("TicketId");
-        UE_LOG(LogTemp, Display, TEXT("Received matchmaking ticketId: %s \n"), *ticketId);
+        this->m_ticketId = JsonObject->GetStringField("TicketId");
+        UE_LOG(LogTemp, Display, TEXT("Received matchmaking ticketId: %s \n"), *this->m_ticketId);
     }
     // Test calling our custom backend system to get match status
     UAWSGameSDK::FRequestComplete getMatchStatusCallback;
     getMatchStatusCallback.BindUObject(this, &UAmazonGameLiftIntegration::OnGetMatchStatusResponse);
     TMap<FString,FString> params;
-    params.Add("ticketId", ticketId);
+    params.Add("ticketId", this->m_ticketId);
     UGameInstance* GameInstance = Cast<UGameInstance>(UGameplayStatics::GetGameInstance(GetWorld()));
     UAWSGameSDK* AWSGameSDK = GameInstance->GetSubsystem<UAWSGameSDK>();
     AWSGameSDK->BackendGetRequest(this->m_gameliftIntegrationBackendEndpointUrl, "get-match-status", params, getMatchStatusCallback);
@@ -118,7 +117,7 @@ void UAmazonGameLiftIntegration::OnGetMatchStatusResponse(const FString& respons
 	UE_LOG(LogTemp, Display, TEXT("Received match status response: %s \n"), *response);
 
     if(GEngine)
-        GEngine->AddOnScreenDebugMessage(-1, 30.0f, FColor::Black, FString::Printf(TEXT("Received match status response: \n %s \n"), *response), false, FVector2D(1.5f,1.5f));
+        GEngine->AddOnScreenDebugMessage(-1, 30.0f, FColor::Black, FString::Printf(TEXT("Received match status response: %s \n"), *response), false, FVector2D(1.5f,1.5f));
 
     // Get the match status from the response
     FString matchStatus = "";
@@ -128,18 +127,28 @@ void UAmazonGameLiftIntegration::OnGetMatchStatusResponse(const FString& respons
         // Get the match status from the response
         matchStatus = JsonObject->GetStringField("MatchmakingStatus");
         UE_LOG(LogTemp, Display, TEXT("Received match status: %s \n"), *matchStatus);
-        if(GEngine)
-            GEngine->AddOnScreenDebugMessage(-1, 30.0f, FColor::Black, FString::Printf(TEXT("Received match status: %s \n"), *matchStatus), false, FVector2D(1.5f,1.5f));
-
-        // If match status is not an end state, schedule a new request
-        // TODO
     }
     else {
         UE_LOG(LogTemp, Display, TEXT("No valid status yet %s \n"));
         if(GEngine)
             GEngine->AddOnScreenDebugMessage(-1, 30.0f, FColor::Black, FString::Printf(TEXT("No valid status yet\n")), false, FVector2D(1.5f,1.5f));
-        
-        this->ScheduleGetMatchStatus(1.5f);
+    }
+
+    // If matchStatus is empty, MatchmakingQueued, MatchmakingSearch, or PotentialMatchCreated, request match status again
+    if(matchStatus.IsEmpty() || matchStatus == "MatchmakingQueued" || matchStatus == "MatchmakingSearching" || matchStatus == "PotentialMatchCreated"){
+        UE_LOG(LogTemp, Display, TEXT("Requesting match status again..."));
+        ScheduleGetMatchStatus(1.5f);
+    }
+    else if(matchStatus == "MatchmakingSucceeded"){
+        UE_LOG(LogTemp, Display, TEXT("Matchmaking succeeded, connecting..."));
+        if(GEngine)
+            GEngine->AddOnScreenDebugMessage(-1, 30.0f, FColor::Black, FString::Printf(TEXT("Matchmaking succeeded, connecting...\n")), false, FVector2D(1.5f,1.5f));
+        // TODO, Get connection info and connect
+    }
+    else {
+        UE_LOG(LogTemp, Display, TEXT("Matchmaking failed."));
+        if(GEngine)
+            GEngine->AddOnScreenDebugMessage(-1, 30.0f, FColor::Black, FString::Printf(TEXT("Matchmaking failed.\n")), false, FVector2D(1.5f,1.5f));
     }
 }
 
@@ -152,7 +161,7 @@ void UAmazonGameLiftIntegration::ScheduleGetMatchStatus(float waitTime)
         UAWSGameSDK::FRequestComplete getMatchStatusCallback;
         getMatchStatusCallback.BindUObject(this, &UAmazonGameLiftIntegration::OnGetMatchStatusResponse);
         TMap<FString,FString> params;
-        params.Add("ticketId", "TODO");
+        params.Add("ticketId", this->m_ticketId);
         UGameInstance* GameInstance = Cast<UGameInstance>(UGameplayStatics::GetGameInstance(GetWorld()));
         UAWSGameSDK* AWSGameSDK = GameInstance->GetSubsystem<UAWSGameSDK>();
         AWSGameSDK->BackendGetRequest(this->m_gameliftIntegrationBackendEndpointUrl, "get-match-status", params, getMatchStatusCallback);
