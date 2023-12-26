@@ -120,7 +120,7 @@ export class AmazonGameLiftIntegrationStack extends cdk.Stack {
           location: location,
           locationCapacity: {
             desiredEc2Instances: 1,
-            maxSize: 1,
+            maxSize: 4,
             minSize: 1
             }
       });
@@ -147,6 +147,15 @@ export class AmazonGameLiftIntegrationStack extends cdk.Stack {
       instanceRoleArn: instanceRole.roleArn,
       instanceRoleCredentialsProvider: 'SHARED_CREDENTIAL_FILE', // We need the credentials file for the fleet role to use CloudWatch agent
       locations: locationDefinitions,
+      // Add a target-based scaling policy and target 30% available game sessions
+      scalingPolicies: [{
+          policyType: 'TargetBased',
+          name: "ScalingPolicy",
+          metricName: "PercentAvailableGameSessions",
+          targetConfiguration: {
+            targetValue: 30
+          } 
+        }],
       // NOTE: Set this to FullProtection for production Fleets.
       // Once you do that, GameLift will NOT be able to scale down and terminate your previous Fleet when doing a redeployment with CDK
       // You can instead configure CDK to retain the old fleets with a Removal Policy set to RETAIN. And then terminate them more controlled when empty from players

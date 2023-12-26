@@ -20,8 +20,3 @@ echo "Updating the fleet scaling configuration..."
 aws gamelift update-fleet-capacity --fleet-id $FLEET_ID --min-size $minsize --max-size $maxsize --desired-instances $desired --location $region1 --region $region1
 aws gamelift update-fleet-capacity --fleet-id $FLEET_ID --min-size $minsize --max-size $maxsize --desired-instances $desired --location $region2 --region $region1
 aws gamelift update-fleet-capacity --fleet-id $FLEET_ID --min-size $minsize --max-size $maxsize --desired-instances $desired --location $region3 --region $region1
-
-# Set fleet scaling policy
-echo "Setting the fleet scaling policy..."
-aws gamelift put-scaling-policy --name ExampleFleetScaling --fleet-id $FLEET_ID --policy-type TargetBased --target-configuration TargetValue=$availablesessions --metric-name PercentAvailableGameSessions --region $region1
-echo 'Done'
