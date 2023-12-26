@@ -94,11 +94,20 @@ void UAmazonGameLiftIntegration::OnRequestMatchmakingResponse(const FString& res
     if(GEngine)
         GEngine->AddOnScreenDebugMessage(-1, 30.0f, FColor::Black, FString::Printf(TEXT("Received matchmaking response: \n %s \n"), *response), false, FVector2D(1.5f,1.5f));
 
+    // Get TicketID from the response
+    FString ticketId = "";
+    TSharedPtr<FJsonObject> JsonObject;
+    TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(response);
+    if (FJsonSerializer::Deserialize(Reader, JsonObject)) {
+        // Get the ticket ID from the response
+        ticketId = JsonObject->GetStringField("TicketId");
+        UE_LOG(LogTemp, Display, TEXT("Received matchmaking ticketId: %s \n"), *ticketId);
+    }
     // Test calling our custom backend system to get match status
     UAWSGameSDK::FRequestComplete getMatchStatusCallback;
     getMatchStatusCallback.BindUObject(this, &UAmazonGameLiftIntegration::OnGetMatchStatusResponse);
     TMap<FString,FString> params;
-    params.Add("ticketId", "12345"); //TODO
+    params.Add("ticketId", ticketId);
     UGameInstance* GameInstance = Cast<UGameInstance>(UGameplayStatics::GetGameInstance(GetWorld()));
     UAWSGameSDK* AWSGameSDK = GameInstance->GetSubsystem<UAWSGameSDK>();
     AWSGameSDK->BackendGetRequest(this->m_gameliftIntegrationBackendEndpointUrl, "get-match-status", params, getMatchStatusCallback);
