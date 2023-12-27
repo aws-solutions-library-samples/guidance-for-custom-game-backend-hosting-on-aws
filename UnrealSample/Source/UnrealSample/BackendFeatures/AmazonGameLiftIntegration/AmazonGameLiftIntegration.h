@@ -25,6 +25,26 @@ public:
 	float GetLatency(FString Location);
 };
 
+class SimpleTCPClient : public FRunnable
+{
+public:
+    SimpleTCPClient(FString ip, int port, FString playerSessionId){
+		m_ip = ip;
+		m_port = port;
+		m_playerSessionId = playerSessionId;
+	};
+
+	FString m_ip;
+	int m_port;
+	FString m_playerSessionId;
+
+    //override Init,Run and Stop.
+    virtual bool Init() override;
+	virtual uint32 Run() override;
+	virtual void Exit() override;
+	virtual void Stop() override;
+};
+
 
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
 class UNREALSAMPLE_API UAmazonGameLiftIntegration : public UActorComponent
@@ -64,5 +84,7 @@ private:
 	FTimerHandle m_getMatchStatusTimerHandle;
 
 	void ScheduleGetMatchStatus(float waitTime);
+
+	void ConnectToServer(FString ip, int port, FString playerSessionId);
 
 };

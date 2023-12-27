@@ -12,18 +12,23 @@
 #include "Interfaces/IHttpResponse.h"
 #include "GenericPlatform/GenericPlatformHttp.h"
 
+#include <stdio.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <locale.h>
+#include <stdlib.h>
+#include <uchar.h>
+
 // LATENCY MEASURER
 
 // Define the methods for LatencyMeasurer
 LatencyMeasurer::LatencyMeasurer(){
 }
 
-// Define Init
 bool LatencyMeasurer::Init(){
     return true;
 }
 
-// Define Run
 uint32 LatencyMeasurer::Run(){
 
     // Measure latency to the three default regions
@@ -36,11 +41,9 @@ uint32 LatencyMeasurer::Run(){
     return 0;
 }
 
-// Define Stop
 void LatencyMeasurer::Stop(){
 }
 
-// Define Exit
 void LatencyMeasurer::Exit(){
 }
 
@@ -91,6 +94,73 @@ bool LatencyMeasurer::SynchronousRequest(TSharedRef<IHttpRequest> HttpRequest)
     return true;
 }
 
+// SIMPLE TCP CLIENT
+
+bool SimpleTCPClient::Init(){
+    return true;
+}
+
+uint32 SimpleTCPClient::Run(){
+
+    UE_LOG(LogTemp, Display, TEXT("Connecting to: %s:%d"), *m_ip, m_port);
+    
+    int sock = 0, valread;
+    struct sockaddr_in serv_addr;
+    auto CharPlayerSessionId = StringCast<ANSICHAR>(*m_playerSessionId);
+    auto CharIP = StringCast<ANSICHAR>(*m_ip);
+    char buffer[1024] = {0};
+    // Create Socket (AF_INET = IPv4, SOCK_STREAM = TCP, 0 = only supported protocol (TCP))
+    if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+    {
+        UE_LOG(LogTemp, Display, TEXT("Socket creation error"));
+        return -1;
+    }
+   
+    serv_addr.sin_family = AF_INET;
+    serv_addr.sin_port = htons(m_port);
+       
+    // Convert IPv4 and IPv6 addresses from text to binary form
+    if(inet_pton(AF_INET, CharIP.Get(), &serv_addr.sin_addr)<=0) 
+    {
+        UE_LOG(LogTemp, Display, TEXT("Invalid address or Address not supported"));
+        return -1;
+    }
+   
+    if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0)
+    {
+        UE_LOG(LogTemp, Display, TEXT("Connection Failed"));
+        return -1;
+    }
+
+    // Send the player session ID to the server
+    auto sendBuffer = CharPlayerSessionId.Get();
+    send(sock, sendBuffer, strlen(sendBuffer), 0 );
+
+    UE_LOG(LogTemp, Display, TEXT("Player session ID sent"));
+    if(GEngine)
+        GEngine->AddOnScreenDebugMessage(-1, 30.0f, FColor::Black, FString::Printf(TEXT("Player session ID sent\n")), false, FVector2D(1.5f,1.5f));
+
+    // Get the response
+    valread = read( sock , buffer, 1024);
+
+    // Create FString from buffer
+    FString response = FString(buffer);
+    UE_LOG(LogTemp, Display, TEXT("Response from server: %s"), *response);
+    if(GEngine)
+        GEngine->AddOnScreenDebugMessage(-1, 30.0f, FColor::Black, FString::Printf(TEXT("Response from server: %s\n"), *response), false, FVector2D(1.5f,1.5f));
+
+    UE_LOG(LogTemp, Display, TEXT("Server will shut down in 60 seconds so we'll just close the connection"));
+    if(GEngine)
+        GEngine->AddOnScreenDebugMessage(-1, 30.0f, FColor::Black, FString::Printf(TEXT("Server will shut down in 60 seconds so we'll just close the connection\n")), false, FVector2D(1.5f,1.5f));
+
+    return 0;
+}
+
+void SimpleTCPClient::Stop(){
+}
+
+void SimpleTCPClient::Exit(){
+}
 
 
 // MAIN CLASS
@@ -254,7 +324,23 @@ void UAmazonGameLiftIntegration::OnGetMatchStatusResponse(const FString& respons
         UE_LOG(LogTemp, Display, TEXT("Matchmaking succeeded, connecting..."));
         if(GEngine)
             GEngine->AddOnScreenDebugMessage(-1, 30.0f, FColor::Black, FString::Printf(TEXT("Matchmaking succeeded, connecting...\n")), false, FVector2D(1.5f,1.5f));
-        // TODO, Get connection info and connect
+        
+        // Get the values for IP, port and PlayerSessionId from the response
+        FString ip = "";
+        int port = 0;
+        FString playerSessionId = "";
+        // Get the IP from the response
+        ip = JsonObject->GetStringField("IpAddress");
+        UE_LOG(LogTemp, Display, TEXT("Received match ip: %s \n"), *ip);
+        // Get the port from the response
+        port = JsonObject->GetIntegerField("Port");
+        UE_LOG(LogTemp, Display, TEXT("Received match port: %d \n"), port);
+        // Get the PlayerSessionId from the response
+        playerSessionId = JsonObject->GetStringField("PlayerSessionId");
+        UE_LOG(LogTemp, Display, TEXT("Received match playerSessionId: %s \n"), *playerSessionId);
+
+        // Connect to the server
+        ConnectToServer(ip, port, playerSessionId);
     }
     else {
         UE_LOG(LogTemp, Display, TEXT("Matchmaking failed."));
@@ -279,5 +365,11 @@ void UAmazonGameLiftIntegration::ScheduleGetMatchStatus(float waitTime)
 	});
 
 	GetWorld()->GetTimerManager().SetTimer(this->m_getMatchStatusTimerHandle, getMatchStatusDelegate, waitTime, false);
+}
+
+// Simple TCP client to connect to server and send our playerSessionId
+void UAmazonGameLiftIntegration::ConnectToServer(FString ip, int port, FString playerSessionId)
+{
+    FRunnableThread::Create(new SimpleTCPClient(ip, port, playerSessionId), TEXT("SimpleTCPClient"));
 }
 
