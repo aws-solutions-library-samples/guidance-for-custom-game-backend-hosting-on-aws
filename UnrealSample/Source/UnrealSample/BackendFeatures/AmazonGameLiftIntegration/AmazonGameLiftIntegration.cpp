@@ -7,6 +7,93 @@
 #include "Engine/World.h"
 #include "Kismet/GameplayStatics.h"
 #include "../../PlayerDataManager.h"
+#include "HttpModule.h"
+#include "Interfaces/IHttpRequest.h"
+#include "Interfaces/IHttpResponse.h"
+#include "GenericPlatform/GenericPlatformHttp.h"
+
+// LATENCY MEASURER
+
+// Define the methods for LatencyMeasurer
+LatencyMeasurer::LatencyMeasurer(){
+}
+
+// Define Init
+bool LatencyMeasurer::Init(){
+    return true;
+}
+
+// Define Run
+uint32 LatencyMeasurer::Run(){
+
+    // Measure latency to the three default regions
+    float usEast1Latency = this->GetLatency("us-east-1");
+    float usWest2Latency = this->GetLatency("us-west-2");
+    float euWest1Latency = this->GetLatency("eu-west-1");
+
+    // Generate the latencyInMs JSON
+    this->latencyInMs = FString::Printf(TEXT("{ \"latencyInMs\": { \"us-east-1\" : %i, \"us-west-2\" : %i, \"eu-west-1\" : %i }}"), (int)(usEast1Latency*1000.0f), (int)(usWest2Latency*1000.0f), (int)(euWest1Latency*1000.0f));
+    return 0;
+}
+
+// Define Stop
+void LatencyMeasurer::Stop(){
+}
+
+// Define Exit
+void LatencyMeasurer::Exit(){
+}
+
+float LatencyMeasurer::GetLatency(FString Location){
+
+    FString endpoint = "https://dynamodb."+Location+".amazonaws.com";
+    // Initial request to start HTTPS connection
+    auto Request = FHttpModule::Get().CreateRequest();
+    Request->SetURL(endpoint);
+    Request->SetVerb("GET");
+    bool success = SynchronousRequest(Request);
+
+    // Get average of two requests to measure TCP latency
+    FDateTime StartTime = FDateTime::Now();
+    success = SynchronousRequest(Request);
+    success = SynchronousRequest(Request);
+    FDateTime EndTime = FDateTime::Now();
+    float ElapsedTime = (EndTime - StartTime).GetTotalSeconds() / 2.0f;
+
+    UE_LOG(LogTemp, Warning, TEXT("Latency average %f seconds"), ElapsedTime);
+    return ElapsedTime;
+}
+
+// A helper function for our simple latency measurement that does synchronous requests before game starts
+bool LatencyMeasurer::SynchronousRequest(TSharedRef<IHttpRequest> HttpRequest)
+{
+    bool bStartedRequest = HttpRequest->ProcessRequest();
+    if (!bStartedRequest)
+    {
+        UE_LOG(LogTemp, Error, TEXT("Failed to start HTTP Request."));
+        return false;
+    }
+
+    TSharedPtr<IHttpResponse, ESPMode::ThreadSafe> Response = HttpRequest->GetResponse();
+    int tries = 0;
+    // We'll try to get a success code or will abort after a second
+    while (tries < 1000)
+    {    
+        if (HttpRequest->GetStatus() == EHttpRequestStatus::Succeeded){
+            break;
+        }
+
+        FPlatformProcess::Sleep(0.01f);
+
+        tries++;
+    }
+
+    return true;
+}
+
+
+
+// MAIN CLASS
 
 // Sets default values for this component's properties
 UAmazonGameLiftIntegration::UAmazonGameLiftIntegration()
@@ -22,6 +109,10 @@ UAmazonGameLiftIntegration::UAmazonGameLiftIntegration()
 void UAmazonGameLiftIntegration::BeginPlay()
 {
 	Super::BeginPlay();
+
+    // Start the latency measurement thread
+    this->m_latencyMeasurer = new LatencyMeasurer();
+    FRunnableThread::Create(this->m_latencyMeasurer, TEXT("LatencyMeasurer"));
 
     // Get the subsystems
     UGameInstance* GameInstance = Cast<UGameInstance>(UGameplayStatics::GetGameInstance(GetWorld()));
@@ -55,6 +146,31 @@ void UAmazonGameLiftIntegration::BeginPlay()
 
         AWSGameSDK->LoginAsGuestUser(playerData->UserId, playerData->GuestSecret, loginCallback);
     }
+
+    // Log that we're waiting for latency information
+    UE_LOG(LogTemp, Display, TEXT("Waiting for latency information"));
+    if(GEngine)
+        GEngine->AddOnScreenDebugMessage(-1, 30.0f, FColor::Black, TEXT("Waiting for latency and login information..."),false, FVector2D(1.5f,1.5f));
+}
+
+// Called every frame
+void UAmazonGameLiftIntegration::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
+{
+	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+
+    // Start matchmaking if we got latencies, login done, and we haven't started yet
+	if(!this->m_matchmakingStarted && this->m_loginSucceeded && this->m_latencyMeasurer->latencyInMs.IsEmpty() == false){
+        UGameInstance* GameInstance = Cast<UGameInstance>(UGameplayStatics::GetGameInstance(GetWorld()));
+        this->m_matchmakingStarted = true;
+        UE_LOG(LogTemp, Display, TEXT("Latencies: %s\n Start matchmaking!"), *this->m_latencyMeasurer->latencyInMs);
+        if(GEngine)
+            GEngine->AddOnScreenDebugMessage(-1, 30.0f, FColor::Black, FString::Printf(TEXT("Latencies: %s\n Start matchmaking!"), *this->m_latencyMeasurer->latencyInMs), false, FVector2D(1.5f,1.5));
+        UAWSGameSDK::FRequestComplete requestMatchmakingCallback;
+	    requestMatchmakingCallback.BindUObject(this, &UAmazonGameLiftIntegration::OnRequestMatchmakingResponse);
+        UAWSGameSDK* AWSGameSDK = GameInstance->GetSubsystem<UAWSGameSDK>();
+	    // POST Request with latencyInMs JSON to the gamelift backend endpoint
+        AWSGameSDK->BackendPostRequest(this->m_gameliftIntegrationBackendEndpointUrl, "request-matchmaking", this->m_latencyMeasurer->latencyInMs, requestMatchmakingCallback);
+    }
 }
 
 // Called when there is an error with login or token refresh. You will need to handle logging in again here
@@ -80,12 +196,7 @@ void UAmazonGameLiftIntegration::OnLoginResultCallback(const UserInfo& userInfo)
     // NOTE: You could get the expiration in seconds for refresh token (and modify to FDateTime) as well as the refresh token itself from the userInfo,
     // and login next time with the refresh token itself. This can be done by calling AWSGameSDK->LoginWithRefreshToken(refreshToken, loginCallback);
 
-    // Test calling our custom backend system to set player data
-	UAWSGameSDK::FRequestComplete requestMatchmakingCallback;
-	requestMatchmakingCallback.BindUObject(this, &UAmazonGameLiftIntegration::OnRequestMatchmakingResponse);
-    UAWSGameSDK* AWSGameSDK = GameInstance->GetSubsystem<UAWSGameSDK>();
-	// POST Request with latencyInMs JSON to the gamelift backend endpoint
-    AWSGameSDK->BackendPostRequest(this->m_gameliftIntegrationBackendEndpointUrl, "request-matchmaking", "{ \"latencyInMs\": { \"us-east-1\" : 50, \"us-west-2\" : 50, \"eu-west-1\" : 50 }}", requestMatchmakingCallback);
+    this->m_loginSucceeded = true;
 }
 
 // Callback for matchmaking request
@@ -168,13 +279,5 @@ void UAmazonGameLiftIntegration::ScheduleGetMatchStatus(float waitTime)
 	});
 
 	GetWorld()->GetTimerManager().SetTimer(this->m_getMatchStatusTimerHandle, getMatchStatusDelegate, waitTime, false);
-}
-
-// Called every frame
-void UAmazonGameLiftIntegration::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
-{
-	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
-
-	// ...
 }
 

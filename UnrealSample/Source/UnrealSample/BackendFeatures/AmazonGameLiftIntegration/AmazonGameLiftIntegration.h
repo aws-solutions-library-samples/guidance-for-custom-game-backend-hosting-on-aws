@@ -8,6 +8,24 @@
 #include "AmazonGameLiftIntegration.generated.h"
 
 
+class LatencyMeasurer : public FRunnable
+{
+public:
+    LatencyMeasurer();
+
+	FString latencyInMs = "";
+
+    //override Init,Run and Stop.
+    virtual bool Init() override;
+	virtual uint32 Run() override;
+	virtual void Exit() override;
+	virtual void Stop() override;
+
+	bool SynchronousRequest(TSharedRef<IHttpRequest> HttpRequest);
+	float GetLatency(FString Location);
+};
+
+
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
 class UNREALSAMPLE_API UAmazonGameLiftIntegration : public UActorComponent
 {
@@ -35,13 +53,16 @@ protected:
 public:	
 	// Called every frame
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
+	
 
 private:
+
+	LatencyMeasurer *m_latencyMeasurer = NULL;
+	bool m_matchmakingStarted = false;
+	bool m_loginSucceeded = false;
+	FString m_ticketId;
 	FTimerHandle m_getMatchStatusTimerHandle;
 
 	void ScheduleGetMatchStatus(float waitTime);
 
-	FString m_ticketId;
-
-		
 };
