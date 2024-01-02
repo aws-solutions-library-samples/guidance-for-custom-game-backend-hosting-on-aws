@@ -26,10 +26,29 @@ To deploy the component, follow the _Preliminary Setup_, and then run the follow
 
 ## Architecture
 
-TODO
+TODO: Architecture diagram
 
 ![High Level Reference Architecture](TODO.png)
 
 ## Solution overview
 
+TODO
+
+### Sample Game Server
+
+TODO
+
+### The Serverless Backend
+
+### Amazon GameLift resources
+
+TODO: Remember to explain CW Agent configuration as well
+
+## API Reference
+
+TODO: Explain Backend APIs
+
+## Unity and Unreal Game Server Builds
+
+TODO: Explain the steps to replace the game server build with a Unity or Unreal build using the GameLift plugins for the engines
 
