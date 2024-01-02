@@ -19,9 +19,10 @@ To deploy the component, follow the _Preliminary Setup_, and then run the follow
   1. Option 1: Run `./copy_prebuilt_game_server_binary.sh` to download the prebuilt binary and extract it to the `LinuxServerBuild` folder.
   2. Option 2: Run `./buildserver.sh` to build the game server in a container (which is then copied to the `LinuxServerBuild` folder). This takes time as the Amazon GameLift C++ Server SDK is downloaded and built along with other dependencies before building the sample C++ server.
 3. Navigate to `BackendFeatures/AmazonGameLiftIntegration` by running `cd ..`
-2. Run `npm install` to install CDK app dependencies
-4. Run `cdk synth` to synthesize the CDK app and validate your configuration works
-5. Run `cdk deploy --all` to deploy both the backend APIs as well as the Amazon GameLift resources CDK apps to your account. You will need to accept the deployment.
+4. Run `npm install` to install CDK app dependencies
+5. Run `cdk synth` to synthesize the CDK app and validate your configuration works
+6. Run `cdk deploy --all` to deploy both the backend APIs as well as the Amazon GameLift resources CDK apps to your account. You will need to accept the deployment.
+7. Run `./setup_fleet_scaling.sh` to scale to configure minimum, maximum and desired instances per location. See the script for configuring this to your needs.
 
 ## Architecture
 

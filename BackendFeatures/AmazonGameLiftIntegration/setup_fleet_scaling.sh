@@ -9,7 +9,6 @@ region3="eu-west-1"
 minsize=1
 maxsize=3
 desired=1
-availablesessions=30 # percentage of available sessions for scaling
 
 # get the fleet ID from CloudFormation Export
 FLEET_ID=$(aws cloudformation list-exports --query "Exports[?Name=='SampleGameLiftFleetID'].Value" --output text)
