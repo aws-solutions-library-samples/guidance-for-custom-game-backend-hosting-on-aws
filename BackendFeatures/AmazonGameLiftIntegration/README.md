@@ -100,7 +100,44 @@ TODO
 
 # API Reference
 
-TODO: Explain Backend APIs
+All API requests expect the `Authorization` header is set to the JWT value received when logging in. This is automatically done by the AWS Game SDK's for the different game engines when you call the POST and GET requests through their API's.
+
+### POST /request-matchmaking
+
+`POST /request-matchmaking`
+
+**Parameters**
+
+> | name      |  required | description                                                                    |
+> |-----------|-----------|--------------------------------------------------------------------------------|
+> | `body`   |  Yes       | The body of the POST request. Must be in JSON format with latencies to the different Regions. Example: `{ "latencyInMs": { "us-east-1" : 10, "us-west-2" : 20, "eu-west-1" : 30 }}`  |
+
+**Responses**
+
+> | http code     | response                                                            |
+> |---------------|---------------------------------------------------------------------|
+> | `200`         | `{"TicketId": "abc", "ConfigurationName": "SampleFlexMatchConfiguration", "ConfigurationArn": "arn:aws:gamelift:us-east-1:1234567890:matchmakingconfiguration/SampleFlexMatchConfiguration", "Status": "ABC", "StartTime": "abc", "Players": [{"PlayerId": "abc", "PlayerAttributes": {}, "LatencyInMs": {"eu-west-1": 10, "us-east-1": 20, "us-west-2": 30}}]}`                                |
+> | `500`         |  `"Matchmaking request failed"`                            |
+
+### GET /get-match-status
+
+`GET /get-match-status`
+
+**Parameters**
+
+> | name      |  required | description                                                                    |
+> |-----------|-----------|--------------------------------------------------------------------------------|
+> | `ticketId`   |  Yes       | The ticket ID received when matchmaking started. |
+
+**Responses**
+
+> | http code     | response                                                            |
+> |---------------|---------------------------------------------------------------------|
+> | `200`         | `"MatchmakingStatus": "STATUS", "Port": "1234", "IpAddress": "11.111.111.111", "DnsName": "abcd.compute.amazonaws.com", "PlayerSessionId": "psess-12345"}`                                |
+> | `400`         |  `"TicketId not found in DynamoDB table"`                            |
+> | `500`         |  `"user_id not available in claims"`                            |
+> | `500`         |  `"ticketId not available in querystrings"`                            |
+
 
 # Unity and Unreal Game Server Builds with GameLift Plugins
 
