@@ -133,7 +133,7 @@ All API requests expect the `Authorization` header is set to the JWT value recei
 
 > | http code     | response                                                            |
 > |---------------|---------------------------------------------------------------------|
-> | `200`         | `"MatchmakingStatus": "STATUS", "Port": "1234", "IpAddress": "11.111.111.111", "DnsName": "abcd.compute.amazonaws.com", "PlayerSessionId": "psess-12345"}`                                |
+> | `200`         | `"MatchmakingStatus": "STATUS", "Port": "1234", "IpAddress": "11.111.111.111", "DnsName": "abcd.compute.amazonaws.com", "PlayerSessionId": "psess-12345"}`. **NOTE:** You will only receive the *MatchmakingStatus* unless the matchmaking has succeeded and the status is *MatchmakingSucceeded* in which case you'll receive all the fields.                                |
 > | `400`         |  `"TicketId not found in DynamoDB table"`                            |
 > | `500`         |  `"user_id not available in claims"`                            |
 > | `500`         |  `"ticketId not available in querystrings"`                            |
