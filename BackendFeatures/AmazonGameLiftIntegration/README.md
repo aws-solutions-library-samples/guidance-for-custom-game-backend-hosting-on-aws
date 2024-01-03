@@ -88,7 +88,19 @@ You will build the game server binary in a container environment with Docker, wh
 
 ## The Serverless Backend
 
-TODO
+The serverless backend is hosted with an Amazon API Gateway HTTP API, which routes request to AWS Lambda functions. It authenticates the requests with an Authorizer that validatest JSON Web Tokens using the public key available through the endpoint you provided in `BackendFeatures/AmazonGameLiftIntegration/bin/amazon_gamelift_integration.ts`. See the [API Reference](#api-reference) for details on the API.
+
+The backend is deployed as a AWS Cloud Development Kit (AWS CDK) application, which defines all the resources including:
+
+* The API Gateway
+* The backend Lambda functions for requesting matchmaking and requesting match status
+* An Amazon DynamoDB table for storing the matchmaking tickets
+* An Amazon Simple Notification Services (Amazon SNS) topic for routing Amazon GameLift FlexMatch matchmaking events
+* The Lambda function that receives matchmaking events through SNS and stores the results in Amazon DynamoDB
+
+The CDK stack definition can be found in `BackendFeatures/AmazonGameLiftIntegration/lib/amazon_gamelift_integration-backend.ts`, and the Lambda function Python code can be found in `BackendFeatures/AmazonGameLiftIntegration/lambda`.
+
+All of the services are configured with **AWS X-Ray** for distributed tracing, and the Lambda functions use **Lambda Powertools for Python** to collect more detailed traces and data in integrations to other services.
 
 ## Amazon GameLift resources
 
