@@ -147,6 +147,7 @@ export class AmazonGameLiftIntegrationStack extends cdk.Stack {
       instanceRoleArn: instanceRole.roleArn,
       instanceRoleCredentialsProvider: 'SHARED_CREDENTIAL_FILE', // We need the credentials file for the fleet role to use CloudWatch agent
       locations: locationDefinitions,
+      applyCapacity: "ON_CREATE_AND_UPDATE", // By default the location scaling limits are not applied on create, but we want to enable that
       // Add a target-based scaling policy and target 30% available game sessions
       scalingPolicies: [{
           policyType: 'TargetBased',
