@@ -52,7 +52,7 @@ To test the integrations with Unreal, **open** the Unreal sample project (`Unrea
 
 * Then **open** the level `BackendFeatures/AmazonGameLiftIntegration`
 
-This is a test level that will measure latencies to 3 predefined locations (same as the default setup for the fleet). It will then login as a new guest user if a save file is not present, or login using the user_id and guest_secret found in the save file if available to login as an existing user. It will then use the logged to request matchmaking (sending the latency data that was measured in a separate thread), and start polling for the match status. Once the match is created successfully, it will start a thread with a simple TCP socket to connect to the sample server, send the player session ID for validation, and receive the response.
+This is a test level that will measure latencies to 3 predefined locations (same as the default setup for the fleet). It will then login as a new guest user if a save file is not present, or login using the user_id and guest_secret found in the save file if available to login as an existing user. It will then use the logged to request matchmaking (sending the latency data that was measured in a separate thread), and start polling for the match status. Once the match is created successfully, it will start a thread with a simple TCP client to connect to the sample server, send the player session ID for validation, and receive the response.
 
 Configure the `AmazonGameLiftIntegration` component of the `AmazonGameLiftIntegration` Actor to set up API endpoints. Set `M Login Endpoint` value to the `LoginEndpoint` value found in the CustomIdentityComponentStack Outputs. Then set the `M Gamelift Integration Backend Endpoint Url` to the endpoint `AmazonGameLiftIntegrationBackendEndpointUrl` value found in the *AmazonGameLiftIntegrationBackend* Outputs.
 
@@ -60,8 +60,19 @@ Press play to test the integration. You'll see the login, backend call activity,
 
 ## Unity integration
 
+To test the integrations with Unity, **open** the Unity sample project (`UnitySample`) with Unity 2021 (or above).
+
+* Then **open** the scene `BackendFeatures/AmazonGameLiftIntegration/AmazonGameLiftIntegration.unity`
+
+This is a test level that will measure latencies to 3 predefined locations (same as the default setup for the fleet). It will then login as a new guest user if the login information is not yet in PlayerPrefs, or login using the user_id and guest_secret found in PlayerPrefs to login as an existing user. It will then use the logged to request matchmaking (sending the latency data that was measured), and start polling for the match status. Once the match is created successfully, it will start aa simple TCP client to connect to the sample server, send the player session ID for validation, and receive the response.
+
+Configure the `AmazonGameLiftIntegration` component of the `AmazonGameLiftIntegration` GameObject to set up API endpoints. Set `Login Endpoint Url` value to the `LoginEndpoint` value found in the CustomIdentityComponentStack Outputs, and the `GameLift Integration Backend Endpoint Url` to the `AmazonGameLiftIntegrationBackendEndpointUrl` value found in the *AmazonGameLiftIntegrationBackend* Outputs.
+
+Press play to test the integration. You'll see the login, backend call activity, latency data, and game server connection in the Output Log as well as key items on on screen log as well.
+
 ## Godot integration
 
+TODO: Not implemented yet
 
 # Solution overview
 
@@ -69,13 +80,23 @@ TODO
 
 ## Sample Game Server
 
-TODO
+The sample game server code and build scripts can be found in `BackendFeatures/AmazonGameLiftIntegration/SimpleServer`. 
+
+The sample game server is a C++ application, that integrates with the Amazon GameLift Server SDK 5. It sets up the game server based on server port passed on command line arguments (from the Amazon GameLift fleet configuration), and starts logging to the log file configured in the CloudWatch agent configuration to collect realtime logs to CloudWatch logs. It will then start waiting for Amazon GameLift to trigger the callback for game sessions started, after which it will start a 60 second timer to simulate the game session. During this time, it will accept TCP socket connections in a separate thread, in which it expects to receive the player session ID, which is validated with the GameLift Server SDK to make sure the correct users are connecting to the server. It's worth noting that the sample game server doesn't actually implement any simulation logic, which you would typically do yourself with a physics engine, or using a headless build from your game engine. It's also recommended to use UDP-based networking libraries (native to the game engines or other) for fast paced realtime games.
+
+You will build the game server binary in a container environment with Docker, which will download and build all depencies and build the server itself. Optionally you can download the prebuilt binary to get started faster. The sample server can be useful if you're building a custom C++ game server (for a custom C++ engine for example). For the game engines including Unity and Unreal, you will likely want to run a headless version of the game on the server side. See the [Unity and Unreal Game Server Builds with GameLift Plugins](#unity-and-unreal-game-server-builds-with-gamelift-plugins) for details on how to leverage the Amazon GameLift plugins for this.
 
 ## The Serverless Backend
+
+TODO
 
 ## Amazon GameLift resources
 
 TODO: Remember to explain CW Agent configuration as well
+
+## Amazon CloudWatch logs and metrics
+
+TODO
 
 # API Reference
 
