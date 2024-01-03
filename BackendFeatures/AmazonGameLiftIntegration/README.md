@@ -21,14 +21,13 @@ To deploy the component, follow the _Preliminary Setup_, and then run the follow
 3. Navigate to `BackendFeatures/AmazonGameLiftIntegration` by running `cd ..`
 4. Run `npm install` to install CDK app dependencies
 5. Run `cdk synth` to synthesize the CDK app and validate your configuration works
-6. Run `cdk deploy --all` to deploy both the backend APIs as well as the Amazon GameLift resources CDK apps to your account. You will need to accept the deployment.
-7. Run `./setup_fleet_scaling.sh` to scale to configure minimum, maximum and desired instances per location. See the script for configuring this to your needs.
+6. Run `cdk deploy --all` to deploy both the backend APIs as well as the Amazon GameLift resources CDK apps to your account. You will need to accept the deployment. This will take around 45 minutes.
 
 ## Architecture
 
-TODO: Architecture diagram
+The architecture diagram below shows the main steps of integration from the game engine to the backend and the game servers hosted on Amazon GameLift. See the main Readme of the project for details on how the Custom Identity Component is implemented.
 
-![High Level Reference Architecture](TODO.png)
+![High Level Reference Architecture](AmazonGameLiftIntegrationArchitecture.png)
 
 ## Solution overview
 
