@@ -3,11 +3,11 @@
 - [AWS Game Backend Framework Features: Amazon GameLift Integration](#aws-game-backend-framework-features-amazon-gamelift-integration)
 - [Preliminary setup](#preliminary-setup)
 - [Deploying the Amazon GameLift integration feature](#deploying-the-amazon-gamelift-integration-feature)
+- [Architecture](#architecture)
 - [Integration with the Game Engines](#integration-with-the-game-engines)
    * [Unreal Engine integration](#unreal-engine-integration)
    * [Unity integration](#unity-integration)
    * [Godot integration](#godot-integration)
-- [Architecture](#architecture)
 - [Solution overview](#solution-overview)
    * [Sample Game Server](#sample-game-server)
    * [The Serverless Backend](#the-serverless-backend)
@@ -36,6 +36,12 @@ To deploy the component, follow the _Preliminary Setup_, and then run the follow
 5. Run `cdk synth` to synthesize the CDK app and validate your configuration works
 6. Run `cdk deploy --all` to deploy both the backend APIs as well as the Amazon GameLift resources CDK apps to your account. You will need to accept the deployment. This will take around 45 minutes.
 
+# Architecture
+
+The architecture diagram below shows the main steps of integration from the game engine to the backend and the game servers hosted on Amazon GameLift. See the main Readme of the project for details on how the Custom Identity Component is implemented.
+
+![High Level Reference Architecture](AmazonGameLiftIntegrationArchitecture.png)
+
 # Integration with the Game Engines
 
 ## Unreal Engine integration
@@ -56,11 +62,6 @@ Press play to test the integration. You'll see the login, backend call activity,
 
 ## Godot integration
 
-# Architecture
-
-The architecture diagram below shows the main steps of integration from the game engine to the backend and the game servers hosted on Amazon GameLift. See the main Readme of the project for details on how the Custom Identity Component is implemented.
-
-![High Level Reference Architecture](AmazonGameLiftIntegrationArchitecture.png)
 
 # Solution overview
 
