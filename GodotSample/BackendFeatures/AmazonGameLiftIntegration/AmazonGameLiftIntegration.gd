@@ -4,14 +4,16 @@
 extends Node
 
 # TODO: Add the login endpoint here
-const login_endpoint = "https://YOUR_ENDPOINT/prod/"
+const login_endpoint = "https://YOUR_ENDPOINT.amazonaws.com/prod/"
 # TODO: Add your Amazon GameLift backend component endpoint here
-const gamelift_integration_backend_endpoint = "https://YOUR_ENDPOINT/prod"
+const gamelift_integration_backend_endpoint = "https://YOUR_ENDPOINT.amazonaws.com/prod"
 
 var aws_game_sdk
 
 var ticket_id
 var total_tries = 0 # The amount of tries to get match status
+
+var latency_data # The JSON latency data for requesting matchmaking
 
 func save_login_data(user_id, guest_secret):
 	var file = FileAccess.open("user://save_game.dat", FileAccess.WRITE)
@@ -27,9 +29,110 @@ func load_login_data():
 	var user_id = file.get_pascal_string()
 	var guest_secret = file.get_pascal_string()
 	return [user_id, guest_secret]
+	
+# Measures TCP latency to an endpoint with 3 requests (1 for establishing HTTPS, 2 for average TCP)
+func measure_tcp_latency(endpoint):
+	
+	# We'll use HTTPClient to reuse the connection
+	var http_client = HTTPClient.new()
+	http_client.connect_to_host(endpoint)
+	while http_client.get_status() == HTTPClient.STATUS_CONNECTING or http_client.get_status() == HTTPClient.STATUS_RESOLVING:
+		http_client.poll()
+		if not OS.has_feature("web"):
+			OS.delay_msec(1)
+		else:
+			await get_tree().process_frame
+			
+	# Measure the two requests
+	var start_time = Time.get_ticks_msec()
+	
+	var headers = [
+		"User-Agent: Pirulo/1.0 (Godot)",
+		"Accept: */*"
+	]
+	var err = http_client.request(HTTPClient.METHOD_GET, "/", headers) # Request a page from the site (this one was chunked..)
+	assert(err == OK) # Make sure all is OK.
 
+	while http_client.get_status() == HTTPClient.STATUS_REQUESTING:
+		# Keep polling for as long as the request is being processed.
+		http_client.poll()
+		if OS.has_feature("web"):
+			# Synchronous HTTP requests are not supported on the web,
+			# so wait for the next main loop iteration.
+			await get_tree().process_frame
+		else:
+			OS.delay_msec(1)
+			
+	var rb = PackedByteArray() # Array that will hold the data.
+
+	while http_client.get_status() == HTTPClient.STATUS_BODY:
+		# While there is body left to be read
+		http_client.poll()
+		# Get a chunk.
+		var chunk = http_client.read_response_body_chunk()
+		if chunk.size() == 0:
+			if not OS.has_feature("web"):
+				# Got nothing, wait for buffers to fill a bit.
+				OS.delay_msec(1)
+			else:
+				await get_tree().process_frame
+		else:
+			rb = rb + chunk # Append to read buffer.
+	
+	err = http_client.request(HTTPClient.METHOD_GET, "/", headers) # Request a page from the site (this one was chunked..)
+	assert(err == OK) # Make sure all is OK.
+
+	while http_client.get_status() == HTTPClient.STATUS_REQUESTING:
+		# Keep polling for as long as the request is being processed.
+		http_client.poll()
+		if OS.has_feature("web"):
+			await get_tree().process_frame
+		else:
+			OS.delay_msec(1)
+		
+	while http_client.get_status() == HTTPClient.STATUS_BODY:
+		# While there is body left to be read
+		http_client.poll()
+		# Get a chunk.
+		var chunk = http_client.read_response_body_chunk()
+		if chunk.size() == 0:
+			if not OS.has_feature("web"):
+				# Got nothing, wait for buffers to fill a bit.
+				OS.delay_msec(1)
+			else:
+				await get_tree().process_frame
+		else:
+			rb = rb + chunk # Append to read buffer.
+			
+	var end_time = Time.get_ticks_msec()
+	var total_time = (int)((end_time - start_time) / 2.0)
+	
+	return total_time
+	
+# Measures the TCP latencies to the 3 default regions and returns the JSON string 
+func measure_latencies():
+	
+	var region1 = "us-east-1"
+	var region2 = "us-west-2"
+	var region3 = "eu-west-1"
+	
+	# Make three HTTP requests to each endpoint and measure the latter 2 after handshake
+	var region1latency = await self.measure_tcp_latency("https://dynamodb." + region1 + ".amazonaws.com")
+	var region2latency = await self.measure_tcp_latency("https://dynamodb." + region2 + ".amazonaws.com")
+	var region3latency = await self.measure_tcp_latency("https://dynamodb." + region3 + ".amazonaws.com")
+
+	var latencydata = { "latencyInMs": { "us-east-1": region1latency, "us-west-2": region2latency, "eu-west-1": region3latency}}
+	
+	return JSON.stringify(latencydata)
+#func _http_request_completed(result, response_code, headers, body):
+	
 # Called when the node enters the scene tree for the first time.
 func _ready():
+	
+	# Measure latencies to regional endpoints first
+	self.latency_data = await self.measure_latencies()
+	
+	print("Got latency data: " + self.latency_data)
 	
 	# Get the SDK and Init
 	self.aws_game_sdk = get_node("/root/AwsGameSdk")
@@ -60,7 +163,8 @@ func login_callback(user_info):
 	self.save_login_data(user_info.user_id, user_info.guest_secret)
 	
 	# Start matchmaking
-	self.aws_game_sdk.backend_post_request(self.gamelift_integration_backend_endpoint, "/request-matchmaking", "{ \"latencyInMs\": { \"us-east-1\" : 10, \"us-west-2\" : 20, \"eu-west-1\" : 30 }}", self.matchmaking_request_callback)
+	self.aws_game_sdk.backend_post_request(self.gamelift_integration_backend_endpoint, "/request-matchmaking",
+											self.latency_data, self.matchmaking_request_callback)
 	
 # We need to use the exact format of the callback required for HTTPRequest
 func matchmaking_request_callback(result, response_code, headers, body):
