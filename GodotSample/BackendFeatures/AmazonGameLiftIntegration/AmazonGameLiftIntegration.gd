@@ -10,6 +10,9 @@ const gamelift_integration_backend_endpoint = "https://YOUR_ENDPOINT/prod"
 
 var aws_game_sdk
 
+var ticket_id
+var total_tries = 0 # The amount of tries to get match status
+
 func save_login_data(user_id, guest_secret):
 	var file = FileAccess.open("user://save_game.dat", FileAccess.WRITE)
 	file.store_pascal_string(user_id)
@@ -69,19 +72,52 @@ func matchmaking_request_callback(result, response_code, headers, body):
 		return
 		
 	print("Matchmaking request response: " + string_response)
-		
-	#  TODO: Call the get match status
-	# self.aws_game_sdk.backend_get_request(self.backend_endpoint, "/get-player-data", null, self.get_player_data_callback)
+	
+	# Extract the ticket ID from the response
+	var dict_response = JSON.new()
+	var error = dict_response.parse(string_response)
+	
+	if(error != OK):
+		print("Couldn't parse ticket ID from response")
+	else:
+		self.ticket_id = dict_response.data["TicketId"]
+		print("Ticket id: " + self.ticket_id)
+		# Call the get match status
+		self.aws_game_sdk.backend_get_request(self.gamelift_integration_backend_endpoint, "/get-match-status", { "ticketId" : self.ticket_id}, self.get_match_status_callback)
 
 # We need to use the exact format of the callback required for HTTPRequest
 func get_match_status_callback(result, response_code, headers, body):
 	
 	var string_response = body.get_string_from_utf8()
+		
+	print("Match status response: " + string_response)
 	
-	if(response_code >= 400):
-		print("Error code " + str(response_code) + " Message: " + string_response)
-		return
-
+	# Extract the response to dictionary
+	var dict_response = JSON.new()
+	var error = dict_response.parse(string_response)
+	
+	var ticket_status = null
+	# Get the status of matchmaking if we got a valid response
+	if error == OK and typeof(dict_response.data) == TYPE_DICTIONARY and dict_response.data.has("MatchmakingStatus"):
+		ticket_status = dict_response.data["MatchmakingStatus"]
+		print("Got ticket status: " + ticket_status)
+	# Get match status again if we're not in the end state yet
+	if ticket_status == null or ticket_status == "MatchmakingQueued" or ticket_status == "MatchmakingSearching" or ticket_status == "PotentialMatchCreated":
+			print("Not in end state yet, get match status again after 1.5s")
+			# Only try a total of 15 times
+			if self.total_tries > 15:
+				print("Couldn't get a valid response from matchmaking")
+			else:
+				await get_tree().create_timer(1.5).timeout
+				self.aws_game_sdk.backend_get_request(self.gamelift_integration_backend_endpoint, "/get-match-status", { "ticketId" : self.ticket_id}, self.get_match_status_callback)
+	elif ticket_status == "MatchmakingSucceeded":
+		print("Matchmaking done, connect to server...")
+		# TODO: Connect
+	else:
+		print("Matchmaking failed or timed out.")
+	
+	self.total_tries += 1
+	
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _process(delta):
