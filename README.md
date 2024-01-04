@@ -101,6 +101,10 @@ See the [Readme for Sample Backend Components](BackendComponentSamples/README.md
 
 To test the client integrations, you can use the Unreal, Unity, or Godot sample projects (`UnrealSample`, `UnitySample` and `GodotSample`), that include a lightweight SDK called `AWSGameSDK` to interact with the identity component and your backend features.
 
+## 4. Optional: Deploy some of the Backend Features
+
+After validating your deployment, you can test some of the backend features, such as [Amazon GameLift Integration](BackendFeatures/AmazonGameLiftIntegration/README.md) for building global multiplayer game backends and game server hosting.
+
 ### Unreal Engine 5 SDK and Integration Samples
 
 See the [Unreal SDK Readme](UnrealSample/README.md#unreal-integration-samples) for details on the Unreal 5 integration SDK and samples
