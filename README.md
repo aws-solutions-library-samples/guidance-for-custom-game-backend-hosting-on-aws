@@ -20,10 +20,11 @@
 
 The AWS Game Backend Framework allows you to integrate your game clients with AWS backend services, with secure scalable identity management and authentication, and integrations to commonly used game platform identity providers and game engines.
 
-The framework consists of three key components:
+The framework consists of four key components:
 * Custom identity component, that can be deployed with AWS Cloud Development Kit. Supports __guest identities__, __Steam__, __Sign in with Apple__, __Google Play__, and __Facebook__.
 * Lightweight game engine SDK:s for __Unreal Engine 5__,  __Unity 2021 (and up)__, and __Godot 4__
 * Sample backend component templates to get started with backend feature development
+* Backend Features for specific use cases (such as **Amazon GameLift integration**)
 
 The currently supported engines include Unity, Unreal Engine 5, and Godot 4, but as the features are exposed as REST API:s, you can easily integrate the identity component and custom backend components to any game engine of choice.
 
@@ -47,6 +48,9 @@ The currently supported login options for the identity component include __guest
   * Implemented with AWS Cloud Development Kit (CDK)
   * Demonstrate how to get started with serverless and containerized backend development, with authenticated user access
   * Implement best practices such as resource tagging, observability (with distributed tracing), and security guidelines (cdk-nag)
+* **Backend Features**
+  * Full backend feature implementations for different use cases (currently Amazon GameLift integration)
+  * See the [Amazon GameLift Integration Readme](BackendFeatures/AmazonGameLiftIntegration/README.md) for details
 * **Unreal Engine 5 Samples with AWS Game SDK** (`UnrealSample` folder contains [Readme](UnrealSample/README.md))
   * Unreal Engine 5 version of the AWS Game SDK and sample levels for integration with different identity providers
   * For SDK details see the [Unreal SDK Overview](UnrealSample/README.md#sdk-overview)
