@@ -56,7 +56,7 @@ This is a test level that will measure latencies to 3 predefined locations (same
 
 Configure the `AmazonGameLiftIntegration` component of the `AmazonGameLiftIntegration` Actor to set up API endpoints. Set `M Login Endpoint` value to the `LoginEndpoint` value found in the CustomIdentityComponentStack Outputs. Then set the `M Gamelift Integration Backend Endpoint Url` to the endpoint `AmazonGameLiftIntegrationBackendEndpointUrl` value found in the *AmazonGameLiftIntegrationBackend* Outputs.
 
-Press play to test the integration. You'll see the login, backend call activity, latency data, and game server connection in the Output Log as well as key items on on screen log as well.
+Press play to test the integration. You'll see the login, backend call activity, latency data, and game server connection in the Output Log as well as key items on on screen log as well. The client only sends the player session ID to the server and then quits after receiving the response to the validation.
 
 ## Unity integration
 
@@ -64,15 +64,24 @@ To test the integrations with Unity, **open** the Unity sample project (`UnitySa
 
 * Then **open** the scene `BackendFeatures/AmazonGameLiftIntegration/AmazonGameLiftIntegration.unity`
 
-This is a test level that will measure latencies to 3 predefined locations (same as the default setup for the fleet). It will then login as a new guest user if the login information is not yet in PlayerPrefs, or login using the user_id and guest_secret found in PlayerPrefs to login as an existing user. It will then use the logged to request matchmaking (sending the latency data that was measured), and start polling for the match status. Once the match is created successfully, it will start aa simple TCP client to connect to the sample server, send the player session ID for validation, and receive the response.
+This is a test level that will measure latencies to 3 predefined locations (same as the default setup for the fleet). It will then login as a new guest user if the login information is not yet in PlayerPrefs, or login using the user_id and guest_secret found in PlayerPrefs to login as an existing user. It will then use the logged to request matchmaking (sending the latency data that was measured), and start polling for the match status. Once the match is created successfully, it will start a simple TCP client to connect to the sample server, send the player session ID for validation, and receive the response.
 
 Configure the `AmazonGameLiftIntegration` component of the `AmazonGameLiftIntegration` GameObject to set up API endpoints. Set `Login Endpoint Url` value to the `LoginEndpoint` value found in the CustomIdentityComponentStack Outputs, and the `GameLift Integration Backend Endpoint Url` to the `AmazonGameLiftIntegrationBackendEndpointUrl` value found in the *AmazonGameLiftIntegrationBackend* Outputs.
 
-Press play to test the integration. You'll see the login, backend call activity, latency data, and game server connection in the Output Log as well as key items on on screen log as well.
+Press play to test the integration. You'll see the login, backend call activity, latency data, and game server connection in the Output Log as well as key items on on screen log as well. The client only sends the player session ID to the server and then quits after receiving the response to the validation.
 
 ## Godot integration
 
-TODO: Not implemented yet
+To test the integrations with Godot 4, **open** the Godot 4 sample project (`GodotSample`) with Godot 4.
+
+* Then **open** the scene `BackendFeatures/AmazonGameLiftIntegration/AmazonGameLiftIntegration.tscn`
+
+This is a test scene that will measure latencies to 3 predefined locations (same as the default setup for the fleet). It will then login as a new guest user if the login information is not yet in a save file, or login using the user_id and guest_secret found in the save file to login as an existing user. It will then use the logged to request matchmaking (sending the latency data that was measured), and start polling for the match status. Once the match is created successfully, it will start a simple TCP client to connect to the sample server, send the player session ID for validation, and receive the response.
+
+
+Configure the `BackendFeatures/AmazonGameLiftIntegration/AmazonGameLiftIntegration.gd` script to set up API endpoints. Set `const login_endpoint` value to the `LoginEndpoint` value found in the CustomIdentityComponentStack Outputs, and the `const gamelift_integration_backend_endpoint` to the `AmazonGameLiftIntegrationBackendEndpointUrl` value found in the *AmazonGameLiftIntegrationBackend* Outputs.
+
+Press play to test the integration. You'll see the latency data, login, backend call activity, and game server connection in the Output Console. The client only sends the player session ID to the server and then quits after receiving the response to the validation.
 
 # Solution overview
 
