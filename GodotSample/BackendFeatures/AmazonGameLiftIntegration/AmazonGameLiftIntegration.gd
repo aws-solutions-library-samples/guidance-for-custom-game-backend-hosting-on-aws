@@ -4,9 +4,9 @@
 extends Node
 
 # TODO: Add the login endpoint here
-const login_endpoint = "https://YOUR_ENDPOINT.amazonaws.com/prod/"
+const login_endpoint = "https://YOUR_ENDPOINT/prod/"
 # TODO: Add your Amazon GameLift backend component endpoint here
-const gamelift_integration_backend_endpoint = "https://YOUR_ENDPOINT.amazonaws.com/prod"
+const gamelift_integration_backend_endpoint = "https://YOUR_ENDPOINT/prod"
 
 var aws_game_sdk
 
@@ -14,7 +14,7 @@ var ticket_id
 var total_tries = 0 # The amount of tries to get match status
 
 var latency_data # The JSON latency data for requesting matchmaking
-
+	
 func save_login_data(user_id, guest_secret):
 	var file = FileAccess.open("user://save_game.dat", FileAccess.WRITE)
 	file.store_pascal_string(user_id)
@@ -217,12 +217,63 @@ func get_match_status_callback(result, response_code, headers, body):
 	elif ticket_status == "MatchmakingSucceeded":
 		print("Matchmaking done, connect to server...")
 		# TODO: Connect
+		self.connect_to_server(dict_response.data["IpAddress"], dict_response.data["Port"], dict_response.data["PlayerSessionId"])
 	else:
 		print("Matchmaking failed or timed out.")
 	
 	self.total_tries += 1
-	
 
+func connect_to_server(host, port, player_session_id):
+	
+	var _status: int = 0
+	var _stream: StreamPeerTCP = StreamPeerTCP.new()
+	
+	print("Connecting to: " + host + ":" + port)
+	# Reset status so we can tell if it changes to error again.
+	_status = _stream.STATUS_NONE
+	if _stream.connect_to_host(host, int(port)) != OK:
+		print("Error connecting to host.")
+		return
+	
+	# Wait for the stream to connect
+	while _status == _stream.STATUS_CONNECTING or _status == _stream.STATUS_NONE:
+		_stream.poll()
+		_status = _stream.get_status()
+		print("Status: ", _status)
+		print("Waiting for connection...")
+		await get_tree().create_timer(0.1).timeout
+	
+	# If we got an error, abort
+	if _status == _stream.STATUS_ERROR:
+		print("Couldn't connect to server.")
+		return
+		
+	# Send our player session ID
+	print("Sending player session ID: " + player_session_id)
+	_stream.put_data(player_session_id.to_ascii_buffer())
+	
+	# Receive the response from server
+	while(true):
+		_status = _stream.get_status()
+		match _status:
+			_stream.STATUS_NONE:
+				print("Disconnected from host.")
+				return
+			_stream.STATUS_ERROR:
+				print("Error with socket stream.")
+				return
+
+		if _status == _stream.STATUS_CONNECTED:
+			var available_bytes: int = _stream.get_available_bytes()
+			if available_bytes > 0:
+				print("available bytes: ", available_bytes)
+				var response = _stream.get_string(available_bytes)
+				print("Got response: " + response)
+				return
+					
+		# Wait a frame
+		await get_tree().process_frame
+		
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _process(delta):
 	pass
