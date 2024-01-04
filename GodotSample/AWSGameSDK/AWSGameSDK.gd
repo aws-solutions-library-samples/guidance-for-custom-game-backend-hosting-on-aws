@@ -382,7 +382,7 @@ func sdk_login_callback(result, response_code, headers, body):
 		# Trigger callback from client side
 		self.login_error_callback.call(json.get_error_message())
 		
-# Function to make an authenticated request to a backend API
+# Function to make an authenticated GET request to a backend API
 # Called by your custom code to access backend functionality
 func backend_get_request(url, resource, query_parameters, callback):
 	
@@ -412,3 +412,28 @@ func backend_get_request(url, resource, query_parameters, callback):
 	if error != OK:
 		callback.call("Error with HTTP request")
 			
+
+
+# Function to make an authenticated POST request to a backend API
+# Called by your custom code to access backend functionality
+func backend_post_request(url, resource, request_body, callback):
+	
+	if(self.user_info == null):
+		callback.call("Error: no user info set yet, login first")
+		return
+	
+	if(self.user_info.auth_token == ""):
+		callback.call("No auth token set yet, login first")
+		return
+
+	# Create an HTTP request node and connect its completion signal.
+	var http_request = HTTPRequest.new()
+	add_child(http_request)
+	http_request.request_completed.connect(callback)
+	
+	print(url+resource)
+	# Perform a GET request to login as a new guest
+	var error = http_request.request(url+resource, ["Authorization: " + self.user_info.auth_token, "Content-Type: application/json"], HTTPClient.METHOD_POST, request_body)
+	
+	if error != OK:
+		callback.call("Error with HTTP request")
