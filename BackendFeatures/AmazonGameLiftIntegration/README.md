@@ -12,8 +12,13 @@
    * [Sample Game Server](#sample-game-server)
    * [The Serverless Backend](#the-serverless-backend)
    * [Amazon GameLift resources](#amazon-gamelift-resources)
+   * [Amazon CloudWatch logs and metrics](#amazon-cloudwatch-logs-and-metrics)
 - [API Reference](#api-reference)
+      + [POST /request-matchmaking](#post-request-matchmaking)
+      + [GET /get-match-status](#get-get-match-status)
 - [Unity and Unreal Game Server Builds with GameLift Plugins](#unity-and-unreal-game-server-builds-with-gamelift-plugins)
+   * [Integrating with the Amazon GameLift Plugin for Unity Engine](#integrating-with-the-amazon-gamelift-plugin-for-unity-engine)
+      + [Testing end to end](#testing-end-to-end)
 
 This backend feature integration shows how to deploy a backend service that interacts with Amazon GameLift, as well as all the required Amazon GameLift resources. The feature comes with a simple sample game server for testing, from which you can then extend to using the Unreal and Unity GameLift Plugins for running a headless version of your game on Amazon GameLift.
 
@@ -83,8 +88,6 @@ Configure the `BackendFeatures/AmazonGameLiftIntegration/AmazonGameLiftIntegrati
 Press play to test the integration. You'll see the latency data, login, backend call activity, and game server connection in the Output Console. The client only sends the player session ID to the server and then quits after receiving the response to the validation.
 
 # Solution overview
-
-TODO
 
 ## Sample Game Server
 
@@ -161,5 +164,100 @@ All API requests expect the `Authorization` header is set to the JWT value recei
 
 # Unity and Unreal Game Server Builds with GameLift Plugins
 
-TODO: Explain the steps to replace the game server build with a Unity or Unreal build using the GameLift plugins for the engines
+## Integrating with the Amazon GameLift Plugin for Unity Engine
 
+If you're developing with Unity, you commonly want to run a headless Linux version of your Unity game build on GameLift. The Amazon GameLift Plugin for Unity Engine helps you integrate with the Amazon GameLift Server SDK easily and it supports local testing with GameLift Anywhere.
+
+To use the AWS Game Backend Framework Amazon GameLift integration together with the Amazon GameLift Plugin for Unity Engine, and test with the sample game, follow the steps below to learn how to set both tools up in a single project and what sections in the code you'll need to modify as well. **NOTE:** These steps are supported only on Unity 2022 and up!
+
+1.	**Add** the *“Linux Dedicated Server”* support to your Unity installation, You’ll need to reopen your project after doing this.
+2.	**Download** and **unzip** the [Amazon GameLift Plugin for Unity Engi](from https://github.com/aws/amazon-gamelift-plugin-unity/releases/tag/v2.0.0) to any folder of your choice.
+3.	**Open** the `UnitySample` project within AWS Game Backend Framework. You can also create a copy of it first if you don’t want to modify the sample project directly.
+4.	**Follow all the three steps**  of [setting up the plugin](https://github.com/aws/amazon-gamelift-plugin-unity?tab=readme-ov-file#install-the-plugin) within the UnitySample project, **including** importing the sample game.
+5.	After the files are imported, go to the Amazon GameLift menu in Unity and **select** *Sample Game -> Initialize Settings*. This step configures your project for building the game client and server.
+6.	**Follow** the [plugin docs](https://docs.aws.amazon.com/gamelift/latest/developerguide/unity-plug-in-profiles.html) to set up the AWS user configuration. **Select** us-east-1 for the Region. **NOTE:** We’re not really using this to deploy anything in our case, but need to set up the access to access the other features of the plugin.
+7.	**OPTIONAL:** You can optionally test the integration with Amazon GameLift Anywhere by following the steps under *“Host with GameLift Anywhere”* the GameLift menu to make sure everything works with the sample server. This is not required but shows you how you can host a local game server that registers to an Amazon GameLift Anywhere fleet.
+8.	**Build a server executable** using the standard Unity build process. **Select** *File -> Build Settings*, and switch the platform to Dedicated Server.
+  * **Select** Linux as the target
+  * **Select** build and select the folder `BackendFeatures/AmazonGameLiftIntegration/LinuxServerBuild`
+  * Set the name to `GameLiftSampleServer`
+9.	**Open** the file `BackendFeatures/AmazonGameLiftIntegration/bin/amazon_gamelift_integration.ts` and **set** `serverBinaryName: "GameLiftSampleServer.x86_64"` as this is the name of the binary created from Unity.
+10.	Make sure you've followed the [Preliminary Setup](#preliminary-setup) for setting up the Identity Component, and then deploy the backend APIs and the Amazon GameLift resources with the following steps:
+  * Navigate to `BackendFeatures/AmazonGameLiftIntegration/SimpleServer/` folder in your terminal or Powershell
+  * Navigate to `BackendFeatures/AmazonGameLiftIntegration`
+  * Run `npm install` to install CDK app dependencies
+  * Run `cdk deploy --all` to deploy both the backend APIs as well as the Amazon GameLift resources CDK apps to your account. You will need to accept the deployment. This will take around 45 minutes to fully deploy the game servers globally to all default locations (us-east-1, us-west-2, and eu-west-1)
+11. **Do all the following code changes in the Unity project** to build the integration from the AWS Game Backend Framework to the Unity plugin:
+
+File `UnitySample/Assets/Scripts/GameLift.cs` in the `member variable definitions` at **around row 42**:
+
+```csharp
+...
+    public bool IsConnected { get; set;}
+
+    public static int port; // ADD THIS SO WE CAN SET IT FROM OUR BACKEND FRAMEWORK INTEGRATION
+    public static string ipAddress; // ADD THIS SO WE CAN SET IT FROM OUR BACKEND FRAMEWORK INTEGRATION
+    public static string playerSessionId; // ADD THIS SO WE CAN SET IT FROM OUR BACKEND FRAMEWORK INTEGRATION
+...
+```
+
+In the same file in the `GetConnectionInfo` method at **around row 190**:
+
+```csharp
+...
+    public async Task<(bool success, ConnectionInfo connection)> GetConnectionInfo(CancellationToken cancellationToken = default)
+    {
+        var connectionInfo = new ConnectionInfo(); // ADD THIS TO FORCE SET THE CONNECTION INFO TO THE VALUES FROM BACKEND FRAMEWORK
+        connectionInfo.Port = GameLift.port; // ADD THIS TO FORCE SET THE CONNECTION INFO TO THE VALUES FROM BACKEND FRAMEWORK
+        connectionInfo.IpAddress = GameLift.ipAddress; // ADD THIS TO FORCE SET THE CONNECTION INFO TO THE VALUES FROM BACKEND FRAMEWORK
+        connectionInfo.PlayerSessionId = GameLift.playerSessionId; // ADD THIS TO FORCE SET THE CONNECTION INFO TO THE VALUES FROM BACKEND FRAMEWORK
+
+        return (true, connectionInfo); // ADD THIS TO FORCE SET THE CONNECTION INFO TO THE VALUES FROM BACKEND FRAMEWORK
+
+        // YOU CAN REMOVE BELOW THIS OR LEAVE IT BE, IT WILL NEVER BE RUN
+...
+```
+
+File `UnitySample/Assets/BackendFeatures/AmazonGameLiftIntegration/AmazonGameLiftIntegration.cs` in the `OnGetMatchStatusResponse` method at **around row 237**: 
+```csharp
+...
+else if(matchmakingStatusData.MatchmakingStatus == "MatchmakingSucceeded")
+{
+   Debug.Log("Matchmaking succeeded, connect to game server");
+   this.logOutput.text += "Matchmaking succeeded, connect to game server... " + "\n";
+   //StartCoroutine(ConnectToServer(matchmakingStatusData)); // COMMENT OUT THIS
+   GameLift.port = matchmakingStatusData.Port; // ADD THIS
+   GameLift.ipAddress = matchmakingStatusData.IpAddress; // ADD THIS
+   GameLift.playerSessionId = matchmakingStatusData.PlayerSessionId; // ADD THIS
+   SceneManager.LoadSceneAsync("BootstrapScene"); // ADD THIS TO MOVE TO THE SAMPLE GAME AFTER MATCHMAKING
+}
+...
+```
+
+File `UnitySample/Assets/Scripts/ClientBootstrap.cs` in the `Start()` method at **around row 58**:
+```csharp
+...
+    private void Start()
+    {
+        // ShowSignIn(): // COMMENT OUT THIS
+        StartGame(); // ADD THIS TO START THE GAME RIGHT AWAY
+    }
+...
+```
+
+File `UnitySample/Assets/Scripts/GameLogic.cs` in the beginning of `Start()` method at **around row 97**:
+```csharp
+...
+    private async void Start()
+    {
+
+        StartConnection(); // ADD THIS TO CONNECT RIGHT AWAY
+...
+```
+### Testing end to end
+
+1. **Follow** the instructions under [Unity Integration](#unity-integration) to set up the endpoints for the APIs
+2. **Change the platform** in Unity to your platform (Windows/MacOS) from the Build settings in Unity to run as client and not as server.
+2. **Open** the `BackendFeatures/AmazonGameLiftIntegration/AmazonGameLiftIntegration` scene and **run** it. This will connect with a single client.
+3. You need two clients to test two players matched to the same game. **Open** the Build Settings, **add** the `AmazonGameLiftIntegration` scene and **make sure it’s the first scene (0)**
+4. **Build** a client and run two clients (Editor and the client you built). Depending on your timing, these clients can end up in the same of different game sessions.
