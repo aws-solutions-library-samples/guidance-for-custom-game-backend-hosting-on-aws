@@ -18,7 +18,6 @@
       + [GET /get-match-status](#get-get-match-status)
 - [Unity and Unreal Game Server Builds with GameLift Plugins](#unity-and-unreal-game-server-builds-with-gamelift-plugins)
    * [Integrating with the Amazon GameLift Plugin for Unity Engine](#integrating-with-the-amazon-gamelift-plugin-for-unity-engine)
-      + [Testing end to end](#testing-end-to-end)
 
 This backend feature integration shows how to deploy a backend service that interacts with Amazon GameLift, as well as all the required Amazon GameLift resources. The feature comes with a simple sample game server for testing, from which you can then extend to using the Unreal and Unity GameLift Plugins for running a headless version of your game on Amazon GameLift.
 
@@ -254,7 +253,7 @@ File `UnitySample/Assets/Scripts/GameLogic.cs` in the beginning of `Start()` met
         StartConnection(); // ADD THIS TO CONNECT RIGHT AWAY
 ...
 ```
-### Testing end to end
+### Testing with the Unity plugin end to end
 
 1. **Follow** the instructions under [Unity Integration](#unity-integration) to set up the endpoints for the APIs
 2. **Change the platform** in Unity to your platform (Windows/MacOS) from the Build settings in Unity to run as client and not as server.
