@@ -114,11 +114,22 @@ All of the services are configured with **AWS X-Ray** for distributed tracing, a
 
 ## Amazon GameLift resources
 
-TODO: Remember to explain CW Agent configuration as well
+The Amazon GameLift resources are deployed with the CDK stack defined in `BackendFeatures/AmazonGameLiftIntegration/lib/amazon_gamelift_integration-gamelift-resources.ts`. It will deploy all the required resources in Amazon GameLift including
+
+* The FlexMatch matchmaking configuration and a simple FlexMatch rule set that matches players based on latency
+* The Amazon GameLift Queue that receives placements requests from FlexMatch and finds a game session on the fleet
+* The Amazon GameLift Build that is created from assets found in `LinuxServerBuild` folder
+* The Amazon GameLift Fleet that is hosted across three locations by default (us-east-1, us-west-2, and eu-west-1) and is hosting your game server build
+
+The stack will import the Amazon SNS Topic (created by the serverless backend stack) for the Matchmaking configuration to send matchmaking events to. These events are then processed by the Lambda function created in the first CDK stack.
+
+The Amazon GameLift Fleet will be configured with two game servers running (that receive their port and log file as parameters). You should configure your own game to be hosted in any amount of processes on an EC2 instance (between 1-50) based on your selected instance type and the resource consumption of your game server.
 
 ## Amazon CloudWatch logs and metrics
 
-TODO
+The Amazon GameLift Fleet instances are configured to send both logs as well as process level metrics to Amazon CloudWatch. This is done with the CloudWatch Agent that is installed with the `install.sh` script found under `LinuxServerBuild` and configured to use the Fleet IAM role to access CloudWatch. The configuration files under `LinuxServerBuild` are `amazon-cloudwatch-agent.json` and `common-config.toml` that are copied to the appropriate location in the script and used with the agent.
+
+You can view the realtime game server logs under the CloudWatch Log Group `GameServerLogs` in all the AWS Regions the game servers are hosted in. You'll find the process level metrics of the instances under `CWAgent` in the Metrics section in CloudWatch.
 
 # API Reference
 
@@ -176,7 +187,7 @@ To use the AWS Game Backend Framework Amazon GameLift integration together with 
 5.	After the files are imported, go to the Amazon GameLift menu in Unity and **select** *Sample Game -> Initialize Settings*. This step configures your project for building the game client and server.
 6.	**Follow** the [plugin docs](https://docs.aws.amazon.com/gamelift/latest/developerguide/unity-plug-in-profiles.html) to set up the AWS user configuration. **Select** us-east-1 for the Region. **NOTE:** We’re not really using this to deploy anything in our case, but need to set up the access to access the other features of the plugin.
 7.	**OPTIONAL:** You can optionally test the integration with Amazon GameLift Anywhere by following the steps under *“Host with GameLift Anywhere”* the GameLift menu to make sure everything works with the sample server. This is not required but shows you how you can host a local game server that registers to an Amazon GameLift Anywhere fleet.
-8.	**Build a server executable** using the standard Unity build process. **Select** *File -> Build Settings*, and switch the platform to Dedicated Server.
+8.	**Make sure you only have the configuration files under LinuxServerBuild folder** (install.sh, amazon-cloudwatch-agent.json, and common-config.toml). **Build a server executable** using the standard Unity build process. **Select** *File -> Build Settings*, and switch the platform to Dedicated Server.
   * **Select** Linux as the target
   * **Select** build and select the folder `BackendFeatures/AmazonGameLiftIntegration/LinuxServerBuild`
   * Set the name to `GameLiftSampleServer`
