@@ -13,8 +13,15 @@
 #include "GenericPlatform/GenericPlatformHttp.h"
 
 #include <stdio.h>
+
+#if PLATFORM_WINDOWS
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#include <stdio.h>
+#else
 #include <sys/socket.h>
 #include <arpa/inet.h>
+#endif
 #include <locale.h>
 #include <stdlib.h>
 #include <uchar.h>
@@ -100,11 +107,89 @@ bool SimpleTCPClient::Init(){
     return true;
 }
 
+// Windows winsock version of TCP client
+#if PLATFORM_WINDOWS
+uint32 SimpleTCPClient::Run() {
+
+    UE_LOG(LogTemp, Display, TEXT("Connecting to: %s:%d"), *m_ip, m_port);
+    auto CharPlayerSessionId = StringCast<ANSICHAR>(*m_playerSessionId);
+
+    WSADATA wsaData;
+    int iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
+    if (iResult != NO_ERROR) {
+        return 1;
+    }
+
+    SOCKET ConnectSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (ConnectSocket == INVALID_SOCKET) {
+        WSACleanup();
+        return 1;
+    }
+
+    sockaddr_in addrServer;
+    addrServer.sin_family = AF_INET;
+    InetPton(AF_INET, *m_ip, &addrServer.sin_addr.s_addr);
+    addrServer.sin_port = htons(m_port);
+    memset(&(addrServer.sin_zero), '\0', 8);
+
+    iResult = connect(ConnectSocket, (SOCKADDR*)&addrServer, sizeof(addrServer));
+    if (iResult == SOCKET_ERROR) {
+        closesocket(ConnectSocket);
+        UE_LOG(LogTemp, Display, TEXT("Couldn't connnect to server..."));
+        if (GEngine)
+            GEngine->AddOnScreenDebugMessage(-1, 30.0f, FColor::Black, FString::Printf(TEXT("Couldn't connnect to server...\n")), false, FVector2D(1.5f, 1.5f));
+        WSACleanup();
+        return 1;
+    }
+
+    // Send the player session ID to the server
+    iResult = send(ConnectSocket, CharPlayerSessionId.Get(), (int)strlen(CharPlayerSessionId.Get()), 0);
+    if (iResult == SOCKET_ERROR) {
+        UE_LOG(LogTemp, Display, TEXT("Couldn't send data to server..."));
+        closesocket(ConnectSocket);
+        WSACleanup();
+        return 1;
+    }
+
+    // Receive the validation response from server
+    char recvbuf[1024] = { 0 };
+    iResult = recv(ConnectSocket, recvbuf, 1024, 0);
+    if (iResult > 0) {
+        // Create FString from buffer
+        FString response = FString(recvbuf);
+        UE_LOG(LogTemp, Display, TEXT("Response from server: %s"), *response);
+        if (GEngine)
+            GEngine->AddOnScreenDebugMessage(-1, 30.0f, FColor::Black, FString::Printf(TEXT("Response from server: %s\n"), *response), false, FVector2D(1.5f, 1.5f));
+
+        UE_LOG(LogTemp, Display, TEXT("Server will shut down in 60 seconds so we'll just close the connection"));
+        if (GEngine)
+            GEngine->AddOnScreenDebugMessage(-1, 30.0f, FColor::Black, FString::Printf(TEXT("Server will shut down in 60 seconds so we'll just close the connection\n")), false, FVector2D(1.5f, 1.5f));
+    }
+    else
+        UE_LOG(LogTemp, Display, TEXT("Receive failed."));
+
+
+    // Server will not send more data, so just close the connection (session will end in 60 seconds on the server side)
+    iResult = shutdown(ConnectSocket, SD_SEND);
+    if (iResult == SOCKET_ERROR) {
+        closesocket(ConnectSocket);
+        WSACleanup();
+        return 1;
+    }
+
+    // cleanup
+    closesocket(ConnectSocket);
+    WSACleanup();
+
+    return 0;
+}
+// MacOS and Linux version of TCP client
+#else
 uint32 SimpleTCPClient::Run(){
 
     UE_LOG(LogTemp, Display, TEXT("Connecting to: %s:%d"), *m_ip, m_port);
     
-    int sock = 0, valread;
+    int sock = 0, valread = 0;
     struct sockaddr_in serv_addr;
     auto CharPlayerSessionId = StringCast<ANSICHAR>(*m_playerSessionId);
     auto CharIP = StringCast<ANSICHAR>(*m_ip);
@@ -119,19 +204,20 @@ uint32 SimpleTCPClient::Run(){
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_port = htons(m_port);
        
+
     // Convert IPv4 and IPv6 addresses from text to binary form
     if(inet_pton(AF_INET, CharIP.Get(), &serv_addr.sin_addr)<=0) 
     {
         UE_LOG(LogTemp, Display, TEXT("Invalid address or Address not supported"));
         return -1;
     }
-   
+    
     if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0)
     {
         UE_LOG(LogTemp, Display, TEXT("Connection Failed"));
         return -1;
     }
-
+    
     // Send the player session ID to the server
     auto sendBuffer = CharPlayerSessionId.Get();
     send(sock, sendBuffer, strlen(sendBuffer), 0 );
@@ -152,9 +238,10 @@ uint32 SimpleTCPClient::Run(){
     UE_LOG(LogTemp, Display, TEXT("Server will shut down in 60 seconds so we'll just close the connection"));
     if(GEngine)
         GEngine->AddOnScreenDebugMessage(-1, 30.0f, FColor::Black, FString::Printf(TEXT("Server will shut down in 60 seconds so we'll just close the connection\n")), false, FVector2D(1.5f,1.5f));
-
+    
     return 0;
 }
+#endif
 
 void SimpleTCPClient::Stop(){
 }
@@ -372,4 +459,3 @@ void UAmazonGameLiftIntegration::ConnectToServer(FString ip, int port, FString p
 {
     FRunnableThread::Create(new SimpleTCPClient(ip, port, playerSessionId), TEXT("SimpleTCPClient"));
 }
-
