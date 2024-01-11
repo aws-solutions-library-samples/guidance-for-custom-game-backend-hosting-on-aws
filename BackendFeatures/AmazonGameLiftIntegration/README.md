@@ -31,8 +31,8 @@ To deploy the component, follow the _Preliminary Setup_, and then run the follow
 
 1. Navigate to `BackendFeatures/AmazonGameLiftIntegration/SimpleServer/` folder in your terminal or Powershell
 2. You can now either build the game server in a container (takes between 10-30 minutes with all dependencies) or download the prebuilt binary which shouldn't take more than a few seconds.
-  * Option 1: Run `./copy_prebuilt_game_server_binary.sh` to download the prebuilt binary and extract it to the `LinuxServerBuild` folder.
-  * Option 2: Run `./buildserver.sh` to build the game server in a container (which is then copied to the `LinuxServerBuild` folder). This takes time as the Amazon GameLift C++ Server SDK is downloaded and built along with other dependencies before building the sample C++ server.
+  * Option 1: Run `./copy_prebuilt_game_server_binary.sh` (MacOS/Linux) or `./copy_prebuilt_game_server_binary.ps1` (Windows Administrator Powershell) to download the prebuilt binary and extract it to the `LinuxServerBuild` folder.
+  * Option 2: Run `./buildserver.sh` (MacOS/Linux) or `./buildserver.ps1` (Windows Administrator Powershell) to build the game server in a container (which is then copied to the `LinuxServerBuild` folder). This takes time as the Amazon GameLift C++ Server SDK is downloaded and built along with other dependencies before building the sample C++ server.
 3. Navigate to `BackendFeatures/AmazonGameLiftIntegration` by running `cd ..`
 4. Run `npm install` to install CDK app dependencies
 6. Run `cdk deploy --all` to deploy both the backend APIs as well as the Amazon GameLift resources CDK apps to your account. You will need to accept the deployment. This will take around 45 minutes to fully deploy the game servers globally to all default locations (us-east-1, us-west-2, and eu-west-1)
