@@ -176,6 +176,10 @@ All API requests expect the `Authorization` header is set to the JWT value recei
 
 # Unity and Unreal Game Server Builds with GameLift Plugins
 
+The steps above show you how to test the solution end-to-end with all the supported game engines (Unity, Unreal and Godot) with a simple sample server running on the Amazon GameLift fleet. If you want to start hosting a game server binary created from your game engine on the server side, and use the native networking features of your game engine (or a 3rd party solution), you will need to replace the simple sample server with a headless Linux build from your game engine. In addition you'll need to replace the client side logic to match your game server build.
+
+The sections below show how to make use the the Amazon GameLift Plugins for both Unity Engine and Unreal Engine to create a game server that integrates with the Amazon GameLift Server SDK, and utilize a sample game to test the integration. You can use these as inspiration for integrating with your own existing game, or to test with the sample games provided by the plugins.
+
 ## Integrating with the Amazon GameLift Plugin for Unity Engine
 
 If you're developing with Unity, you commonly want to run a headless Linux version of your Unity game build on GameLift. The Amazon GameLift Plugin for Unity Engine helps you integrate with the Amazon GameLift Server SDK easily and it supports local testing with GameLift Anywhere.
