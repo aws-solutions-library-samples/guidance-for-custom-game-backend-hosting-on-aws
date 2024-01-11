@@ -34,6 +34,7 @@ func login_with_google_play_token(google_play_auth_token, login_callback)
 func link_facebook_id_to_current_user(facebook_access_token, facebook_user_id, login_callback_facebook)
 func login_with_facebook_access_token(facebook_access_token, facebook_user_id, login_callback)
 func backend_get_request(url, resource, query_parameters, callback)
+func backend_post_request(url, resource, request_body, callback):
 ```
 
 ## Adding the SDK to an existing project

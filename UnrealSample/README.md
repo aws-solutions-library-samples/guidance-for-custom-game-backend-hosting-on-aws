@@ -28,6 +28,7 @@ The public API for the SDK includes the following methods. Most of them will req
 void LoginAsNewGuestUser(FLoginComplete callback);
 void LoginAsGuestUser(const FString& user_id, const FString& guest_secret, FLoginComplete callback);
 void BackendGetRequest(const FString& url, const FString& resource, const TMap<FString, FString>& queryParameters, FRequestComplete callback);
+void BackendPostRequest(const FString& url, const FString& resource, const FString& body, FRequestComplete callback);
 void LoginWithAppleIdToken(const FString& appleAuthToken, FLoginComplete callback);
 void LinkAppleIdToCurrentUser(const FString& appleAuthToken, FLoginComplete callback);
 void LoginWithSteamToken(const FString& steamAuthToken, FLoginComplete callback);

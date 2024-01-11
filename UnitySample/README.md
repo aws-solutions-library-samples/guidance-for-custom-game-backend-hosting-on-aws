@@ -30,7 +30,8 @@ public void LoginWithGooglePlayToken(string googlePlayAuthToken, Action<LoginReq
 public void LinkGooglePlayIdToCurrentUser(string googlePlayAuthToken, Action<LoginRequestData> callback);
 public void LinkFacebookIdToCurrentUser(string facebookAccessToken, string facebookUserId, Action<LoginRequestData> callback)
 public void LoginWithFacebookAccessToken(string facebookAccessToken, string facebookUserId, Action<LoginRequestData> callback)
-public void BackendGetRequest(string url, string resource, Action<UnityWebRequest> callback, Dictionary<string, string> getParameters = null);
+public void BackendGetRequest(string url, string resource, Action<UnityWebRequest> callback, Dictionary<string, string> getParameters = null)
+public void BackendPostRequest(string url, string resource, Action<UnityWebRequest> callback, string body)
 ```
 
 ## Adding the SDK to an existing project
