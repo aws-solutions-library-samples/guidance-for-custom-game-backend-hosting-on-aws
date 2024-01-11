@@ -92,6 +92,8 @@ The sample game server code and build scripts can be found in `BackendFeatures/A
 
 The sample game server is a C++ application, that integrates with the Amazon GameLift Server SDK 5. It sets up the game server based on server port passed on command line arguments (from the Amazon GameLift fleet configuration), and starts logging to the log file configured in the CloudWatch agent configuration to collect realtime logs to CloudWatch logs. It will then start waiting for Amazon GameLift to trigger the callback for game sessions started, after which it will start a 60 second timer to simulate the game session. During this time, it will accept TCP socket connections in a separate thread, in which it expects to receive the player session ID, which is validated with the GameLift Server SDK to make sure the correct users are connecting to the server. It's worth noting that the sample game server doesn't actually implement any simulation logic, which you would typically do yourself with a physics engine, or using a headless build from your game engine. It's also recommended to use UDP-based networking libraries (native to the game engines or other) for fast paced realtime games.
 
+One key implementation detail to note is that the game server will cancel any existing backfill ticket (for the automatic backfill) when terminating. This is important to do to avoid matchmaking players to games that don't exist anymore.
+
 You will build the game server binary in a container environment with Docker, which will download and build all depencies and build the server itself. Optionally you can download the prebuilt binary to get started faster. The sample server can be useful if you're building a custom C++ game server (for a custom C++ engine for example). For the game engines including Unity and Unreal, you will likely want to run a headless version of the game on the server side. See the [Unity and Unreal Game Server Builds with GameLift Plugins](#unity-and-unreal-game-server-builds-with-gamelift-plugins) for details on how to leverage the Amazon GameLift plugins for this.
 
 ## The Serverless Backend
@@ -114,14 +116,16 @@ All of the services are configured with **AWS X-Ray** for distributed tracing, a
 
 The Amazon GameLift resources are deployed with the CDK stack defined in `BackendFeatures/AmazonGameLiftIntegration/lib/amazon_gamelift_integration-gamelift-resources.ts`. It will deploy all the required resources in Amazon GameLift including
 
-* The FlexMatch matchmaking configuration and a simple FlexMatch rule set that matches players based on latency
-* The Amazon GameLift Queue that receives placements requests from FlexMatch and finds a game session on the fleet
+* The FlexMatch matchmaking configuration and a simple FlexMatch rule set that matches players based on latency. The rule set can be expanded to use other attributes as needed, and the [FlexMatch Rule Set Samples](https://docs.aws.amazon.com/gamelift/latest/flexmatchguide/match-examples.html) is a great resource to understand the different configurations.
+* The Amazon GameLift Queue that receives placements requests from FlexMatch and finds a game session on the fleet. The queue uses the default prioritization which will prioritize on latency first. The latency data is received from FlexMatch (and originally provided by the game client).
 * The Amazon GameLift Build that is created from assets found in `LinuxServerBuild` folder
-* The Amazon GameLift Fleet that is hosted across three locations by default (us-east-1, us-west-2, and eu-west-1) and is hosting your game server build
+* The Amazon GameLift Fleet that is hosted across three locations by default (us-east-1, us-west-2, and eu-west-1) and is hosting your game server build on Amazon Linux 2. We recommend using Linux on the game server side to optimize resource usage and for cost efficiency.
 
 The stack will import the Amazon SNS Topic (created by the serverless backend stack) for the Matchmaking configuration to send matchmaking events to. These events are then processed by the Lambda function created in the first CDK stack.
 
-The Amazon GameLift Fleet will be configured with two game servers running (that receive their port and log file as parameters). You should configure your own game to be hosted in any amount of processes on an EC2 instance (between 1-50) based on your selected instance type and the resource consumption of your game server.
+The Amazon GameLift Fleet will be configured with two game servers running (that receive their port and log file as parameters). You should configure your own game to be hosted in any amount of processes on an EC2 instance (between 1-50) based on your selected instance type and the resource consumption of your game server. The fleet is configured to scale between 1 and 4 instances (2-8 game server processes) in each location, and scaling is using target tracking configuration for scaling with a target value of 30% of available game servers.
+
+The FlexMatch configuration uses automatic backfill, which will fill out the game sessions exactly once. You can optionally use manual backfill to control how the backfill is done from the game servers side, and allow requesting more players after previous players have left (which is not supported by automatic backfill). FlexMatch is set to match 1 to 5 players in a game (and will backfill up to the full 5 players). You'll also see an expansion in the rule set that allows higher minimum latency for one of the regions to make sure players get matched eventually.
 
 ## Amazon CloudWatch logs and metrics
 
