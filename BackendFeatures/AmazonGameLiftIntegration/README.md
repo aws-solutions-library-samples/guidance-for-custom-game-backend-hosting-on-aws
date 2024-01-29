@@ -82,7 +82,7 @@ This is a test scene that will measure latencies to 3 predefined locations (same
 
 Configure the `BackendFeatures/AmazonGameLiftIntegration/AmazonGameLiftIntegration.gd` script to set up API endpoints. Set `const login_endpoint` value to the `LoginEndpoint` value found in the CustomIdentityComponentStack Outputs, and the `const gamelift_integration_backend_endpoint` to the `AmazonGameLiftIntegrationBackendEndpointUrl` value found in the *AmazonGameLiftIntegrationBackend* Outputs.
 
-Press play to test the integration. You'll see the latency data, login, backend call activity, and game server connection in the Output Console. The client only sends the player session ID to the server and then quits after receiving the response to the validation.
+Press "Run current scene" to test the integration. You'll see the latency data, login, backend call activity, and game server connection in the Output Console. The client only sends the player session ID to the server and then quits after receiving the response to the validation.
 
 # Solution overview
 

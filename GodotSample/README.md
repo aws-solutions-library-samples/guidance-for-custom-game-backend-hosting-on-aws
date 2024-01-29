@@ -57,7 +57,7 @@ This is a simple test scene that will login as a new guest user if a save file i
 
 Configure the `Samples/GuestIdentityAndRestApiBackend/GuestIdentityAndRestApiBackend.gd` script to set up API endpoints. Set `const login_endpoint` value to the `LoginEndpoint` value found in the CustomIdentityComponentStack Outputs, and the `const backend_endpoint` to the `BackendEndpointUrl` value found in the PythonServerlessHttpApiStack Outputs or the `FargateSampleNodeJsServiceServiceURL` found in the NodeJsFargateApiStack Outputs. Both backend sample integrations support the same functionality to validate tokens and set and get player data.
 
-Press play to test the integration. You'll see the login and backend call activity in the Output console.
+Press "Run current scene" to test the integration. You'll see the login and backend call activity in the Output console.
 
 ## Steam test scene
 
