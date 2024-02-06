@@ -2,15 +2,11 @@ import * as cdk from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import { NagSuppressions } from 'cdk-nag';
-import * as assets from 'aws-cdk-lib/aws-s3-assets';
-import * as path from 'path';
-import * as gamelift from 'aws-cdk-lib/aws-gamelift';
 import * as sns from 'aws-cdk-lib/aws-sns';
 import * as apigateway from 'aws-cdk-lib/aws-apigatewayv2';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import { CfnOutput, Duration } from 'aws-cdk-lib';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
-import * as kms from 'aws-cdk-lib/aws-kms';
 
 // Define custom stack properties
 interface AmazonGameLiftIntegrationBackendProps extends cdk.StackProps {
@@ -52,7 +48,7 @@ export class AmazonGameLiftIntegrationBackend extends cdk.Stack {
     const httpApi = new apigateway.CfnApi(this, 'AmazonGameLiftIntegrationApi', {
       name: 'AmazonGameLiftIntegrationApi',
       protocolType: 'HTTP',
-      description: 'Amazon GameLift Integration HTTP API',
+      description: 'Amazon GameLift Integration authenticated HTTP API',
     });
     // Define a log group for the HTTP Api logs
     const httpApiLogGroup = new logs.LogGroup(this, 'AmazonGameLiftIntegrationApiLogs', {

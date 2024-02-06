@@ -21,6 +21,7 @@ const app = new cdk.App();
 
 // The backend APIs for matchmaking etc.
 var backend = new AmazonGameLiftIntegrationBackend(app, 'AmazonGameLiftIntegrationBackend', {
+  description : "Guidance for Multiplayer Session-based Game Hosting on AWS (SO9046)",
   issuerEndpointUrl: ISSUER_ENDPOINT
 });
 
