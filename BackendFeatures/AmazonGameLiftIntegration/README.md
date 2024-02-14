@@ -1,6 +1,5 @@
 # AWS Game Backend Framework Features: Amazon GameLift Integration
 
-- [AWS Game Backend Framework Features: Amazon GameLift Integration](#aws-game-backend-framework-features-amazon-gamelift-integration)
 - [Preliminary setup](#preliminary-setup)
 - [Deploying the Amazon GameLift integration feature](#deploying-the-amazon-gamelift-integration-feature)
 - [Architecture](#architecture)
@@ -187,7 +186,7 @@ If you're developing with Unity, you commonly want to run a headless Linux versi
 To use the AWS Game Backend Framework Amazon GameLift integration together with the Amazon GameLift Plugin for Unity Engine, and test with the sample game, follow the steps below to learn how to set both tools up in a single project and what sections in the code you'll need to modify as well. **NOTE:** These steps are supported only on Unity 2022 and up!
 
 1.	**Add** the *“Linux Dedicated Server”* support to your Unity installation, You’ll need to reopen your project after doing this.
-2.	**Download** and **unzip** the [Amazon GameLift Plugin for Unity Engi](from https://github.com/aws/amazon-gamelift-plugin-unity/releases/tag/v2.0.0) to any folder of your choice.
+2.	**Download** and **unzip** the [Amazon GameLift Plugin for Unity Engine](from https://github.com/aws/amazon-gamelift-plugin-unity/releases/tag/v2.0.0) to any folder of your choice.
 3.	**Open** the `UnitySample` project within AWS Game Backend Framework. You can also create a copy of it first if you don’t want to modify the sample project directly.
 4.	**Follow all the three steps**  of [setting up the plugin](https://github.com/aws/amazon-gamelift-plugin-unity?tab=readme-ov-file#install-the-plugin) within the UnitySample project, **including** importing the sample game.
 5.	After the files are imported, go to the Amazon GameLift menu in Unity and **select** *Sample Game -> Initialize Settings*. This step configures your project for building the game client and server.
@@ -277,3 +276,11 @@ File `UnitySample/Assets/Scripts/GameLogic.cs` in the beginning of `Start()` met
 2. **Open** the `BackendFeatures/AmazonGameLiftIntegration/AmazonGameLiftIntegration` scene and **run** it. This will connect with a single client.
 3. You need two clients to test two players matched to the same game. **Open** the Build Settings, **add** the `AmazonGameLiftIntegration` scene and **make sure it’s the first scene (0)**
 4. **Build** a client and run two clients (Editor and the client you built). Depending on your timing, these clients can end up in the same of different game sessions.
+
+## Integrating with Unreal Engine server builds
+
+Integrating with Unreal Engine server builds is a similar process to the above steps with Unity. You will need to integrate the GameLift Server SDK with the plugins provided for Unreal, and replace the game server binary with your Unreal binary, and the client-server connectivity with the Unreal networking.
+
+See [Integrate Amazon GameLift into an Unreal Engine Project](https://docs.aws.amazon.com/gamelift/latest/developerguide/integration-engines-setup-unreal.html) to get started.
+
+You can also use the [Amazon GameLift Unreal Plugin](https://github.com/aws/amazon-gamelift-plugin-unreal) to get started quickly with integrating Amazon GameLift Server SDK to your game.
