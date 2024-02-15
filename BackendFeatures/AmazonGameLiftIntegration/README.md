@@ -1,6 +1,6 @@
 # AWS Game Backend Framework Features: Amazon GameLift Integration
 
-- [Preliminary setup](#preliminary-setup)
+- [Required preliminary setup](#required-preliminary-setup)
 - [Deploying the Amazon GameLift integration feature](#deploying-the-amazon-gamelift-integration-feature)
 - [Architecture](#architecture)
 - [Integration with the Game Engines](#integration-with-the-game-engines)
@@ -12,13 +12,17 @@
    * [The Serverless Backend](#the-serverless-backend)
    * [Amazon GameLift resources](#amazon-gamelift-resources)
    * [Amazon CloudWatch logs and metrics](#amazon-cloudwatch-logs-and-metrics)
+      + [CloudWatch Dashboard](#cloudwatch-dashboard)
 - [API Reference](#api-reference)
+      + [POST /request-matchmaking](#post-request-matchmaking)
+      + [GET /get-match-status](#get-get-match-status)
 - [Unity and Unreal Game Server Builds with GameLift Plugins](#unity-and-unreal-game-server-builds-with-gamelift-plugins)
    * [Integrating with the Amazon GameLift Plugin for Unity Engine](#integrating-with-the-amazon-gamelift-plugin-for-unity-engine)
+   * [Integrating with Unreal Engine server builds](#integrating-with-unreal-engine-server-builds)
 
 This backend feature integration shows how to deploy a backend service that interacts with Amazon GameLift, as well as all the required Amazon GameLift resources. The feature comes with a simple sample game server for testing, from which you can then extend to using the Unreal and Unity GameLift Plugins for running a headless version of your game on Amazon GameLift.
 
-# Preliminary setup
+# Required preliminary setup
 
 This backend feature **requires** that you have [deployed the Identity component](../../CustomIdentityComponent/README.md). Once that is done, **set** the `const ISSUER_ENDPOINT` in `BackendFeatures/AmazonGameLiftIntegration/bin/amazon_gamelift_integration.ts` to the value of `IssuerEndpointUrl` found in the stack outputs of the _CustomIdentityComponentStack_. You can find it in the CloudFormation console, or in the terminal after deploying the identity component.
 
