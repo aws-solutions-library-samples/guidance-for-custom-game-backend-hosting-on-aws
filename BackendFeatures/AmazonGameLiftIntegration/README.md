@@ -132,6 +132,14 @@ The Amazon GameLift Fleet instances are configured to send both logs as well as 
 
 You can view the realtime game server logs under the CloudWatch Log Group `GameServerLogs` in all the AWS Regions the game servers are hosted in. You'll find the process level metrics of the instances under `CWAgent` in the Metrics section in CloudWatch.
 
+### CloudWatch Dashboard
+
+The solution comes with a Amazon CloudWatch Dashboard that presents some key metrics such as current matchmaking tickets, available game sessions in each location, as well as both average and session specific CPU and memory metrics collected by the CloudWatch agent.
+
+The Dashboard can be found *CloudWatch -> Dashboards* with the name `AmazonGameLiftGameServerMetricsGlobal` in the home region of the Amazon GameLift Fleet
+
+![CloudWatch Dashboard](CloudWatchDashboard.png)
+
 # API Reference
 
 All API requests expect the `Authorization` header is set to the JWT value received when logging in. This is automatically done by the AWS Game SDK's for the different game engines when you call the POST and GET requests through their API's.
