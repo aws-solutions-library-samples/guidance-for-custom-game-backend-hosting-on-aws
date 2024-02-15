@@ -6,6 +6,8 @@ import * as assets from 'aws-cdk-lib/aws-s3-assets';
 import * as path from 'path';
 import * as gamelift from 'aws-cdk-lib/aws-gamelift';
 import * as sns from 'aws-cdk-lib/aws-sns';
+import { CfnFleet } from 'aws-cdk-lib/aws-appstream';
+import * as cloudwatch from 'aws-cdk-lib/aws-cloudwatch';
 
 // Define custom stack properties
 interface AmazonGameLiftIntegrationStackProps extends cdk.StackProps {
@@ -35,7 +37,10 @@ export class AmazonGameLiftIntegrationStack extends cdk.Stack {
     const topicArn = cdk.Fn.importValue('AmazonGameLiftSampleSnsTopicArn');
 
     // Define the FlexMatch configuration and rule set
-    this.defineFlexMatchConfiguration(queue, topicArn);
+    const matchmakingConfiguration = this.defineFlexMatchConfiguration(queue, topicArn);
+
+    // Define the CloudWatch dashboard
+    this.defineCloudWatchDashboard(fleet, matchmakingConfiguration, locations, props.serverBinaryName);
   }
 
   // Defines an IAM Role with access to CloudWatch Logs and metrics that can be assumed by a GameLift Fleet
@@ -267,6 +272,137 @@ export class AmazonGameLiftIntegrationStack extends cdk.Stack {
       notificationTarget: topicArn // Receive FlexMatch events to this topic to inform players
     });
     cfnMatchmakingConfiguration.node.addDependency(queue);
+
+    return cfnMatchmakingConfiguration;
     
+  }
+
+  // Define the CloudWatch Dashboard for GameLift
+  defineCloudWatchDashboard(fleet: cdk.aws_gamelift.CfnFleet, matchmakingConfiguration: gamelift.CfnMatchmakingConfiguration, locations: string[], serverBinaryName : string){
+
+    // Define a CloudWatch Dashboard
+    const dashboard = new cloudwatch.Dashboard(this, 'AmazonGameLiftGameServerMetricsGlobal', {
+      dashboardName: 'AmazonGameLiftGameServerMetricsGlobal',
+    });
+
+    const firstRowWidgets = [];
+
+    // Widget for current matchmaking tickest (max 5 minutes)
+    const matchmakingTicketWidget = new cloudwatch.SingleValueWidget({
+      title: 'Current Matchmaking Tickets',
+      metrics: [new cloudwatch.Metric({
+        namespace: 'AWS/GameLift',
+        metricName: 'CurrentTickets',
+        dimensionsMap: {
+          ConfigurationName: matchmakingConfiguration.name
+        },
+        statistic: 'Maximum',
+        period: cdk.Duration.minutes(5)
+      })]
+    });
+
+    firstRowWidgets.push(matchmakingTicketWidget);
+
+    // Create the PercentageAvailableGameSessions SingleValueWidget for all locations in location list
+    for (const location of locations) {
+      firstRowWidgets.push(new cloudwatch.SingleValueWidget({
+        title: 'Percentage Available Game Sessions ('+location+')',
+        metrics: [new cloudwatch.Metric({
+          namespace: 'AWS/GameLift',
+          metricName: 'PercentAvailableGameSessions',
+          dimensionsMap: {
+            FleetId: fleet.ref,
+            Location: location
+          },
+          statistic: 'Average',
+          period: cdk.Duration.minutes(5)
+        })]
+      }));
+    }
+
+    // Add the first row widgets to the dashboard
+    dashboard.addWidgets(...firstRowWidgets);
+
+    const avgCpuUsageWidgets = [];
+
+    // GraphWidgets for CPU usage
+    for (const location of locations) {
+      avgCpuUsageWidgets.push(new cloudwatch.GraphWidget({
+        title: 'Average CPU Usage ('+location+')',
+        left: [
+          new cloudwatch.MathExpression({
+            expression: "AVG(SEARCH('{CWAgent,host,pattern,process_name} process_name=\""+serverBinaryName+"\" MetricName=\"procstat_cpu_usage\"', 'Average', 300))",
+            period: cdk.Duration.minutes(5),
+            searchRegion: location,
+            label: 'Average CPU Usage ('+location+')'
+          })
+        ],
+        width: 7
+      }));
+    }
+
+    // Add the second row widgets to the dashboard
+    dashboard.addWidgets(...avgCpuUsageWidgets);
+
+    const cpuUsageWidgets = [];
+
+    // GraphWidgets for CPU usage
+    for (const location of locations) {
+      cpuUsageWidgets.push(new cloudwatch.GraphWidget({
+        title: 'CPU Usage per session ('+location+')',
+        left: [
+          new cloudwatch.MathExpression({
+            expression: "SEARCH('{CWAgent,host,pattern,process_name} process_name=\""+serverBinaryName+"\" MetricName=\"procstat_cpu_usage\"', 'Average', 300)",
+            period: cdk.Duration.minutes(5),
+            searchRegion: location,
+            label: 'CPU Usage ('+location+')'
+          })
+        ],
+        width: 7
+      }));
+    }
+
+    // Add the third row widgets to the dashboard
+    dashboard.addWidgets(...cpuUsageWidgets);
+
+    const avgMemUsageWidgets = [];
+    // GraphWidget for Memory usage
+    for (const location of locations) {
+      avgMemUsageWidgets.push(new cloudwatch.GraphWidget({
+        title: 'Average Memory Usage ('+location+')',
+        left: [
+          new cloudwatch.MathExpression({
+            expression: "AVG(SEARCH('{CWAgent,host,pattern,process_name} process_name=\""+serverBinaryName+"\" MetricName=\"procstat_memory_rss\"', 'Average', 300))",
+            period: cdk.Duration.minutes(5),
+            searchRegion: location,
+            label: 'Average Memory Usage ('+location+')'
+          })
+        ],
+        width: 7
+      }));
+    }
+    // Add the fourth row widgets to the dashboard
+    dashboard.addWidgets(...avgMemUsageWidgets);
+
+    const memUsageWidgets = [];
+    // GraphWidget for Memory usage
+    for (const location of locations) {
+      memUsageWidgets.push(new cloudwatch.GraphWidget({
+        title: 'Memory Usage per session ('+location+')',
+        left: [
+          new cloudwatch.MathExpression({
+            expression: "SEARCH('{CWAgent,host,pattern,process_name} process_name=\""+serverBinaryName+"\" MetricName=\"procstat_memory_rss\"', 'Average', 300)",
+            period: cdk.Duration.minutes(5),
+            searchRegion: location,
+            label: 'Memory Usage ('+location+')'
+          })
+        ],
+        width: 7
+      }));
+    }
+    // Add the fifth row widgets to the dashboard
+    dashboard.addWidgets(...memUsageWidgets);
+
+
   }
 }
