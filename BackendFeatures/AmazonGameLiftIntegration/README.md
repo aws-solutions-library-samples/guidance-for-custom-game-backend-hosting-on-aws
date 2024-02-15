@@ -14,8 +14,6 @@
    * [Amazon CloudWatch logs and metrics](#amazon-cloudwatch-logs-and-metrics)
       + [CloudWatch Dashboard](#cloudwatch-dashboard)
 - [API Reference](#api-reference)
-      + [POST /request-matchmaking](#post-request-matchmaking)
-      + [GET /get-match-status](#get-get-match-status)
 - [Unity and Unreal Game Server Builds with GameLift Plugins](#unity-and-unreal-game-server-builds-with-gamelift-plugins)
    * [Integrating with the Amazon GameLift Plugin for Unity Engine](#integrating-with-the-amazon-gamelift-plugin-for-unity-engine)
    * [Integrating with Unreal Engine server builds](#integrating-with-unreal-engine-server-builds)
