@@ -298,7 +298,8 @@ export class AmazonGameLiftIntegrationStack extends cdk.Stack {
         },
         statistic: 'Maximum',
         period: cdk.Duration.minutes(5)
-      })]
+      })],
+      width: 5
     });
 
     firstRowWidgets.push(matchmakingTicketWidget);
@@ -316,7 +317,8 @@ export class AmazonGameLiftIntegrationStack extends cdk.Stack {
           },
           statistic: 'Average',
           period: cdk.Duration.minutes(5)
-        })]
+        })],
+        width: 5
       }));
     }
 
