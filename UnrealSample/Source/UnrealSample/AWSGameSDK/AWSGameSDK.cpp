@@ -136,6 +136,18 @@ void UAWSGameSDK::BackendGetRequest(const FString& url, const FString& resource,
     this->CallRestApiGetWithAuth(urlWithTrailingSlash, resource, queryParameters, callback);
 }
 
+// Backend POST request
+void UAWSGameSDK::BackendPostRequest(const FString& url, const FString& resource, const FString& body, FRequestComplete callback){
+
+    // If Url doesn't end with '/', add it
+    FString urlWithTrailingSlash = url;
+    if(url.EndsWith(TEXT("/")) == false) {
+        urlWithTrailingSlash += TEXT("/");
+    }
+
+    this->CallRestApiPostWithAuth(urlWithTrailingSlash, resource, body, callback);
+}
+
 
 /// PRIVATE ///
 
@@ -404,6 +416,43 @@ void UAWSGameSDK::CallRestApiGetWithAuth(const FString& url, const FString& reso
             FString responseString = pResponse->GetContentAsString();
             UE_LOG(LogTemp, Display, TEXT("Received response: %s"), *responseString );
 
+            // Send the info back to the original requester through the callback
+            callback.ExecuteIfBound(responseString);
+        }
+        else {
+            switch (pRequest->GetStatus()) {
+            case EHttpRequestStatus::Failed_ConnectionError:
+                UE_LOG(LogTemp, Error, TEXT("Connection failed."));
+            default:
+                UE_LOG(LogTemp, Error, TEXT("Request failed."));
+            }
+        }
+    });
+     // Submit the request for processing
+     pRequest->ProcessRequest();
+}
+
+void UAWSGameSDK::CallRestApiPostWithAuth(const FString& url, const FString& resource, const FString& body, FRequestComplete callback){
+
+    FString resourceForUrl = resource;
+    FString fullUrl = url + resourceForUrl;
+
+    UE_LOG(LogTemp, Display, TEXT("Making authenticated API request: %s"), *fullUrl );
+    UE_LOG(LogTemp, Display, TEXT("Body: %s"), *body );
+
+    TSharedRef<IHttpRequest, ESPMode::ThreadSafe> pRequest = NewBackendRequest();
+    pRequest->SetVerb(TEXT("POST"));
+    pRequest->SetURL(fullUrl);
+    pRequest->SetHeader(TEXT("Content-Type"), TEXT("application/json"));
+    pRequest->SetContentAsString(body);
+
+    // Callback executed after request is complete
+    pRequest->OnProcessRequestComplete().BindWeakLambda(this, [this, callback](FHttpRequestPtr pRequest, FHttpResponsePtr pResponse, bool connectedSuccessfully)
+    {
+        if (connectedSuccessfully) {
+            // Get the response content
+            FString responseString = pResponse->GetContentAsString();
+            UE_LOG(LogTemp, Display, TEXT("Received response: %s"), *responseString );
             // Send the info back to the original requester through the callback
             callback.ExecuteIfBound(responseString);
         }

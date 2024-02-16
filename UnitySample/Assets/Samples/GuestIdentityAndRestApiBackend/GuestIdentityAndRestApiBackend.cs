@@ -8,7 +8,7 @@ using UnityEngine.Networking;
 using UnityEngine.UI;
 using System;
 
-public class GuestIdentityAndRestApiBackend : MonoBehaviour
+public class GuestIdentityAndAmazRestApiBackend : MonoBehaviour
 {
     public string loginEndpointUrl;
     public string backendEndpointUrl;

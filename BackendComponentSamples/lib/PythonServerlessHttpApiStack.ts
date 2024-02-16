@@ -98,13 +98,13 @@ export class PythonServerlessHttpApiStack extends Stack {
       role: set_player_data_function_role,
       code: lambda.Code.fromAsset("PythonServerlessHttpApiLambda", {
         bundling: {
-          image: lambda.Runtime.PYTHON_3_11.bundlingImage,
+          image: lambda.Runtime.PYTHON_3_12.bundlingImage,
           command: [
             'bash', '-c',
             'pip install -r requirements.txt -t /asset-output && cp -ru . /asset-output'
           ],
       },}),
-      runtime: lambda.Runtime.PYTHON_3_11,
+      runtime: lambda.Runtime.PYTHON_3_12,
       handler: 'set_player_data.lambda_handler',
       timeout: Duration.seconds(15),
       tracing: lambda.Tracing.ACTIVE,
@@ -137,13 +137,13 @@ export class PythonServerlessHttpApiStack extends Stack {
       role: get_player_data_function_role,
       code: lambda.Code.fromAsset("PythonServerlessHttpApiLambda", {
         bundling: {
-          image: lambda.Runtime.PYTHON_3_11.bundlingImage,
+          image: lambda.Runtime.PYTHON_3_12.bundlingImage,
           command: [
             'bash', '-c',
             'pip install -r requirements.txt -t /asset-output && cp -ru . /asset-output'
           ],
       },}),
-      runtime: lambda.Runtime.PYTHON_3_11,
+      runtime: lambda.Runtime.PYTHON_3_12,
       handler: 'get_player_data.lambda_handler',
       timeout: Duration.seconds(15),
       tracing: lambda.Tracing.ACTIVE,

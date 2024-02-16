@@ -420,7 +420,7 @@ public class AWSGameSDKClient : MonoBehaviour
 
     /// BACKEND API REQUEST HELPER METHODS TO CALL CUSTOM BACKEND FUNCTIONALITY ///
 
-    // Authenticated client Get request to backend system
+    // Authenticated client GET request to backend system
     public void BackendGetRequest(string url, string resource, Action<UnityWebRequest> callback, Dictionary<string, string> getParameters = null)
     {
         if(this.userInfo == null)
@@ -434,6 +434,22 @@ public class AWSGameSDKClient : MonoBehaviour
             url += "/";
         }
         StartCoroutine(this.CallRestApiGetWithAuth(url, resource, this.userInfo.auth_token, callback, getParameters));
+    }
+
+    // Authenticated client POST request to backend system
+    public void BackendPostRequest(string url, string resource, Action<UnityWebRequest> callback, string body)
+    {
+        if(this.userInfo == null)
+        {
+            Debug.LogError("UserInfo not defined");
+            return;
+        }
+        // Add slash to url if it doesn't exist
+        if(!url.EndsWith("/"))
+        {
+            url += "/";
+        }
+        StartCoroutine(this.CallRestApiPostWithAuth(url, resource, this.userInfo.auth_token, callback, body));
     }
 
     /// GENERAL API REQUEST HELPER METHODS ///
@@ -477,6 +493,26 @@ public class AWSGameSDKClient : MonoBehaviour
             request.SetRequestHeader("Authorization", authToken);
 
             Debug.Log("Sending request: " + url + resource);
+            // Send the request and call the callback when we get a response
+            yield return request.SendWebRequest();
+            callback(request);
+        }
+    }
+
+    IEnumerator CallRestApiPostWithAuth(string url, string resource, string authToken, Action<UnityWebRequest> callback, string body)
+    {
+        // Generate a POST request with the postParameters and body
+        using (UnityWebRequest request = UnityWebRequest.PostWwwForm(url + resource, body))
+        {
+            Debug.Log("Sending POST request to: " + url + resource);
+            // Set the auth token
+            request.SetRequestHeader("Authorization", authToken);
+            // Set the content type
+            request.SetRequestHeader("Content-Type", "application/json");
+            // Set the body
+            byte[] bodyRaw = new System.Text.UTF8Encoding().GetBytes(body);
+            request.uploadHandler = (UploadHandler)new UploadHandlerRaw(bodyRaw);
+            request.uploadHandler.contentType = "application/json";
             // Send the request and call the callback when we get a response
             yield return request.SendWebRequest();
             callback(request);

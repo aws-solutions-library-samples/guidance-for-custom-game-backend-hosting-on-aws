@@ -67,7 +67,7 @@ public:
 	// Simplified GET interface with parameters on the query string
 	DECLARE_DELEGATE_OneParam(FRequestComplete, const FString& response);
 	void BackendGetRequest(const FString& url, const FString& resource, const TMap<FString, FString>& queryParameters, FRequestComplete callback);
-
+    void BackendPostRequest(const FString& url, const FString& resource, const FString& body, FRequestComplete callback);
 	// Alternate interface allowing usage of IHttpRequest for different verbs, headers, etc.
 	TSharedRef<IHttpRequest, ESPMode::ThreadSafe> NewBackendRequest();
 
@@ -88,5 +88,6 @@ private:
     void LoginWithGooglePlay(const FString& googlePlayAuthToken, const FString& authToken, bool linkToExistingUser, FLoginComplete callback);
     void LoginWithFacebook(const FString& facebookAccessToken, const FString& facebookUserId, const FString& authToken, bool linkToExistingUser, FLoginComplete callback);
     void CallRestApiGetWithAuth(const FString& url, const FString& resource, TMap<FString, FString> queryParameters, FRequestComplete callback);
+    void CallRestApiPostWithAuth(const FString& url, const FString& resource, const FString& body, FRequestComplete callback);
 	void ScheduleTokenRefresh(float expiresIn);
 };

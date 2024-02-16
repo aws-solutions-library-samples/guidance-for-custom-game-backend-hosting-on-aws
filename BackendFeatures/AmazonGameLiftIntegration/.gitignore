@@ -1,0 +1,16 @@
+*.js
+!jest.config.js
+*.d.ts
+node_modules
+
+# CDK asset staging directory
+.cdk.staging
+cdk.out
+
+# Game server
+LinuxServerBuild/include
+LinuxServerBuild/lib
+LinuxServerBuild/GameLiftSampleServer
+LinuxServerBuild/lib*
+LinuxServerBuild/Dockerfile
+LinuxServerBuild/buildserver.sh
