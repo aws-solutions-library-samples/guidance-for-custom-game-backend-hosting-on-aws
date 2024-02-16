@@ -35,5 +35,8 @@ var gamelift = new AmazonGameLiftIntegrationStack(app, 'AmazonGameLiftIntegratio
   serverBinaryName: "GameLiftSampleServer"
 });
 
+// We want the backend stack to be deployed first
+gamelift.addDependency(backend);
+
 // CDK-nag
 Aspects.of(app).add(new AwsSolutionsChecks());

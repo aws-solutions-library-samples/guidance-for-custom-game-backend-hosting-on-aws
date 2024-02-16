@@ -26,6 +26,8 @@ This backend feature **requires** that you have [deployed the Identity component
 
 Make sure that you have Docker running before opening any terminals or Powershell as both the backend deployment as well as game server build process will use Docker. You're also expected to have all the tools listed in [Custom Identity Component Readme](../../CustomIdentityComponent/README.md#deploy-the-custom-identity-component) installed.
 
+**NOTE on Deployment Region:** Your deployment region for all the CDK stacks should be one of the locations used by the Amazon GameLift fleet to avoid issues with the deployment. The options include **us-east-1**, **us-west-2**, and **eu-west-1**. If you would like to deploy in another region, you will need to modify the locations in `BackendFeatures/AmazonGameLiftIntegration/lib/amazon_gamelift_integration-gamelift-resources.ts` as well as the game engine client implementation you're using.
+
 # Deploying the Amazon GameLift integration feature
 
 To deploy the component, follow the _Preliminary Setup_, and then run the following commands (Note: on **Windows** make sure to run in Powershell as **Administrator**):
