@@ -1,0 +1,28 @@
+{
+	"name": "AWS CDK",
+	"image": "mcr.microsoft.com/devcontainers/python:1-3.11-bullseye",
+	"remoteUser": "vscode",
+	"features": {
+		"ghcr.io/devcontainers/features/aws-cli:1": {
+			"version": "latest"
+		},
+		"ghcr.io/devcontainers/features/docker-in-docker:2": {
+			"moby": true,
+			"installDockerBuildx": true,
+			"version": "latest",
+			"dockerDashComposeVersion": "v1"
+		},
+		"ghcr.io/devcontainers-contrib/features/aws-cdk:2": {
+			"version": "2.128"
+		}
+	},
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"ms-python.pylint",
+				"streetsidesoftware.code-spell-checker"
+			]
+		}
+	},
+	"postCreateCommand": "python -m pip install --upgrade pip && pip install --user -r BackendFeatures/DeltaLakeIntegration/requirements.txt"
+}
