@@ -1,28 +1,25 @@
 #!/usr/bin/env python3
-import os
-
+import boto3
 import aws_cdk as cdk
 
-from delta_lake_integration.delta_lake_integration_stack import DeltaLakeIntegrationStack
+from delta_lake_integration.integration_backend_stack import DeltaLakeIntegrationBackend
 
+# Global variables
+ISSUER_ENDPOINT = ""
+AWS_ACCOUNT = boto3.client("sts").get_caller_identity()["Account"]
+AWS_REGION= "us-east-1"
+ETL_SCRIPT = "spark_datalake_writes.py"
 
 app = cdk.App()
-DeltaLakeIntegrationStack(app, "DeltaLakeIntegrationStack",
-    # If you don't specify 'env', this stack will be environment-agnostic.
-    # Account/Region-dependent features and context lookups will not work,
-    # but a single synthesized template can be deployed anywhere.
-
-    # Uncomment the next line to specialize this stack for the AWS Account
-    # and Region that are implied by the current CLI configuration.
-
-    #env=cdk.Environment(account=os.getenv('CDK_DEFAULT_ACCOUNT'), region=os.getenv('CDK_DEFAULT_REGION')),
-
-    # Uncomment the next line if you know exactly what Account and Region you
-    # want to deploy the stack to. */
-
-    #env=cdk.Environment(account='123456789012', region='us-east-1'),
-
-    # For more information, see https://docs.aws.amazon.com/cdk/latest/guide/environments.html
-    )
+backend = DeltaLakeIntegrationBackend(
+    app,
+    "DeltaLakeIntegrationBackend",
+    env=cdk.Environment(
+        account=AWS_ACCOUNT,
+        region=AWS_REGION
+    ),
+    issuer_endpoint_url=ISSUER_ENDPOINT,
+    etl_script_name=ETL_SCRIPT
+)
 
 app.synth()
