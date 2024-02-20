@@ -5,7 +5,7 @@ import aws_cdk as cdk
 from delta_lake_integration.integration_backend_stack import DeltaLakeIntegrationBackend
 
 # Global variables
-ISSUER_ENDPOINT = ""
+ISSUER_ENDPOINT = "https://d3idu5tcczu4yd.cloudfront.net"
 AWS_ACCOUNT = boto3.client("sts").get_caller_identity()["Account"]
 AWS_REGION= "us-east-1"
 ETL_SCRIPT = "spark_datalake_writes.py"

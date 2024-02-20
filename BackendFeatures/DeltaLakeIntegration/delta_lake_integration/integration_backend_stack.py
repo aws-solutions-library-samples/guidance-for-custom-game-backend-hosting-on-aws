@@ -21,7 +21,7 @@ class DeltaLakeIntegrationBackend(cdk.Stack):
         s3_bucket = _s3.Bucket(
             self,
             "DeltalakeBucket",
-            bucket_name=f"DeltalakeBucket-{cdk.Aws.REGION}-{cdk.Aws.ACCOUNT_ID}",
+            # bucket_name=f"deltalakebucket-{cdk.Aws.REGION}-{cdk.Aws.ACCOUNT_ID}",
             versioned=True,
             removal_policy=cdk.RemovalPolicy.DESTROY,
             auto_delete_objects=True
@@ -66,7 +66,7 @@ class DeltaLakeIntegrationBackend(cdk.Stack):
         # cdk.CfnOutput(self, "DataIngestStreamName", value=stream.stream_name)
 
         # Create a Glue Catalog to store the stream data table
-        stream_db_name = "IngestStreamDB"
+        stream_db_name = "data-ingest-stream-db"
         stream_db = _glue.CfnDatabase(
             self,
             "IngestStreamDatabase",
@@ -78,7 +78,7 @@ class DeltaLakeIntegrationBackend(cdk.Stack):
         stream_db.apply_removal_policy(cdk.RemovalPolicy.DESTROY)
 
         # Create the stream data Glue Table
-        stream_table_name = "DataIngestStreamTable"
+        stream_table_name = "data-ingest-stream-table"
         stream_table = _glue.CfnTable(
             self,
             "IngestStreamTable",
@@ -143,7 +143,7 @@ class DeltaLakeIntegrationBackend(cdk.Stack):
         # cdk.CfnOutput(self, "IngestStreamDatabaseName", value=stream_table.database_name)
 
         # Create a Glue Catalog for the data lake
-        lake_db_name = "DeltalakeDB"
+        lake_db_name = "delta-lake-db"
         lake_db = _glue.CfnDatabase(
             self,
             "DeltalakeDatabase",
@@ -337,14 +337,15 @@ class DeltaLakeIntegrationBackend(cdk.Stack):
             api_id=http_api.ref,
             integration_type="AWS_PROXY",
             integration_subtype="Kinesis-PutRecord",
-            integration_method="POST",
+            # integration_method="POST", # Deployment Fails --> Method should not be specified for AWS_PROXY Integrations with a defined Subtype
             credentials_arn=integration_role.role_arn,
             request_parameters={
                 "StreamName": stream.stream_name,
                 "Data": "$request.body.Data",
                 "PartitionKey": "event_id"
             },
-            payload_format_version="2.0"
+            payload_format_version="1.0"
+            # payload_format_version="2.0" # Deployment fails --> "Kinesis-PutRecord" not supported
         )
         _api.CfnRoute(
             self,
