@@ -1,32 +1,34 @@
+import json
 import pathlib
 import aws_cdk as cdk
 
 from aws_cdk import (
     aws_s3 as _s3,
     aws_s3_deployment as _deployment,
-    aws_kinesis as _kinesis,
-    aws_glue as _glue,
+    aws_kinesis as _kds,
     aws_iam as _iam,
+    aws_glue as _glue,
     aws_apigatewayv2 as _api,
-    aws_logs as _logs
+    aws_logs as _logs,
+    aws_lambda as _lambda
 )
 from constructs import Construct
 
 class DeltaLakeIntegrationBackend(cdk.Stack):
 
-    def __init__(self, scope: Construct, construct_id: str, *, issuer_endpoint_url: str, etl_script_name: str, **kwargs) -> None:
+    def __init__(self, scope: Construct, construct_id: str, *, endpoint_url: str, etl_script: str, **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
         # Create an S3 Bucket to serve as the datalake object store
         s3_bucket = _s3.Bucket(
             self,
-            "DeltalakeBucket",
-            # bucket_name=f"deltalakebucket-{cdk.Aws.REGION}-{cdk.Aws.ACCOUNT_ID}",
+            "DeltaLakeBucket",
+            # bucket_name=f"{workload.lower()}-{cdk.Aws.REGION}-{cdk.Aws.ACCOUNT_ID}",
             versioned=True,
             removal_policy=cdk.RemovalPolicy.DESTROY,
             auto_delete_objects=True
         )
-        # cdk.CfnOutput(self, "DeltalakeBucketName", value=s3_bucket.bucket_name)
+        # cdk.CfnOutput(self, "DataLakeBucketName", value=s3_bucket.bucket_name)
 
         # Deploy SDK asset `aws-sdk-java-2.17.224.jar` deployment for Glue Streaming job
         _deployment.BucketDeployment(
@@ -54,19 +56,123 @@ class DeltaLakeIntegrationBackend(cdk.Stack):
             destination_key_prefix="scripts"
         )
 
+        # Create the Lambda logging shared policy
+        lambda_basics_policy = _iam.PolicyStatement(
+            actions=[
+                "logs:CreateLogGroup",
+                "logs:CreateLogStream",
+                "logs:PutLogEvents"
+            ],
+            effect=_iam.Effect.ALLOW,
+            resources=["*"]
+        )
+
+        # Create the shared Lambda execution policy
+        lambda_logging_policy = _iam.PolicyStatement(
+            actions=[
+                "logs:DeleteRetentionPolicy",
+                "logs:PutRetentionPolicy"
+            ],
+            effect=_iam.Effect.ALLOW,
+            resources=["*"]
+        )
+
+        # Create a shared IAM Role for for Lambda execution and logging
+        logging_role = _iam.Role(
+            self,
+            "LambdaLoggingRole",
+            assumed_by=_iam.ServicePrincipal("lambda.amazonaws.com"),
+            inline_policies={
+                "LambdaLoggingPolicy": _iam.PolicyDocument(
+                    statements=[
+                        lambda_logging_policy
+                    ]
+                ),
+                "LambdaBasicPolicy": _iam.PolicyDocument(
+                    statements=[
+                        lambda_basics_policy
+                    ]
+                )
+            }
+        )
+
+        # Create specific IAM Role for the `record` Lambda Function
+        record_handler_role = _iam.Role(
+            self,
+            "RecordFunctionRole",
+            assumed_by=_iam.ServicePrincipal("lambda.amazonaws.com")
+        )
+        record_handler_role.add_to_policy(lambda_basics_policy)
+
+        # Create the Glue Job IAM Role
+        glue_role = _iam.Role(
+            self,
+            "GlueJobRole",
+            role_name="DeltalakeGlueRole",
+            assumed_by=_iam.ServicePrincipal("glue.amazonaws.com"),
+            managed_policies=[
+                _iam.ManagedPolicy.from_aws_managed_policy_name("service-role/AWSGlueServiceRole"),
+                _iam.ManagedPolicy.from_aws_managed_policy_name("AmazonSSMReadOnlyAccess"),
+                _iam.ManagedPolicy.from_aws_managed_policy_name("AmazonEC2ContainerRegistryReadOnly"),
+                _iam.ManagedPolicy.from_aws_managed_policy_name("AWSGlueConsoleFullAccess"),
+                _iam.ManagedPolicy.from_aws_managed_policy_name("AmazonKinesisReadOnlyAccess")
+            ],
+            inline_policies={
+                "S3Access": _iam.PolicyDocument(
+                    statements=[
+                        _iam.PolicyStatement(
+                            actions=[
+                                "s3:GetBucketLocation",
+                                "s3:ListBucket",
+                                "s3:GetBucketAcl",
+                                "s3:GetObject",
+                                "s3:PutObject",
+                                "s3:DeleteObject"
+                            ],
+                            effect=_iam.Effect.ALLOW,
+                            resources=[
+                                f"{s3_bucket.bucket_arn}",
+                                f"{s3_bucket.bucket_arn}/*"
+                            ]
+                        )
+                    ]
+                ),
+                "PassRole": _iam.PolicyDocument(
+                    statements=[
+                        _iam.PolicyStatement(
+                            actions=[
+                                "iam:PassRole"
+                            ],
+                            effect=_iam.Effect.ALLOW,
+                            resources=[
+                                self.format_arn(
+                                    service="iam",
+                                    region="",
+                                    resource="role",
+                                    resource_name="DeltalakeGlueRole"
+                                )
+                            ]
+                        )
+                    ]
+                )
+            }
+        )
+        # cdk.CfnOutput(self, "GlueJobRoleName", value=glue_role.role_name)
+        # cdk.CfnOutput(self, "GlueJobRoleArn", value=glue_role.role_arn)
+
         # Create the Kinesis Data Stream for data ingest
-        stream = _kinesis.Stream(
+        stream = _kds.Stream(
             self,
             "IngestStream",
             stream_name="DataIngestStream",
-            stream_mode=_kinesis.StreamMode.ON_DEMAND,
+            stream_mode=_kds.StreamMode.ON_DEMAND,
             retention_period=cdk.Duration.days(1)
         )
         stream.apply_removal_policy(cdk.RemovalPolicy.DESTROY)
         # cdk.CfnOutput(self, "DataIngestStreamName", value=stream.stream_name)
 
         # Create a Glue Catalog to store the stream data table
-        stream_db_name = "data-ingest-stream-db"
+        stream_db_name = "deltalake_stream_db" # Must have underscores for SQL statements
         stream_db = _glue.CfnDatabase(
             self,
             "IngestStreamDatabase",
@@ -78,7 +184,7 @@ class DeltaLakeIntegrationBackend(cdk.Stack):
         stream_db.apply_removal_policy(cdk.RemovalPolicy.DESTROY)
 
         # Create the stream data Glue Table
-        stream_table_name = "data-ingest-stream-table"
+        stream_table_name = "kinesis_stream_table" # Must have underscores for SQL statements
         stream_table = _glue.CfnTable(
             self,
             "IngestStreamTable",
@@ -143,74 +249,36 @@ class DeltaLakeIntegrationBackend(cdk.Stack):
         # cdk.CfnOutput(self, "IngestStreamDatabaseName", value=stream_table.database_name)
 
         # Create a Glue Catalog for the data lake
-        lake_db_name = "delta-lake-db"
+        lake_db_name = "delta_lake_db" # Must have underscores for SQL statements
         lake_db = _glue.CfnDatabase(
             self,
             "DeltalakeDatabase",
             catalog_id=cdk.Aws.ACCOUNT_ID,
             database_input=_glue.CfnDatabase.DatabaseInputProperty(
                 name=lake_db_name,
-                location_uri=s3_bucket.s3_url_for_object(key="delta-lake-db/events")
+                location_uri=s3_bucket.s3_url_for_object(key=f"{lake_db_name}/events")
             )
         )
         lake_db.apply_removal_policy(cdk.RemovalPolicy.DESTROY)
         # cdk.CfnOutput(self, "DeltalakeDatabaseName", value=lake_db.database_input.name)
         # cdk.CfnOutput(self, "DeltalakeDatabaseLocation", value=lake_db.database_input.location_uri)
 
-        # Create the Glue Job IAM Role
-        glue_role = _iam.Role(
+        # Create the Delta Lake connection for Glue
+        _glue.CfnConnection(
             self,
-            "GlueJobRole",
-            role_name="DeltalakeGlueRole",
-            assumed_by=_iam.ServicePrincipal("glue.amazonaws.com"),
-            managed_policies=[
-                _iam.ManagedPolicy.from_aws_managed_policy_name("service-role/AWSGlueServiceRole"),
-                _iam.ManagedPolicy.from_aws_managed_policy_name("AmazonSSMReadOnlyAccess"),
-                _iam.ManagedPolicy.from_aws_managed_policy_name("AmazonEC2ContainerRegistryReadOnly"),
-                _iam.ManagedPolicy.from_aws_managed_policy_name("AWSGlueConsoleFullAccess"),
-                _iam.ManagedPolicy.from_aws_managed_policy_name("AmazonKinesisReadOnlyAccess")
-            ],
-            inline_policies={
-                "S3Access": _iam.PolicyDocument(
-                    statements=[
-                        _iam.PolicyStatement(
-                            actions=[
-                                "s3:GetBucketLocation",
-                                "s3:ListBucket",
-                                "s3:GetBucketAcl",
-                                "s3:GetObject",
-                                "s3:PutObject",
-                                "s3:DeleteObject"
-                            ],
-                            effect=_iam.Effect.ALLOW,
-                            resources=[
-                                f"{s3_bucket.bucket_arn}",
-                                f"{s3_bucket.bucket_arn}/*"
-                            ]
-                        )
-                    ]
-                ),
-                "PassRole": _iam.PolicyDocument(
-                    statements=[
-                        _iam.PolicyStatement(
-                            actions=[
-                                "iam:PassRole"
-                            ],
-                            effect=_iam.Effect.ALLOW,
-                            resources=[
-                                self.format_arn(
-                                    service="iam",
-                                    region="",
-                                    resource="role",
-                                    resource_name="DeltalakeGlueRole")
-                            ]
-                        )
-                    ]
-                )
-            }
+            "GlueDeltaLakeConnection",
+            catalog_id=cdk.Aws.ACCOUNT_ID,
+            connection_input=_glue.CfnConnection.ConnectionInputProperty(
+                name="deltalake-connector-1_0_0",
+                description="Delta Lake Connector 1.0.0 for AWS Glue 3.0",
+                connection_type="MARKETPLACE",
+                connection_properties={
+                    "CONNECTOR_TYPE": "Spark",
+                    "CONNECTOR_URL": "https://709825985650.dkr.ecr.us-east-1.amazonaws.com/amazon-web-services/glue/delta:1.0.0-glue3.0-2",
+                    "CONNECTOR_CLASS_NAME": "org.apache.spark.sql.delta.sources.DeltaDataSource"
+                }
+            )
         )
-        # cdk.CfnOutput(self, "GlueJobRoleName", value=glue_role.role_name)
-        # cdk.CfnOutput(self, "GlueJobRoleArn", value=glue_role.role_arn)
 
         # Create the Glue Stream ETL job
         glue_job_name = "GlueStreamEtlJob"
@@ -222,11 +290,11 @@ class DeltaLakeIntegrationBackend(cdk.Stack):
             command=_glue.CfnJob.JobCommandProperty(
                 name="gluestreaming",
                 python_version="3",
-                script_location=f"{s3_bucket.s3_url_for_object(key='scripts/') + etl_script_name}"
+                script_location=f"{s3_bucket.s3_url_for_object(key='scripts/') + etl_script}"
             ),
             role=glue_role.role_arn,
             connections=_glue.CfnJob.ConnectionsListProperty(
-                connections=["deltalake-connector-1_0_0"] # Naming property for Delta Lake GDC Demo
+                connections=["deltalake-connector-1_0_0"] # Naming property for Delta Lake integration
             ),
             # TODO: `default_arguments` are specific to the `spark_datalake_writes` script.
             #        Explore how script updates + argument updates can be made through DataOps
@@ -240,25 +308,25 @@ class DeltaLakeIntegrationBackend(cdk.Stack):
                 "--kinesis_table_name": stream_table_name,
                 "--kinesis_stream_arn": stream.stream_arn,
                 "--starting_position_of_kinesis_iterator": "LATEST",
-                "--delta_s3_path": s3_bucket.s3_url_for_object(key="data-lake-db/events"),
+                "--delta_s3_path": s3_bucket.s3_url_for_object(key=f"{lake_db_name}/events"),
                 "--aws_region": cdk.Aws.REGION,
                 "--window_size": "100 seconds",
                 "--extra-jars": s3_bucket.s3_url_for_object(key="assets/aws-sdk-java-2.23.13.jar"),
-                "--extra-jars-first": "false",
+                "--extra-jars-first": "true",
                 "--enable-metrics": "true",
                 "--enable-spark-ui": "true",
-                "--spark-event-logs-path": s3_bucket.s3_url_for_object(key="spark-history-logs/"),
+                "--spark-event-logs-path": s3_bucket.s3_url_for_object(key=f"{lake_db_name}/events/spark_history_logs/"),
                 "--enable-job-insights": "false",
                 "--enable-glue-datacatalog": "true",
                 "--enable-continuous-cloudwatch-log": "true",
                 "--job-bookmark-option": "job-bookmark-disable",
                 "--job-language": "python",
-                "--TempDir": s3_bucket.s3_url_for_object(key="temporary")
+                "--TempDir": s3_bucket.s3_url_for_object(key=f"{lake_db_name}/events/temporary")
             },
             execution_property=_glue.CfnJob.ExecutionPropertyProperty(
                 max_concurrent_runs=1
             ),
-            glue_version="4.0",
+            glue_version="3.0",
             max_retries=0,
             timeout=2880,
             worker_type="G.1X",
@@ -267,27 +335,32 @@ class DeltaLakeIntegrationBackend(cdk.Stack):
         # cdk.CfnOutput(self, "GlueJobName", value=glue_etl_job.name)
         # cdk.CfnOutput(self, "GlueJobRoleArn", value=glue_role.role_arn)
 
-        # Define the HTTP APi for data ingestion from the game client
-        http_api = _api.CfnApi(
+        # Create the HTTP API for data ingestion from the game client
+        api = _api.CfnApi(
             self,
             "IngestionApi",
             name="DataIngestionHttpApi",
-            description="HTTP API for game events data ingestion to the Deltalake",
+            description="Python Serverless HTTP API for Data Ingestion",
             protocol_type="HTTP"
         )
+
+        # Create the CloudWatch Log Group for the HTTP API logs
+        endpoint_logs = _logs.LogGroup(
+            self,
+            "IngestionApiLogs",
+            retention=_logs.RetentionDays.ONE_MONTH,
+            removal_policy=cdk.RemovalPolicy.DESTROY
+        )
+
+        # Define the API auto deployment stage
         _api.CfnStage(
             self,
             "IngestionApiStage",
-            api_id=http_api.ref,
+            api_id=api.ref,
             stage_name="prod",
             auto_deploy=True,
             access_log_settings=_api.CfnStage.AccessLogSettingsProperty(
-                destination_arn=_logs.LogGroup(
-                    self,
-                    "IngestionApiLogs",
-                    retention=_logs.RetentionDays.ONE_MONTH,
-                    removal_policy=cdk.RemovalPolicy.DESTROY
-                ).log_group_arn,
+                destination_arn=endpoint_logs.log_group_arn,
                 format="$context.requestId $context.requestTime $context.resourcePath $context.httpMethod $context.status $context.protocol"
             )
         )
@@ -296,7 +369,7 @@ class DeltaLakeIntegrationBackend(cdk.Stack):
         authorizer = _api.CfnAuthorizer(
             self,
             "BackendAuthorizer",
-            api_id=http_api.ref,
+            api_id=api.ref,
             name="BackendAuthorizer",
             authorizer_type="JWT",
             identity_source=[
@@ -306,57 +379,64 @@ class DeltaLakeIntegrationBackend(cdk.Stack):
                 audience=[
                     "gamebackend"
                 ],
-                issuer=issuer_endpoint_url
+                issuer=endpoint_url
             )
         )
 
-        # Create the HTTP API integration IAM role
-        integration_role = _iam.Role(
+        # Create the `put_record` function to handle multiple event records into the Kinesis Stream
+        record_handler = _lambda.Function(
             self,
-            "HttpIntegrationRole",
-            role_name="HttpIntegrationRole",
-            assumed_by=_iam.ServicePrincipal("apigateway.amazonaws.com")
+            "RecordHandler",
+            role=record_handler_role,
+            code=_lambda.Code.from_asset(
+                path="lambda",
+                bundling=cdk.BundlingOptions(
+                    image=_lambda.Runtime.PYTHON_3_12.bundling_image,
+                    command=[
+                        "bash", "-c", "pip install -r requirements.txt -t /asset-output && cp -au . /asset-output"
+                    ]
+                )
+            ),
+            runtime=_lambda.Runtime.PYTHON_3_12,
+            handler="index.lambda_handler",
+            timeout=cdk.Duration.seconds(30),
+            tracing=_lambda.Tracing.ACTIVE,
+            memory_size=1024,
+            log_retention=_logs.RetentionDays.ONE_MONTH,
+            log_retention_role=logging_role,
+            environment={
+                "STREAM_NAME": stream.stream_name,
+            }
         )
-        integration_role.add_to_policy(
-            statement=_iam.PolicyStatement(
-                sid="ApiDirectWriteKinesis",
-                actions=[
-                    "kinesis:PutRecord"
-                ],
-                effect=_iam.Effect.ALLOW,
-                resources=[
-                    stream.stream_arn
-                ]
-            )
+        record_handler.add_permission(
+            "InvokeRecordHandler",
+            principal=_iam.ServicePrincipal("apigateway.amazonaws.com"),
+            source_account=cdk.Aws.ACCOUNT_ID,
+            source_arn=f"arn:aws:execute-api:{cdk.Aws.REGION}:{cdk.Aws.ACCOUNT_ID}:{api.ref}/prod/*",
+            action="lambda:InvokeFunction"
         )
+        stream.grant_write(record_handler)
 
-        # Define the AWS Proxy sub-integration, and route for Kinesis PutRecord
-        kinesis_integration = _api.CfnIntegration(
+        # Define the integration for the `put_record` function
+        integration = _api.CfnIntegration(
             self,
-            "KinesisIntegration",
-            api_id=http_api.ref,
+            "RecordHandlerIntegration",
+            api_id=api.ref,
             integration_type="AWS_PROXY",
-            integration_subtype="Kinesis-PutRecord",
-            # integration_method="POST", # Deployment Fails --> Method should not be specified for AWS_PROXY Integrations with a defined Subtype
-            credentials_arn=integration_role.role_arn,
-            request_parameters={
-                "StreamName": stream.stream_name,
-                "Data": "$request.body.Data",
-                "PartitionKey": "event_id"
-            },
-            payload_format_version="1.0"
-            # payload_format_version="2.0" # Deployment fails --> "Kinesis-PutRecord" not supported
+            integration_uri=record_handler.function_arn,
+            integration_method="POST",
+            payload_format_version="2.0"
         )
         _api.CfnRoute(
             self,
             "PutRecordRoute",
-            api_id=http_api.ref,
-            route_key="POST /record",
+            api_id=api.ref,
+            route_key="POST /put-record",
             authorization_type="JWT",
             authorizer_id=authorizer.ref,
-            target=f"integrations/{kinesis_integration.ref}",
+            target=f"integrations/{integration.ref}",
             authorization_scopes=["guest", "authenticated"]
         )
 
-        # Deltalake Ingestion Endpoint URL 
-        cdk.CfnOutput(self, "IngestionApiUrl", value=f"{http_api.attr_api_endpoint}/prod/record")
+        # Endpoint URL
+        cdk.CfnOutput(self, "IngestionApiURL", value=f"{api.attr_api_endpoint}/prod/put-record")

@@ -73,11 +73,10 @@ job = Job(glueContext)
 job.init(args['JOB_NAME'], args)
 
 CREATE_DELTA_TABLE_SQL = f'''CREATE TABLE IF NOT EXISTS {DATABASE}.{TABLE_NAME} (
-  product_id STRING,
-  product_name STRING,
-  price INT,
-  category STRING,
-  updated_at TIMESTAMP
+  event_id STRING,
+  event_type STRING,
+  updated_at TIMESTAMP,
+  event_data STRING
 ) USING DELTA
 PARTITIONED BY ({PARTITION_KEY})
 LOCATION '{DELTA_S3_PATH}'

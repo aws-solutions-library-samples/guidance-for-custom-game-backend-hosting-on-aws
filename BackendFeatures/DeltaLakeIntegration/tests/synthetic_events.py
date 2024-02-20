@@ -58,11 +58,10 @@ class CustomDatetimeProvider(BaseProvider):
 
 def main():
   parser = argparse.ArgumentParser()
-
-  parser.add_argument('--region-name', action='store', default='us-east-1',
-    help='aws region name (default: us-east-1)')
+  parser.add_argument('--login-endpoint', type=str, help='The name of the API Gateway to get a authorization token')
+  parser.add_argument('--backend-endpoint', type=str, help='The name of the API Gateway to put the data record into')
+  # parser.add_argument('--region-name', action='store', default='us-east-1', help='aws region name (default: us-east-1)')
   # parser.add_argument('--stream-name', help='The name of the stream to put the data record into')
-  parser.add_argument('--endpoint-url', type=str, help='The name of the API Gateway to ut the data record into')
   parser.add_argument('--max-count', default=10, type=int, help='The max number of records to put (default: 10)')
   parser.add_argument('--dry-run', action='store_true')
   parser.add_argument('--console', action='store_true', help='Print out records ingested into the stream')
@@ -111,9 +110,21 @@ def main():
     #   if res['ResponseMetadata']['HTTPStatusCode'] != 200:
     #     print(res, file=sys.stderr)
     else:
+      login_response = requests.get(options.login_endpoint+"login-as-guest")
+      login_response_json = json.loads(login_response.text)
+      auth_token = login_response_json["auth_token"]
+      # data = {
+      #   "Data": record
+      # }
       record_response = requests.post(
-        options.endpoint_url,
-        data=f"{json.dumps(record)}",
+        options.backend_endpoint,
+        headers={
+          "Authorization": auth_token,
+          "Content-Type": "application/json"
+        },
+        # data=f"{json.dumps(record)}",
+        # data=json.dumps(data),
+        json=record,
         timeout=10
       )
       if options.console:
