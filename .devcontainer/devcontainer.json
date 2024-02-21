@@ -20,9 +20,10 @@
 		"vscode": {
 			"extensions": [
 				"ms-python.pylint",
-				"streetsidesoftware.code-spell-checker"
+				"streetsidesoftware.code-spell-checker",
+				"dbaeumer.vscode-eslint"
 			]
 		}
 	},
-	"postCreateCommand": "python -m pip install --upgrade pip && pip install --user -r BackendFeatures/DeltaLakeIntegration/requirements.txt"
+	// "postCreateCommand": "python -m pip install --upgrade pip && pip install --user -r BackendFeatures/DeltaLakeIntegration/requirements.txt"
 }

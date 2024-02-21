@@ -105,10 +105,11 @@ class DeltaLakeIntegrationBackend(cdk.Stack):
         record_handler_role.add_to_policy(lambda_basics_policy)
 
         # Create the Glue Job IAM Role
+        glue_role_name = "DeltaLakeGlueRole"
         glue_role = _iam.Role(
             self,
             "GlueJobRole",
-            role_name="DeltalakeGlueRole",
+            role_name=glue_role_name,
             assumed_by=_iam.ServicePrincipal("glue.amazonaws.com"),
             managed_policies=[
                 _iam.ManagedPolicy.from_aws_managed_policy_name("service-role/AWSGlueServiceRole"),
@@ -149,7 +150,7 @@ class DeltaLakeIntegrationBackend(cdk.Stack):
                                     service="iam",
                                     region="",
                                     resource="role",
-                                    resource_name="DeltalakeGlueRole"
+                                    resource_name=glue_role_name
                                 )
                             ]
                         )
@@ -163,7 +164,7 @@ class DeltaLakeIntegrationBackend(cdk.Stack):
         # Create the Kinesis Data Stream for data ingest
         stream = _kds.Stream(
             self,
-            "IngestStream",
+            "DataIngestStream",
             stream_name="DataIngestStream",
             stream_mode=_kds.StreamMode.ON_DEMAND,
             retention_period=cdk.Duration.days(1)
@@ -172,7 +173,7 @@ class DeltaLakeIntegrationBackend(cdk.Stack):
         # cdk.CfnOutput(self, "DataIngestStreamName", value=stream.stream_name)
 
         # Create a Glue Catalog to store the stream data table
-        stream_db_name = "deltalake_stream_db" # Must have underscores for SQL statements
+        stream_db_name = "delta_lake_stream_db" # Must have underscores for SQL statements
         stream_db = _glue.CfnDatabase(
             self,
             "IngestStreamDatabase",
@@ -249,10 +250,10 @@ class DeltaLakeIntegrationBackend(cdk.Stack):
         # cdk.CfnOutput(self, "IngestStreamDatabaseName", value=stream_table.database_name)
 
         # Create a Glue Catalog for the data lake
-        lake_db_name = "delta_lake_db" # Must have underscores for SQL statements
+        lake_db_name = "delta_lake_events_db" # Must have underscores for SQL statements
         lake_db = _glue.CfnDatabase(
             self,
-            "DeltalakeDatabase",
+            "DeltaLakeEventsDatabase",
             catalog_id=cdk.Aws.ACCOUNT_ID,
             database_input=_glue.CfnDatabase.DatabaseInputProperty(
                 name=lake_db_name,
@@ -260,16 +261,17 @@ class DeltaLakeIntegrationBackend(cdk.Stack):
             )
         )
         lake_db.apply_removal_policy(cdk.RemovalPolicy.DESTROY)
-        # cdk.CfnOutput(self, "DeltalakeDatabaseName", value=lake_db.database_input.name)
-        # cdk.CfnOutput(self, "DeltalakeDatabaseLocation", value=lake_db.database_input.location_uri)
+        # cdk.CfnOutput(self, "DeltaLakeDatabaseName", value=lake_db.database_input.name)
+        # cdk.CfnOutput(self, "DeltaLakeDatabaseLocation", value=lake_db.database_input.location_uri)
 
         # Create the Delta Lake connection for Glue
+        connection_name = "deltalake-connector-1_0_0"
         _glue.CfnConnection(
             self,
             "GlueDeltaLakeConnection",
             catalog_id=cdk.Aws.ACCOUNT_ID,
             connection_input=_glue.CfnConnection.ConnectionInputProperty(
-                name="deltalake-connector-1_0_0",
+                name=connection_name,
                 description="Delta Lake Connector 1.0.0 for AWS Glue 3.0",
                 connection_type="MARKETPLACE",
                 connection_properties={
@@ -286,7 +288,7 @@ class DeltaLakeIntegrationBackend(cdk.Stack):
             self,
             "GlueETLJob",
             name=glue_job_name,
-            description="AWS Glue Job to load the data from Kinesis Data Streams to Deltalake table in S3.",
+            description="AWS Glue Job to load the data from Kinesis Data Streams to Delta Lake table in S3.",
             command=_glue.CfnJob.JobCommandProperty(
                 name="gluestreaming",
                 python_version="3",
@@ -294,7 +296,7 @@ class DeltaLakeIntegrationBackend(cdk.Stack):
             ),
             role=glue_role.role_arn,
             connections=_glue.CfnJob.ConnectionsListProperty(
-                connections=["deltalake-connector-1_0_0"] # Naming property for Delta Lake integration
+                connections=[connection_name] # Naming property for Delta Lake integration
             ),
             # TODO: `default_arguments` are specific to the `spark_datalake_writes` script.
             #        Explore how script updates + argument updates can be made through DataOps
@@ -321,7 +323,7 @@ class DeltaLakeIntegrationBackend(cdk.Stack):
                 "--enable-continuous-cloudwatch-log": "true",
                 "--job-bookmark-option": "job-bookmark-disable",
                 "--job-language": "python",
-                "--TempDir": s3_bucket.s3_url_for_object(key=f"{lake_db_name}/events/temporary")
+                "--TempDir": s3_bucket.s3_url_for_object(key=f"{lake_db_name}/events/temp")
             },
             execution_property=_glue.CfnJob.ExecutionPropertyProperty(
                 max_concurrent_runs=1
@@ -340,7 +342,7 @@ class DeltaLakeIntegrationBackend(cdk.Stack):
             self,
             "IngestionApi",
             name="DataIngestionHttpApi",
-            description="Python Serverless HTTP API for Data Ingestion",
+            description="Serverless API endpoint for data ingestion",
             protocol_type="HTTP"
         )
 
