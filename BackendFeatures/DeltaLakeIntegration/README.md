@@ -20,7 +20,7 @@ To deploy the component, follow the _Preliminary Setup_, and then run the follow
 
 ---
 
-___Notes:___
+**Notes:**
 
 [^1]: You're also expected to have all the tools listed in [Custom Identity Component Readme](../../CustomIdentityComponent/README.md#deploy-the-custom-identity-component) installed.
 [^2]: On **Windows** make sure to run in Powershell as **Administrator**.
