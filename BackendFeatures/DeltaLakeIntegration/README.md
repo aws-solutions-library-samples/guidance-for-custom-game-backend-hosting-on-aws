@@ -18,7 +18,7 @@ To deploy the component, follow the _Preliminary Setup_, and then run the follow
 4. After the `DeltaLakeIntegrationBackend` has been deployed, open the [AWS Glue console](https://console.aws.amazon.com/glue/home) in your AWS account, and use the left-hand navigation panel to select **ETL Jobs**.
 5. Click the checkbox for the **GlueStreamEtlJob**, and click the **Run Job** button.
 
-## Notes
+### Notes:
 
 [^1]: You're also expected to have all the tools listed in [Custom Identity Component Readme](../../CustomIdentityComponent/README.md#deploy-the-custom-identity-component) installed.
 [^2]: On **Windows** make sure to run in Powershell as **Administrator**.
