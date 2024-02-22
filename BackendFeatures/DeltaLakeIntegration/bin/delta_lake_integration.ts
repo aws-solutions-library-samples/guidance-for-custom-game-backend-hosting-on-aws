@@ -12,7 +12,7 @@ tags['Environment'] = 'Dev';
 tags['CostCenter'] = '1000';
 
 // TODO: Set this to your issuer endpoint URL
-const ISSUER_ENDPOINT = 'https://xxxxx.cloudfront.ne';
+const ISSUER_ENDPOINT = 'https://d18cni1darfohw.cloudfront.net';
 
 // TODO: Set this to the name of the the ETL Script
 const ETL_SCRIPT = 'spark_datalake_writes.py';
