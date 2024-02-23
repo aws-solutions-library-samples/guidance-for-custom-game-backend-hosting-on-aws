@@ -68,6 +68,24 @@ A sample Python script to generate synthetic game telemetry events has been prov
     ```
 5. Following the Solution [README](../../README.md) to integrate the feature into your game engine.
 
+## Integration with the Game Engines
+
+### Unreal Engine integration
+
+To test the integrations with Unreal, **open** the Unreal sample project (`UnrealSample`) in Unreal Engine 5 first.
+
+**NOTE:** On Windows it will prompt you if you don't have Visual Studio installed yet. Once you have Visual Studio installed and set up for Unreal, you can open the project in the Unreal Editor and generate the project files from *Tools -> Generate Visual Studio Project*. On MacOS, you need to do *right click -> Services -> Generate XCode Project* on the uproject file in Finder. If you have problems generating the project files on MacOS, [this forum post](https://forums.unrealengine.com/t/generate-xcode-project-doesnt-do-anything/123149/3) can help run the shell script correctly from your UE installation folder against the project in the terminal.
+
+* Then **open** the level `BackendFeatures/DatabricksDeltaLakeIntegration`
+
+This is a test level that will login as a new guest user if a save file is not present, or login using the user_id and guest_secret found in the save file if available to login as an existing user. It will then use the credentials of the logged in user to send test events to the data pipeline and print out the requests and responses.
+
+Configure the `DatabricksDeltaLakeIntegration` component of the `DatabricksDeltaLakeIntegration` Actor to set up API endpoints. Set `M Login Endpoint` value to the `LoginEndpoint` value found in the CustomIdentityComponentStack Outputs. Then set the `M Data Pipeline Endpoint` to the endpoint value found in the *DeltaLakeIntegrationBackend* Outputs.
+
+Press play to test the integration. You'll see the login as a guest user, sending of 5 test events, and the responses from the backend.
+
+**Adding the integration to your custom project:** You can follow the [guidelines found in the Unreal Engine Integration Readme](../../UnrealSample/README.md#adding-the-sdk-to-an-existing-project) to add the AWS Game SDK to your own project. After that, you can use `UnrealSample/Source/BackendFeatures/DatabricksDeltaLakeIntegration/DatabricksDeltaLakeIntegration.cpp` as a reference for how to send events to the data pipeline. It also includes an `EventDataSender` class
+
 ## API reference
 
 All API requests expect the `Authorization` header is set to the JWT value received when logging in. This is automatically done by the AWS Game SDK's for the different game engines when you call the POST and GET requests through their API's.
