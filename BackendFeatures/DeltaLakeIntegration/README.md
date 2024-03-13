@@ -1,12 +1,10 @@
 # AWS Game Backend Framework Features: Databricks Delta Lake Integration
 
-This backend feature is currently ___EXPERIMENTAL___, and shows how to deploy a backend service to ingest game event telemetry data to [Delta Lake](https://docs.databricks.com/en/delta/index.html). It is optimized for performance, but not cost currently. If you're sending a high volume of events to the pipeline, it's recommended to modify the solution to batch the requests on the client side. This feature currently comes with a test script and Unreal integration, from which you can then extend to other game engines.
+This backend feature is currently ___EXPERIMENTAL___, and shows how to deploy a backend service to ingest game event telemetry data to [Databricks Delta Lake](https://docs.databricks.com/en/delta/index.html). It is optimized for performance, but not cost currently. If you're sending a high volume of events to the pipeline, it's recommended to modify the solution to batch the requests on the client side. This feature currently comes with a test script and Unreal integration, from which you can then extend to other game engines.
 
 ## Required preliminary setup
 
 This backend feature **requires** that you have deployed the [Identity component](../../CustomIdentityComponent/README.md)[^1]. Once that is done, **set** the `const ISSUER_ENDPOINT` in `BackendFeatures/DeltaLakeIntegration/bin/delta_lake_integration.ts` to the value of `IssuerEndpointUrl` found in the stack outputs of the _CustomIdentityComponentStack_. You can find it in the CloudFormation console, or in the terminal after deploying the identity component.
-
-Additionally, ensure that you have subscribed to the [Delta Lake Connector for AWS Glue](https://aws.amazon.com/marketplace/pp/prodview-seypofzqhdueq?sr=0-1&ref_=beagle&applicationId=AWSMPContessa) in the **AWS Marketplace**. 
 
 ## Deploying the Databricks Delta Lake integration feature
 
@@ -14,10 +12,8 @@ To deploy the component, follow the _Preliminary Setup_, and then run the follow
 
 1. Navigate to `BackendFeatures/DeltaLakeIntegration/` folder in your terminal or Powershell[^2].
 2. Run `npm install` to install CDK app dependencies.
-3. Run `cdk deploy --all --require-approval never` to the deploy the backend feature to your AWS account.
+3. Run `cdk deploy --all --require-approval never` to the deploy the backend feature to your AWS account[^3].
 4. After the `DeltaLakeIntegrationBackend` has been deployed, capture the value of `IngestionEndpointUrl` found in the outputs of the _DeltaLakeIntegrationBackend_ stack. You can find it in the CloudFormation console, or in the terminal after deploying the identity component.
-5. Open the [AWS Glue console](https://console.aws.amazon.com/glue/home) in your AWS account, and use the left-hand navigation panel to select **ETL Jobs**.
-6. Click the checkbox for the **GlueStreamEtlJob**, and click the **Run Job** button to run the streaming ETL operations.
 
 ## Testing the Databricks Delta Lake integration feature
 
@@ -25,47 +21,11 @@ A sample Python script to generate synthetic game telemetry events has been prov
 
 1. Navigate to `BackendFeatures/DeltaLakeIntegration/tests` folder in your terminal or Powershell[^2].
 2. Install the necessary Python packages, by running `python -m pip install -r requirements.txt`.
-3. Run the following command to generate 100 synthetic game events[^3]:
+3. Run the following command to generate 100 synthetic game events[^4]:
     ```bash
     python synthetic_events.py --login-endpoint <`LoginEndpoint` value from the output of the `CustomIdentityComponentStack` stack> --backend-endpoint <`IngestionEndpointUrl` value from the `DeltaLakeIntegrationBackend` stack> --max-count 100 --console
     ```
-4. After the script has completed running, open the [Amazon S3 console](https://console.aws.amazon.com/s3), and navigate to the Bucket that starts with the `deltalakeintegrationbacken-deltalakebucketeb...`. You should see the raw data folder, similar to the following:
-    ```bash
-    .
-    ├── delta_lake_events_db
-    │   ├── events
-    │   │   ├── _delta_log
-    │   │   │   ├── 00000000000000000000.json
-    │   │   │   ├── 00000000000000000001.json
-    │   │   │   └── ...
-    │   │   ├── _delta_log_$folder$
-    │   │   ├── event_type=End Game
-    │   │   │   ├── part-00000-28c1efba-aa4f-...c000.snappy.parquet
-    │   │   │   ├── part-00000-338eeff8-fbf6-...859.c000.snappy.parquet
-    │   │   │   └── ...
-    │   │   ├── event_type=Login
-    │   │   │   ├── part-00000-1b511dc6-1b2d-...725.c000.snappy.parquet
-    │   │   │   ├── part-00000-433757c6-31dc-...1a4.c000.snappy.parquet
-    │   │   │   └── ...
-    │   │   ├── event_type=Logout
-    │   │   │   ├── part-00000-3ab206c8-8be1-4...6e8.c000.snappy.parquet
-    │   │   │   ├── part-00000-49c5a92b-d9d2-4...9b3.c000.snappy.parquet
-    │   │   │   └── ...
-    │   │   ├── event_type=New Game
-    │   │   │   ├── part-00000-90b31328-3d62-...27c.c000.snappy.parquet
-    │   │   │   ├── part-00000-a67fe3d6-6dfd-...13e.c000.snappy.parquet
-    │   │   │   └── ...
-    │   │   ├── event_type=Resume Game
-    │   │   │   ├── part-00000-4609adb0-3705-...56a.c000.snappy.parquet
-    │   │   │   ├── part-00000-a74d8992-ec58-...8de.c000.snappy.parquet
-    │   │   │   └── ...
-    │   │   ├── ...
-    │   │   │   └── GlueStreamEtlJob_$folder$
-    │   │   └── temp_$folder$
-    │   └── events_$folder$
-    ├── delta_lake_events_db_$folder$
-    └── ...
-    ```
+4. After the script has completed running, open the Delta Live Tables to curate, and analyze the synthetic game event data.
 
 ## Integration with the Game Engines
 
@@ -111,6 +71,7 @@ All API requests expect the `Authorization` header is set to the JWT value recei
 
 **Notes:**
 
-[^1]: You're also expected to have all the tools listed in [Custom Identity Component Readme](../../CustomIdentityComponent/README.md#deploy-the-custom-identity-component) installed.
-[^2]: On **Windows** make sure to run in Powershell as **Administrator**.
-[^3]: Run the command with just the `--dry-run` parameter first to verify script functionality.
+[^1]: You're also expected to have all the tools listed in [Custom Identity Component Readme](../../CustomIdentityComponent/README.md#deploy-the-custom-identity-component) installed.  
+[^2]: On **Windows** make sure to run in Powershell as **Administrator**.  
+[^3]: If you are deploying the backend feature in a different AWS Account, or AWS Region from the _CustomIdentityComponentStack_, make sure to run ```cdk bootstrap``` to bootstrap the account for CDK (see [Bootstrapping](https://docs.aws.amazon.com/cdk/v2/guide/bootstrapping.html) for more information).  
+[^4]: Run the command with just the `--dry-run` parameter first to verify script functionality.
