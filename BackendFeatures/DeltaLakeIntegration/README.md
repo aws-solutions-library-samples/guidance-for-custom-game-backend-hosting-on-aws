@@ -1,6 +1,6 @@
 # AWS Game Backend Framework Features: Databricks Delta Lake Integration
 
-This backend feature is currently ___EXPERIMENTAL___, and shows how to deploy a backend service to ingest game event telemetry data to [Delta Lake](https://docs.databricks.com/en/delta/index.html). This feature comes with a test script, from which you can then extend to using the Unreal, Unity and Godot Game Engines.
+This backend feature is currently ___EXPERIMENTAL___, and shows how to deploy a backend service to ingest game event telemetry data to [Delta Lake](https://docs.databricks.com/en/delta/index.html). It is optimized for performance, but not cost currently. If you're sending a high volume of events to the pipeline, it's recommended to modify the solution to batch the requests on the client side. This feature currently comes with a test script and Unreal integration, from which you can then extend to other game engines.
 
 ## Required preliminary setup
 
@@ -66,7 +66,6 @@ A sample Python script to generate synthetic game telemetry events has been prov
     ├── delta_lake_events_db_$folder$
     └── ...
     ```
-5. Following the Solution [README](../../README.md) to integrate the feature into your game engine.
 
 ## Integration with the Game Engines
 
