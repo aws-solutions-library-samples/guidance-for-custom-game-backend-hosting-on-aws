@@ -80,7 +80,7 @@ To test the integrations with Unreal, **open** the Unreal sample project (`Unrea
 
 This is a test level that will login as a new guest user if a save file is not present, or login using the user_id and guest_secret found in the save file if available to login as an existing user. It will then use the credentials of the logged in user to send test events to the data pipeline and print out the requests and responses.
 
-Configure the `DatabricksDeltaLakeIntegration` component of the `DatabricksDeltaLakeIntegration` Actor to set up API endpoints. Set `M Login Endpoint` value to the `LoginEndpoint` value found in the CustomIdentityComponentStack Outputs. Then set the `M Data Pipeline Endpoint` to the endpoint value found in the *DeltaLakeIntegrationBackend* Outputs.
+Configure the `DatabricksDeltaLakeIntegration` component of the `DatabricksDeltaLakeIntegration` Actor to set up API endpoints. Set `M Login Endpoint` value to the `LoginEndpoint` value found in the CustomIdentityComponentStack Outputs. Then set the `M Data Pipeline Endpoint` to the endpoint value `DeltaLakeIntegrationBackendEndpointUrlWithoutResource` found in the *DeltaLakeIntegrationBackend* Outputs. **NOTE:** This is a different value than the one used in the test script and it doesn't contain the `put-record` resource as part of the URL (the EventSender will add this).
 
 Press play to test the integration. You'll see the login as a guest user, sending of 5 test events, and the responses from the backend.
 

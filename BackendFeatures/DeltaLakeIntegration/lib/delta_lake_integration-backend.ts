@@ -354,6 +354,6 @@ export class DeltaLakeIntegrationBackend extends cdk.Stack {
     // Outputs
     new CfnOutput(this, 'GlueJobName', {value: glueJobName});
     new CfnOutput(this, 'DeltaLakeIntegrationBackendEndpointUrl', {value: `${httpApi.attrApiEndpoint}/prod/put-record`});
-
+    new CfnOutput(this, 'DeltaLakeIntegrationBackendEndpointUrlWithoutResource', {value: `${httpApi.attrApiEndpoint}/prod/`});
   }
 }
