@@ -14,14 +14,10 @@ tags['CostCenter'] = '1000';
 // TODO: Set this to your issuer endpoint URL
 const ISSUER_ENDPOINT = 'https://abcdefg123.cloudfront.net';
 
-// TODO: Set this to the name of the the ETL Script
-const ETL_SCRIPT = 'spark_datalake_writes.py';
-
 const app = new App();
 
 var backend = new DeltaLakeIntegrationBackend(app, 'DeltaLakeIntegrationBackend', {
-  issuerEndpointUrl: ISSUER_ENDPOINT,
-  etlScriptName: ETL_SCRIPT
+  issuerEndpointUrl: ISSUER_ENDPOINT
 });
 
 // Apply all the tags in the tags object to the stack
