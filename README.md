@@ -23,14 +23,14 @@ The AWS Game Backend Framework allows you to integrate your game clients with AW
 The framework consists of four key components:
 * Custom identity component, that can be deployed with AWS Cloud Development Kit. Supports __guest identities__, __Steam__, __Sign in with Apple__, __Google Play__, and __Facebook__.
 * Lightweight game engine SDK:s for __Unreal Engine 5__,  __Unity 2021 (and up)__, and __Godot 4__
-* Sample backend component templates to get started with backend feature development
-* Backend Features for specific use cases (such as **Amazon GameLift integration**)
+* Sample backend component templates showcasing simple player data management to get started with backend feature development
+* Backend Features for specific use cases (such as **Amazon GameLift integration** and **Databricks Delta Lake integration**)
 
 The currently supported engines include Unity, Unreal Engine 5, and Godot 4, but as the features are exposed as REST API:s, you can easily integrate the identity component and custom backend components to any game engine of choice.
 
 The currently supported login options for the identity component include __guest identities__, __Steam__, __Sign in with Apple__, __Google Play__, and __Facebook__. Using these integrations as a template, it's possible to add other platforms such as console identity systems and other PC game stores.
 
-**NEW!** If you're looking for quick and easy step by step guide to get started, check out the [**Workshop for AWS Game Backend Framework**](https://catalog.us-east-1.prod.workshops.aws/workshops/086bb355-4fdc-4e63-8ca7-af7cfc45d4f2/en-US).
+If you're looking for quick and easy step by step guide to get started, check out the [**Workshop for AWS Game Backend Framework**](https://catalog.us-east-1.prod.workshops.aws/workshops/086bb355-4fdc-4e63-8ca7-af7cfc45d4f2/en-US).
 
 **Note**: _“The sample code; software libraries; command line tools; proofs of concept; templates; or other related technology (including any of the foregoing that are provided by our personnel) is provided to you as AWS Content under the AWS Customer Agreement, or the relevant written agreement between you and AWS (whichever applies). You should not use this AWS Content in your production accounts, or on production or other critical data. You are responsible for testing, securing, and optimizing the AWS Content, such as sample code, as appropriate for production grade use based on your specific quality control practices and standards. Deploying AWS Content may incur AWS charges for creating or using AWS chargeable resources, such as running Amazon EC2 instances or using Amazon S3 storage.”_
 
@@ -49,8 +49,9 @@ The currently supported login options for the identity component include __guest
   * Demonstrate how to get started with serverless and containerized backend development, with authenticated user access
   * Implement best practices such as resource tagging, observability (with distributed tracing), and security guidelines (cdk-nag)
 * **Backend Features**
-  * Full backend feature implementations for different use cases (currently Amazon GameLift integration)
-  * See the [Amazon GameLift Integration Readme](BackendFeatures/AmazonGameLiftIntegration/README.md) for details
+  * Full backend feature implementations for different use cases
+  * See the [Amazon GameLift Integration Readme](BackendFeatures/AmazonGameLiftIntegration/README.md) for details on the Amazon GameLift integration
+  * See the [Databricks Delta Lake Integration Readme](BackendFeatures/DeltaLakeIntegration/README.md) for details on the Databrics Delta Lake integration
 * **Unreal Engine 5 Samples with AWS Game SDK** (`UnrealSample` folder contains [Readme](UnrealSample/README.md))
   * Unreal Engine 5 version of the AWS Game SDK and sample levels for integration with different identity providers
   * For SDK details see the [Unreal SDK Overview](UnrealSample/README.md#sdk-overview)
