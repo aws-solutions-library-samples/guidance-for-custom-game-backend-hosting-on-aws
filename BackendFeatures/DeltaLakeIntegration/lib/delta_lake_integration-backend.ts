@@ -319,7 +319,7 @@ export class DeltaLakeIntegrationBackend extends cdk.Stack {
       handler: 'index.lambda_handler',
       timeout: Duration.seconds(30),
       tracing: lambda.Tracing.ACTIVE,
-      memorySize: 1024,
+      memorySize: 256,
       logRetention: logs.RetentionDays.ONE_MONTH,
       logRetentionRole: lambdaLoggingRole,
       environment: {
