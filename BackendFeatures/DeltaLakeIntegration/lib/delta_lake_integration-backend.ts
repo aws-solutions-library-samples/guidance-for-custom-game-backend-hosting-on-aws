@@ -151,5 +151,8 @@ export class DeltaLakeIntegrationBackend extends cdk.Stack {
     // Outputs
     new CfnOutput(this, 'DeltaLakeIntegrationBackendEndpointUrl', {value: `${httpApi.attrApiEndpoint}/prod/put-record`});
     new CfnOutput(this, 'DeltaLakeIntegrationBackendEndpointUrlWithoutResource', {value: `${httpApi.attrApiEndpoint}/prod/`});
+    // Define an outputs for the Kinesis stream
+    new CfnOutput(this, 'DeltaLakeIntegrationBackendKinesisStreamName', {value: kinesisStream.streamName});
+    new CfnOutput(this, 'DeltaLakeIntegrationBackendKinesisStreamArn', {value: kinesisStream.streamArn});
   }
 }
