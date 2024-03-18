@@ -15,6 +15,10 @@ To deploy the component, follow the _Preliminary Setup_, and then run the follow
 3. Run `cdk deploy --all --require-approval never` to the deploy the backend feature to your AWS account[^3].
 4. After the `DeltaLakeIntegrationBackend` has been deployed, capture the value of `IngestionEndpointUrl` found in the outputs of the _DeltaLakeIntegrationBackend_ stack. You can find it in the CloudFormation console, or in the terminal after deploying the identity component.
 
+## Integration with Databricks Delta Lake
+
+To integrate with Databricks Delta lake, follow the information in [this blog post](https://www.databricks.com/blog/managing-analyzing-game-data-scale). You will find the **Kinesis Stream Name** and the **Kinesis Stream Arn** in the outputs of the *DeltaLakeIntegrationBackend* CloudFormation Stack, which you will need to integrate with Delta Lake.
+
 ## Testing the Databricks Delta Lake integration feature
 
 A sample Python script to generate synthetic game telemetry events has been provided in the `tests` folder. Run the following steps to test the integration:
@@ -26,6 +30,8 @@ A sample Python script to generate synthetic game telemetry events has been prov
     python synthetic_events.py --login-endpoint <`LoginEndpoint` value from the output of the `CustomIdentityComponentStack` stack> --backend-endpoint <`IngestionEndpointUrl` value from the `DeltaLakeIntegrationBackend` stack> --max-count 100 --console
     ```
 4. After the script has completed running, open the Delta Live Tables to curate, and analyze the synthetic game event data.
+
+
 
 ## Integration with the Game Engines
 
