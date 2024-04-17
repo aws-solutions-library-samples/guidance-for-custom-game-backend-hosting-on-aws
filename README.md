@@ -2,6 +2,7 @@
 
 - [Introduction](#introduction)
   * [Solution components](#solution-components)
+  * [Quick Start](#quick-start)
   * [How does it work?](#how-does-it-work)
 - [Deploying the solution](#deploying-the-solution)
   * [1. Deploy the Custom Identity Component](#1-deploy-the-custom-identity-component)
@@ -13,8 +14,10 @@
 - [Governance](#governance)
 - [Cost estimations and scalability considerations](#cost-estimations-and-scalability-considerations)
   * [Scalability considerations](#scalability-considerations)
+- [Clean up](#clean-up)
 - [Security](#security)
 - [License](#license)
+
 
 # Introduction
 
@@ -33,6 +36,23 @@ The currently supported login options for the identity component include __guest
 If you're looking for quick and easy step by step guide to get started, check out the [**Workshop for AWS Game Backend Framework**](https://catalog.us-east-1.prod.workshops.aws/workshops/086bb355-4fdc-4e63-8ca7-af7cfc45d4f2/en-US).
 
 **Note**: _“The sample code; software libraries; command line tools; proofs of concept; templates; or other related technology (including any of the foregoing that are provided by our personnel) is provided to you as AWS Content under the AWS Customer Agreement, or the relevant written agreement between you and AWS (whichever applies). You should not use this AWS Content in your production accounts, or on production or other critical data. You are responsible for testing, securing, and optimizing the AWS Content, such as sample code, as appropriate for production grade use based on your specific quality control practices and standards. Deploying AWS Content may incur AWS charges for creating or using AWS chargeable resources, such as running Amazon EC2 instances or using Amazon S3 storage.”_
+
+## Quick Start
+
+If you just want to quickly test the solution and how it integrates with your game engine, all you need is an AWS account! No tool installations or configuration needed:
+
+1. Make sure you're logged in to your AWS Account, **open** your [AWS Management Console](https://us-east-1.console.aws.amazon.com/console/home?region=us-east-1), and **select** the *AWS CloudShell* icon on the top right to open your cloud shell (if you can't find it, see the [docs](https://docs.aws.amazon.com/cloudshell/latest/userguide/getting-started.html))
+2. In the CloudShell, **run** the following commands to set up a simple deployment pipeline in AWS CodeBuild, and then deploy the identity component and the serverless backend component template
+
+```bash
+wget https://ws-assets-prod-iad-r-iad-ed304a55c2ca1aee.s3.us-east-1.amazonaws.com/086bb355-4fdc-4e63-8ca7-af7cfc45d4f2/deployment_pipeline.yml
+aws cloudformation deploy --template-file deployment_pipeline.yml --stack-name AWSGameBackendFrameworkDeploymentPipeline --capabilities CAPABILITY_IAM
+aws codebuild start-build --project-name GameBackendCodeBuildProject
+```
+
+You can now **navigate** to the AWS CodeBuild management console, **select** the Project *GameBackendCodeBuildProject* and **select** the the ongoing build to review it's progress. Deploying the identity component and serverless backend component template takes about 15 minutes. You can also navigate to the *AWS CloudFormation* console to see the stacks being deployed.
+
+Once the build is successful, you're all set to test! You can jump right into [Test the client integrations](#3-test-the-client-integrations) and select the relevant Readme for you game engine to start testing. Make sure to follow the [Clean up](#clean-up) to clean up all your resources afterwards if you don't need them. 
 
 ## Solution components
 
@@ -102,10 +122,6 @@ See the [Readme for Sample Backend Components](BackendComponentSamples/README.md
 
 To test the client integrations, you can use the Unreal, Unity, or Godot sample projects (`UnrealSample`, `UnitySample` and `GodotSample`), that include a lightweight SDK called `AWSGameSDK` to interact with the identity component and your backend features.
 
-## 4. Optional: Deploy some of the Backend Features
-
-After validating your deployment, you can test some of the backend features, such as [Amazon GameLift Integration](BackendFeatures/AmazonGameLiftIntegration/README.md) for building global multiplayer game backends and game server hosting.
-
 ### Unreal Engine 5 SDK and Integration Samples
 
 See the [Unreal SDK Readme](UnrealSample/README.md#unreal-integration-samples) for details on the Unreal 5 integration SDK and samples
@@ -117,6 +133,10 @@ See the [Unity SDK Readme](UnitySample/README.md#unity-integration-samples) for 
 ### Godot 4 SDK and Integration Samples
 
 See the [Godot 4 SDK Readme](GodotSample/README.md#unity-integration-samples) for details on the Godot 4 integration SDK and samples
+
+## 4. Optional: Deploy some of the Backend Features
+
+After validating your deployment, you can test some of the backend features, such as [Amazon GameLift Integration](BackendFeatures/AmazonGameLiftIntegration/README.md) for building global multiplayer game backends and game server hosting.
 
 # Governance
 
@@ -171,6 +191,15 @@ As all components of the identity solution are serverless, and Amazon DynamoDB i
 The custom identity component has been tested with 2783 requests/second combining new user creation and existing user login. This test didn't surface any errors outside of very few occasional Lambda execution failures. This transaction amount per second can support around 2.5 million concurrent users (CCU), as users log in or refresh acccess tokens every 15 minutes. P90 reponse time was 160ms. In addition, the containerized Fargate Node.js backend component was tested at 5566 request/per second (get and set player data on each login), and it provided a p90 of 48ms when pre-scaled to 25 Tasks. There's no reason to expect this is the upper limit of the solution, but you always need to validate and load test for your own use case. The default account Lambda concurrency limit of 400 was reached at this scale, but you can request an increase to that limit.
 
 For logging in with 3rd party identity providers like Steam, Apple, Google Play or Facebook, the backend will make requests to their endpoints to validate tokens. These endpoints might have their own limits that you need to validate with the 3rd parties directly. As the solution supports up to 7 days of refreshing an existing access token by default (using the refresh token), this can massively reduce the amount of times you need to log in directly with the game platform identities and reduces the load from these endpoints. You can freely control this limit and allow even longer living refresh tokens, as long as you also extend the keys rotation schedule.
+
+## Clean up
+
+To clean up the resources you've deployed:
+
+1. Open the *AWS Management Console* and navigate to the *AWS CloudFormation* console
+2. Delete the stacks you've deployed one by one from top down. This might include: *NodeJsFargateApiStack*, *PythonServerlessHttpApiStack*, *CustomIdentityComponentStack* and *DeploymentPipelineStack*
+3. Open the *CloudWatch* management console, select *Log groups* and delete the `/aws/apigateway/CustomIdentityComponentApiLogs` log group
+4. We don't generally recommend deleting the *CDKToolkit* stack as you might deploy other CDK applications later on. But you can delete this too, as long as you empty the S3 buckets and ECR repositories generated by it first.
 
 ## Security
 
