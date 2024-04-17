@@ -24,6 +24,8 @@ This backend feature integration shows how to deploy a backend service that inte
 
 This backend feature **requires** that you have [deployed the Identity component](../../CustomIdentityComponent/README.md). Once that is done, **set** the `const ISSUER_ENDPOINT` in `BackendFeatures/AmazonGameLiftIntegration/bin/amazon_gamelift_integration.ts` to the value of `IssuerEndpointUrl` found in the stack outputs of the _CustomIdentityComponentStack_. You can find it in the CloudFormation console, or in the terminal after deploying the identity component.
 
+The issuer endpoint is a CloudFormation parameter and the value you set above sets the default value. It's also possible to set the endpoint later on as part of the CDK stack deployment using command line parameters (`--parameters IssuerEndpointUrl=<YOUR-ENDPOINT-HERE>"`).
+
 Make sure that you have Docker running before opening any terminals or Powershell as both the backend deployment as well as game server build process will use Docker. You're also expected to have all the tools listed in [Custom Identity Component Readme](../../CustomIdentityComponent/README.md#deploy-the-custom-identity-component) installed.
 
 **NOTE on Deployment Region:** Your deployment region for all the CDK stacks should be one of the locations used by the Amazon GameLift fleet to avoid issues with the deployment. The options include **us-east-1**, **us-west-2**, and **eu-west-1**. If you would like to deploy in another region, you will need to modify the locations in `BackendFeatures/AmazonGameLiftIntegration/lib/amazon_gamelift_integration-gamelift-resources.ts` as well as the game engine client implementation you're using.
@@ -38,7 +40,7 @@ To deploy the component, follow the _Preliminary Setup_, and then run the follow
   * Option 2: Run `./buildserver.sh` (MacOS/Linux) or `./buildserver.ps1` (Windows Administrator Powershell) to build the game server in a container (which is then copied to the `LinuxServerBuild` folder). This takes time as the Amazon GameLift C++ Server SDK is downloaded and built along with other dependencies before building the sample C++ server.
 3. Navigate to `BackendFeatures/AmazonGameLiftIntegration` by running `cd ..`
 4. Run `npm install` to install CDK app dependencies
-6. Run `cdk deploy --all` to deploy both the backend APIs as well as the Amazon GameLift resources CDK apps to your account. You will need to accept the deployment. This will take around 45 minutes to fully deploy the game servers globally to all default locations (us-east-1, us-west-2, and eu-west-1)
+6. Run `cdk deploy --all` to deploy both the backend APIs as well as the Amazon GameLift resources CDK apps to your account. You will need to accept the deployment. This will take around 45 minutes to fully deploy the game servers globally to all default locations (us-east-1, us-west-2, and eu-west-1). It's also possible to set the issuer endpoint here using command line parameters (`--parameters IssuerEndpointUrl=<YOUR-ENDPOINT-HERE>"`).
 
 # Architecture
 
