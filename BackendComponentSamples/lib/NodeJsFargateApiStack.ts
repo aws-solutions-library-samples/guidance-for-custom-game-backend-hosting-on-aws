@@ -13,6 +13,7 @@ import * as s3  from 'aws-cdk-lib/aws-s3';
 import { NagSuppressions } from 'cdk-nag';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as logs from 'aws-cdk-lib/aws-logs';
+import * as cdk from 'aws-cdk-lib';
 
 export interface NodeJsFargateApiStackProps extends StackProps {
   // custom identity provider issuer URL
@@ -22,6 +23,13 @@ export interface NodeJsFargateApiStackProps extends StackProps {
 export class NodeJsFargateApiStack extends Stack {
   constructor(scope: Construct, id: string, props: NodeJsFargateApiStackProps) {
     super(scope, id, props);
+
+    // Define a CloudFormation parameter for the issuer endpoint URL
+    const issuerEndpointUrl = new cdk.CfnParameter(this, 'IssuerEndpointUrl', {
+      type: 'String',
+      description: 'The URL of the issuer endpoint',
+      default: props.issuerEndpointUrl,
+    });
 
     // Bucket for logging ELB and VPC access
     var loggingBucket = new s3.Bucket(this, 'IdentityComponentLoggingBucket', {
@@ -73,7 +81,7 @@ export class NodeJsFargateApiStack extends Stack {
       image: ecs.ContainerImage.fromDockerImageAsset(containerAsset),
       // Add environment variable with issuer endpoint
       environment: {
-        ISSUER_ENDPOINT: props.issuerEndpointUrl,
+        ISSUER_ENDPOINT: issuerEndpointUrl.valueAsString,
         PLAYER_DATA_TABLE_NAME: playerDataTable.tableName
       },
       portMappings: [

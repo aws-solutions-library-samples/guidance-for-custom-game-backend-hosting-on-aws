@@ -17,6 +17,13 @@ export class AmazonGameLiftIntegrationBackend extends cdk.Stack {
   constructor(scope: Construct, id: string, props: AmazonGameLiftIntegrationBackendProps) {
     super(scope, id, props);
 
+    // Define a CloudFormation parameter for the issuer endpoint URL
+    const issuerEndpointUrl = new cdk.CfnParameter(this, 'IssuerEndpointUrl', {
+      type: 'String',
+      description: 'The URL of the issuer endpoint',
+      default: props.issuerEndpointUrl,
+    });
+
     // Define an SNS topic as the FlexMatch notification target
     const topic = new sns.Topic(this, 'FlexMatchEventsTopic', {
     });
@@ -76,7 +83,7 @@ export class AmazonGameLiftIntegrationBackend extends cdk.Stack {
       identitySource: ['$request.header.Authorization'],
       jwtConfiguration: {
         audience: ['gamebackend'],
-        issuer: props.issuerEndpointUrl
+        issuer: issuerEndpointUrl.valueAsString
       }
     });
 

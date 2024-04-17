@@ -10,6 +10,7 @@ import * as dynamodb from 'aws-cdk-lib/aws-dynamodb'
 import * as iam from 'aws-cdk-lib/aws-iam';
 import { NagSuppressions } from 'cdk-nag';
 import * as logs from 'aws-cdk-lib/aws-logs';
+import * as cdk from 'aws-cdk-lib';
 
 export interface ServerlessHttpApiStackProps extends StackProps {
   // custom identity provider issuer URL
@@ -19,6 +20,13 @@ export interface ServerlessHttpApiStackProps extends StackProps {
 export class PythonServerlessHttpApiStack extends Stack {
   constructor(scope: Construct, id: string, props: ServerlessHttpApiStackProps) {
     super(scope, id, props);
+
+    // Define a CloudFormation parameter for the issuer endpoint URL
+    const issuerEndpointUrl = new cdk.CfnParameter(this, 'IssuerEndpointUrl', {
+      type: 'String',
+      description: 'The URL of the issuer endpoint',
+      default: props.issuerEndpointUrl,
+    });
 
     // HTTP Api for the backend
     const httpApi = new apigateway.CfnApi(this, 'PythonServerlessHttpApi', {
@@ -52,7 +60,7 @@ export class PythonServerlessHttpApiStack extends Stack {
       identitySource: ['$request.header.Authorization'],
       jwtConfiguration: {
         audience: ['gamebackend'],
-        issuer: props.issuerEndpointUrl,
+        issuer: issuerEndpointUrl.valueAsString,
       }
     });
 
