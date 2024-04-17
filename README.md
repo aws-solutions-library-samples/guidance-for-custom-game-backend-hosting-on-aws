@@ -48,6 +48,7 @@ If you just want to **quickly test** the solution and how it integrates with you
 wget https://ws-assets-prod-iad-r-iad-ed304a55c2ca1aee.s3.us-east-1.amazonaws.com/086bb355-4fdc-4e63-8ca7-af7cfc45d4f2/deployment_pipeline.yml
 aws cloudformation deploy --template-file deployment_pipeline.yml --stack-name AWSGameBackendFrameworkDeploymentPipeline --capabilities CAPABILITY_IAM
 aws codebuild start-build --project-name GameBackendCodeBuildProject
+
 ```
 
 You can now **navigate** to the AWS CodeBuild management console, **select** the Project *GameBackendCodeBuildProject* and **select** the the ongoing build to review it's progress. Deploying the identity component and serverless backend component template takes about 15 minutes. You can also navigate to the *AWS CloudFormation* console to see the stacks being deployed.
