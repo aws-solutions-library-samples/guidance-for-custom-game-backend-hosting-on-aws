@@ -47,7 +47,8 @@ If you just want to **quickly test** the solution and how it integrates with you
 ```bash
 wget https://ws-assets-prod-iad-r-iad-ed304a55c2ca1aee.s3.us-east-1.amazonaws.com/086bb355-4fdc-4e63-8ca7-af7cfc45d4f2/deployment_pipeline.yml
 aws cloudformation deploy --template-file deployment_pipeline.yml --stack-name AWSGameBackendFrameworkDeploymentPipeline --capabilities CAPABILITY_IAM
-aws codebuild start-build --project-name GameBackendCodeBuildProject
+aws codebuild start-build --project-name GameBackendCodeBuildProject > output.json
+echo 'You can now move on to AWS CodeBuild console to review the ongoing deployment...'
 
 ```
 
