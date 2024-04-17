@@ -39,7 +39,7 @@ If you're looking for quick and easy step by step guide to get started, check ou
 
 ## Quick Start
 
-If you just want to quickly test the solution and how it integrates with your game engine, all you need is an AWS account! No tool installations or configuration needed:
+If you just want to **quickly test** the solution and how it integrates with your game engine, **all you need is an AWS account**. **No tool installations needed**. Follow the steps below:
 
 1. Make sure you're logged in to your AWS Account, **open** your [AWS Management Console](https://us-east-1.console.aws.amazon.com/console/home?region=us-east-1), and **select** the *AWS CloudShell* icon on the top right to open your cloud shell (if you can't find it, see the [docs](https://docs.aws.amazon.com/cloudshell/latest/userguide/getting-started.html))
 2. In the CloudShell, **run** the following commands to set up a simple deployment pipeline in AWS CodeBuild, and then deploy the identity component and the serverless backend component template
