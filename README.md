@@ -33,13 +33,13 @@ The currently supported engines include Unity, Unreal Engine 5, and Godot 4, but
 
 The currently supported login options for the identity component include __guest identities__, __Steam__, __Sign in with Apple__, __Google Play__, and __Facebook__. Using these integrations as a template, it's possible to add other platforms such as console identity systems and other PC game stores.
 
-If you're looking for quick and easy step by step guide to get started, check out the [**Workshop for AWS Game Backend Framework**](https://catalog.us-east-1.prod.workshops.aws/workshops/086bb355-4fdc-4e63-8ca7-af7cfc45d4f2/en-US).
+If you're looking for quick and easy way to get started, check out the [**Quick Start**](#quick-start). Also check out the [**Workshop for AWS Game Backend Framework**](https://catalog.us-east-1.prod.workshops.aws/workshops/086bb355-4fdc-4e63-8ca7-af7cfc45d4f2/en-US) for step-by-step hands-on labs on the different components of the solution.
 
 **Note**: _“The sample code; software libraries; command line tools; proofs of concept; templates; or other related technology (including any of the foregoing that are provided by our personnel) is provided to you as AWS Content under the AWS Customer Agreement, or the relevant written agreement between you and AWS (whichever applies). You should not use this AWS Content in your production accounts, or on production or other critical data. You are responsible for testing, securing, and optimizing the AWS Content, such as sample code, as appropriate for production grade use based on your specific quality control practices and standards. Deploying AWS Content may incur AWS charges for creating or using AWS chargeable resources, such as running Amazon EC2 instances or using Amazon S3 storage.”_
 
 ## Quick Start
 
-If you just want to **quickly test** the solution and how it integrates with your game engine, **all you need is an AWS account**. **No tool installations needed**. Follow the steps below:
+If you just want to **quickly test** the solution and how it integrates with your game engine, **all you need is an AWS account**. **No tool installations needed**. Follow the two steps below:
 
 1. Make sure you're logged in to your AWS Account, **open** your [AWS Management Console](https://us-east-1.console.aws.amazon.com/console/home?region=us-east-1), and **select** the *AWS CloudShell* icon on the top right to open your cloud shell (if you can't find it, see the [docs](https://docs.aws.amazon.com/cloudshell/latest/userguide/getting-started.html))
 2. In the CloudShell, **run** the following commands to set up a simple deployment pipeline in AWS CodeBuild, and then deploy the identity component and the serverless backend component template
