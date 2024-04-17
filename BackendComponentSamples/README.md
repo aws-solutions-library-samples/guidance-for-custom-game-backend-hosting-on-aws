@@ -17,7 +17,7 @@ All the backend template components leverage **AWS X-Ray** for distributed traci
 
 Set the `const issuerEndpointUrl` in `BackendComponentSamples/bin/backend_component_samples.ts` to the value of `IssuerEndpointUrl` found in the stack outputs of the _CustomIdentityComponentStack_. You can find it in the CloudFormation console, or in the terminal after deploying the identity component.
 
-The issuer endpoint is a CloudFormation parameter and the value you set above sets the default value. It's also possible to set the endpoint later on as part of the CDK stack deployment using command line parameters (`--parameters IssuerEndpointUrl=<YOUR-ENDPOINT-HERE>"`).
+The issuer endpoint is a CloudFormation parameter and the value you set above sets the default value. It's also possible to set the endpoint later on as part of the CDK stack deployment using command line parameters (`--parameters IssuerEndpointUrl=<YOUR-ENDPOINT-HERE>`).
 
 # Serverless REST API sample component template
 
@@ -27,7 +27,7 @@ To deploy the component, follow the _Preliminary Setup_, and then run the follow
 1. `cd ..` to return to the root and `cd BackendComponentSamples` to navigate to samples
 2. `npm install` to install CDK app dependencies
 4. `cdk synth` to synthesize the CDK app and validate your configuration works
-5. `cdk deploy PythonServerlessHttpApiStack` to deploy the CDK app to your account. It's also possible to set the issuer endpoint here using command line parameters (`--parameters IssuerEndpointUrl=<YOUR-ENDPOINT-HERE>"`).
+5. `cdk deploy PythonServerlessHttpApiStack` to deploy the CDK app to your account. It's also possible to set the issuer endpoint here using command line parameters (`--parameters IssuerEndpointUrl=<YOUR-ENDPOINT-HERE>`).
 
 You'll see a new stack deployed in the AWS CloudFormation console, with an API Gateway HTTP API to set and get player data, backed up with Python Lambda functions and an Amazon DynamoDB PlayerData table.
 
