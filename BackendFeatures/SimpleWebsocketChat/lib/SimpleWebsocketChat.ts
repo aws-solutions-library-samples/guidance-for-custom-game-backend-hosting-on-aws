@@ -39,9 +39,9 @@ export class SimpleWebsocketChat extends Stack {
       serverAccessLogsPrefix: 'logging-bucket-access-logs',
     });
 
-    // VPC for our Fargate service
+    // VPC for our Fargate service, using 2 AZs to reduce the amount of NAT Gateways, feel free to use 3 for higher availability
     const vpc = new ec2.Vpc(this, "MyVpc", {
-      maxAzs: 3
+      maxAzs: 2
     });
 
     // enable flow logs for the VPC
@@ -104,6 +104,11 @@ export class SimpleWebsocketChat extends Stack {
           containerPort: 80,
           hostPort: 80,
           protocol: ecs.Protocol.TCP
+        },
+        {
+          containerPort: 8080,
+          hostPort: 8080,
+          protocol: ecs.Protocol.TCP
         }],
       logging: new ecs.AwsLogDriver({
         streamPrefix: 'SimpleWebsocketBackendService',
@@ -153,8 +158,29 @@ export class SimpleWebsocketChat extends Stack {
       taskDefinition: taskDefinition,
       memoryLimitMiB: 1024,
       publicLoadBalancer: true,
-      securityGroups: [serviceSecurityGroup]
+      securityGroups: [serviceSecurityGroup],
+      listenerPort: 80
     });
+    
+    // Set the target group health check port to 8080 that hosts our health check HTTP server
+    fargateService.targetGroup.configureHealthCheck({
+      port: "8080"
+    });
+
+    // Allow access from the Service ALB security group to the ECS service 80 and 8080 ports
+    serviceSecurityGroup.connections.allowFrom(fargateService.loadBalancer, ec2.Port.tcp(80));
+    serviceSecurityGroup.connections.allowFrom(fargateService.loadBalancer, ec2.Port.tcp(8080));
+
+    // Add the Websocket listener
+    //fargateService.loadBalancer.addListener("WebsocketListener", {
+    //  port: 80,
+    //  defaultTargetGroups: [fargateService.targetGroup]
+    //});
+
+    // Add security group access to port 80 on the load balancer
+    fargateService.loadBalancer.connections.allowFromAnyIpv4(ec2.Port.tcp(80));
+    // Add security group access to port 80 on the service from the load balancer
+    fargateService.service.connections.allowFrom(fargateService.loadBalancer, ec2.Port.tcp(80));
 
     // Setup scaling based on CPU load for the service scaling between 3 and 10 Tasks
     // NOTE: You would set an appropriate maximum here to match your game's traffic!

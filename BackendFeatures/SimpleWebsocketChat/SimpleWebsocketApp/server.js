@@ -20,41 +20,45 @@ const verifier = JwtRsaVerifier.create({
   scope: ["guest", "authenticated"], // We accept guest and authenticated scope
 });
 
+// WEBSOCKET SERVER on 80
+
+const WebSocket = require('ws');
+const wss = new WebSocket.Server({ port: 80 });
+const url = require('url');
+
+wss.on('connection', (ws, req) => {
+  const params = url.parse(req.url, true);
+  // Iterate and print the parameters, we'll look for the token to validate
+  Object.keys(params.query).forEach(key => {
+    console.log(key + ': ' + params.query[key]);
+  });
+
+  ws.on('message', function message(data) {
+    console.log('received: %s', data);
+    ws.send("Received: " + data);
+  });
+
+  ws.send('something'); // send a message
+
+});
+
+// HEALTH CHECK SERVER on 8080
+
 const express = require('express');
 
 // Server constants
-const PORT = 80;
+const PORT = 8080;
 const HOST = '0.0.0.0';
 
 // Server app
 const app = express();
 
-app.use(AWSXRay.express.openSegment('SimpleWebsocketChat-Connect'));
-
-// TODO: Replace with Websocket logic
-app.get('/connect', async (req, res) => {
-
-  // Validate token first
-  var payload = null;
-  try {
-    payload = await verifier.verify(req.header("Authorization"));
-    console.log("Token is valid"); //. Payload:", payload);
-  } catch (err) {
-    console.log(err);
-    res.status(403).json({ statusCode: 403, message: "Token not valid" });
-    return;
-  }
-
-  // TODO: Replace with Redis Pub/Sub and Websockets
-
-});
-
-app.use(AWSXRay.express.closeSegment());
-
+app.use(AWSXRay.express.openSegment('SimpleWebsocketChat-HealthCheck'));
 // health check for root get
 app.get('/', (req, res) => {
   res.status(200).json({ statusCode: 200, message: "OK" });
 } );
+app.use(AWSXRay.express.closeSegment());
 
 // Setup app
 app.listen(PORT, HOST, () => {
