@@ -20,25 +20,41 @@ const verifier = JwtRsaVerifier.create({
   scope: ["guest", "authenticated"], // We accept guest and authenticated scope
 });
 
+
 // WEBSOCKET SERVER on 80
 
 const WebSocket = require('ws');
 const wss = new WebSocket.Server({ port: 80 });
 const url = require('url');
 
-wss.on('connection', (ws, req) => {
+wss.on('connection', async (ws, req) => {
+
+  console.log("New websocket connection");
+
   const params = url.parse(req.url, true);
-  // Iterate and print the parameters, we'll look for the token to validate
-  Object.keys(params.query).forEach(key => {
-    console.log(key + ': ' + params.query[key]);
-  });
+  // If no token is found, return an error
+  if (!params.query.auth_token) {
+    // Reject the connection
+    ws.send("No authentication token provided");
+    ws.close();
+  }
+  
+  try {
+    var payload = await verifier.verify(params.query.auth_token);
+    console.log("Token is valid");
+  } catch (err) {
+    console.log(err);
+    ws.send("invalid token");
+    ws.close();
+    return;
+  }
 
   ws.on('message', function message(data) {
     console.log('received: %s', data);
     ws.send("Received: " + data);
   });
 
-  ws.send('something'); // send a message
+  ws.send('Successfully connected!'); // send a message
 
 });
 
