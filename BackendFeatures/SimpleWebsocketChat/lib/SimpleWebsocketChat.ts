@@ -14,6 +14,8 @@ import * as iam from 'aws-cdk-lib/aws-iam';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import * as cdk from 'aws-cdk-lib';
 import * as elasticache from 'aws-cdk-lib/aws-elasticache';
+import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
+import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
 
 export interface SimpleWebsocketChatProps extends StackProps {
   // custom identity provider issuer URL
@@ -31,7 +33,7 @@ export class SimpleWebsocketChat extends Stack {
       default: props.issuerEndpointUrl,
     });
 
-    // Bucket for logging ELB and VPC access
+    // Bucket for logging ELB and VPC access, and CloudFront logs
     var loggingBucket = new s3.Bucket(this, 'IdentityComponentLoggingBucket', {
       enforceSSL: true,
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
@@ -171,12 +173,6 @@ export class SimpleWebsocketChat extends Stack {
     serviceSecurityGroup.connections.allowFrom(fargateService.loadBalancer, ec2.Port.tcp(80));
     serviceSecurityGroup.connections.allowFrom(fargateService.loadBalancer, ec2.Port.tcp(8080));
 
-    // Add the Websocket listener
-    //fargateService.loadBalancer.addListener("WebsocketListener", {
-    //  port: 80,
-    //  defaultTargetGroups: [fargateService.targetGroup]
-    //});
-
     // Add security group access to port 80 on the load balancer
     fargateService.loadBalancer.connections.allowFromAnyIpv4(ec2.Port.tcp(80));
     // Add security group access to port 80 on the service from the load balancer
@@ -194,6 +190,28 @@ export class SimpleWebsocketChat extends Stack {
 
     // enable acess logs for the Fargate service ELB
     fargateService.loadBalancer.logAccessLogs(loggingBucket, "node-js-fargate-api-logs");
+
+    // Define the fargate service load balancer origin with HTTP only
+    // NOTE: You would likely use HTTPS, your own domain and a certificate on the load balancer in a production environment
+    const origin = new origins.LoadBalancerV2Origin(fargateService.loadBalancer, {
+        protocolPolicy: cloudfront.OriginProtocolPolicy.HTTP_ONLY
+    });
+
+    // Add a CloudFront distribution for the Fargate service
+    const distribution = new cloudfront.Distribution(this, 'WebsocketCloudfront', {
+      enableLogging: true,
+      minimumProtocolVersion: cloudfront.SecurityPolicyProtocol.TLS_V1_2_2021,
+      logBucket: loggingBucket,
+      defaultBehavior: {
+        origin: origin,
+        originRequestPolicy: cloudfront.OriginRequestPolicy.ALL_VIEWER
+      },
+      
+    });
+    NagSuppressions.addResourceSuppressions(distribution, [
+      { id: 'AwsSolutions-CFR4', reason: 'TLS v.1.2 already set' },
+      { id: 'AwsSolutions-CFR5', reason: "We don't use certificates on the ALB by default, but customers can add them to enable TLS from CloudFront to origin" }
+    ], true);
 
   }
 }
