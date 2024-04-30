@@ -23,8 +23,8 @@ const verifier = JwtRsaVerifier.create({
 // Create a Redis client for our ElastiCache Serverless endpoint
 const redis = require('redis');
 const redisClient = redis.createClient({
-  host: process.env.REDIS_ENDPOINT,
-  port: 6379,
+  //host: process.env.REDIS_ENDPOINT,
+  //port: 6379,
   socket: {
     host: process.env.REDIS_ENDPOINT,
     port: 6379,
@@ -92,7 +92,7 @@ wss.on('connection', async (ws, req) => {
 });
 
 // Message handler function for messages from client through the Websocket
-function handleMessage(ws, data) {
+async function handleMessage(ws, data) {
 
     try {
       console.log('received: %s', data);
@@ -111,24 +111,19 @@ function handleMessage(ws, data) {
           redisClient.set(userID, username);
       }
       else if (dataString.startsWith("message:")) {
-          // NOTE: This needs to be a callback instead
-          redisClient.get(userID, (err, username) => {
-            if (err) {
-              console.error('Redis error:', err);
-              ws.send("Error retrieving username");
-              return;
-            }
-            if (!username) {
+          const username = await redisClient.get(userID);
+          if (!username) {
               ws.send("You must set a username first");
               return;
-            }
-            // Get the channel we're sending to from data
-            const channel = dataString.split(":")[1];
-            // Get the message from data
-            const message = dataString.split(":")[2];
-            // Placeholder: Just send the message and channel and username back
-            ws.send("TODO: Message sent to " + channel + " by " + username + ": " + message);
-          });
+          }
+          // log the datastring and ws
+          console.log("Message received: " + dataString + " from " + ws);
+          // Get the channel we're sending to from data
+          const channel = dataString.split(":")[1];
+          // Get the message from data
+          const message = dataString.split(":")[2];
+          // Placeholder: Just send the message and channel and username back
+          ws.send("TODO: Message sent to " + channel + " by " + username + ": " + message);
       } 
       else {
           ws.send("Invalid message");
