@@ -90,7 +90,7 @@ wss.on('connection', async (ws, req) => {
   // If no token is found, return an error
   if (!params.query.auth_token) {
     // Reject the connection
-    ws.send("No authentication token provided");
+    ws.send(JSON.stringify({ error: "No authentication token provided" }));
     ws.close();
   }
   
@@ -103,12 +103,12 @@ wss.on('connection', async (ws, req) => {
 
   } catch (err) {
     console.log(err);
-    ws.send("invalid token");
+    ws.send(JSON.stringify({ error: "Invalid token" }));
     ws.close();
     return;
   }
 
-  ws.send('Successfully connected!'); // send a message
+  ws.send(JSON.stringify({ message: 'Successfully connected!' })); // send a message
 
   // Callback for message handling
   ws.on('message', function message(data) {
@@ -128,22 +128,23 @@ async function handleMessage(ws, data) {
       const userID = websockets.get(ws);
 
       const dataString = data.toString();
+      const parsedData = JSON.parse(dataString);
 
       // Check message type
 
       // Set new name for the user
-      if (dataString.startsWith("set-name:")) {
+      if (parsedData.type === "set-name") {
           // Set the user's name in Redis
-          const username = dataString.split(":")[1];
+          const username = parsedData.payload.username;
           // log the userID and username
           console.log("Setting username for " + userID + " to " + username);
           redisClient.set(userID, username);
       }
       
       // Subscribe to a channel
-      else if (dataString.startsWith("join:")) {
+      else if (parsedData.type === "join") {
           // Check if we subscribed already and if not, add to the list
-          const channel = dataString.split(":")[1];
+          const channel = parsedData.payload.channel;
           // log the userID and channel
           console.log("Subscribing " + userID + " to " + channel);
           // add the user to the channel's list of subscribers and create one if it doesn't exist
@@ -158,31 +159,31 @@ async function handleMessage(ws, data) {
       }
 
       // Receive message to a channel
-      else if (dataString.startsWith("message:")) {
+      else if (parsedData.type === "message") {
           const username = await redisClient.get(userID);
           if (!username) {
-              ws.send("You must set a username first");
+              ws.send(JSON.stringify({ error: "You must set a username first" }));
               return;
           }
           // log the datastring and ws
           console.log("Message received: " + dataString + " from " + ws);
           // Get the channel we're sending to from data
-          const channel = dataString.split(":")[1];
+          const channel = parsedData.payload.channel;
           // Get the message from data
-          const message = dataString.split(":")[2];
+          const message = parsedData.payload.message;
           // Publish to channel
           redisClient.publish(channel, username + ": " + message);
           // Send response to client
-          ws.send(" Message sent to " + channel + " by " + username + ": " + message);
+          ws.send(JSON.stringify({ message: `Message sent to ${channel} by ${username}: ${message}` }));
       }
       
       // Any other messages
       else {
-          ws.send("Invalid message");
+          ws.send(JSON.stringify({ error: "Invalid message" }));
       }
     } catch (err) {
       console.log(err);
-      ws.send("Error handling message: " + err);
+      ws.send(JSON.stringify({ error: `Error handling message: ${err}` }));
     }
 }
 
