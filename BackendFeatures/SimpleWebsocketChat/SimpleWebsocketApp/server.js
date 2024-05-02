@@ -23,8 +23,6 @@ const verifier = JwtRsaVerifier.create({
 // Create a Redis client for our ElastiCache Serverless endpoint
 const redis = require('redis');
 const redisClient = redis.createClient({
-  //host: process.env.REDIS_ENDPOINT,
-  //port: 6379,
   socket: {
     host: process.env.REDIS_ENDPOINT,
     port: 6379,
@@ -32,6 +30,16 @@ const redisClient = redis.createClient({
   }
 });
 redisClient.connect();
+
+// Create a Redis client for pubSub
+const redisPubSubClient = redis.createClient({
+  socket: {
+    host: process.env.REDIS_ENDPOINT,
+    port: 6379,
+    tls: true
+  }
+});
+redisPubSubClient.connect();
 
 redisClient.on('error', (err) => {
   console.error('Redis error:', err);
@@ -45,15 +53,34 @@ redisClient.on('reconnecting', () => {
   console.log('Reconnecting to Redis...');
 });
 
+redisPubSubClient.on('error', (err) => {
+  console.error('Redis error:', err);
+});
 
-// Map of websockets mapped to userIDs
+redisPubSubClient.on('end', () => {
+  console.log('Redis connection closed');
+});
+
+redisPubSubClient.on('reconnecting', () => {
+  console.log('Reconnecting to Redis...');
+});
+
+// Websockets mapped to userIDs
 const websockets = new Map();
 
-// WEBSOCKET SERVER on 80
+// Map of maps of userIDs mapped to channels
+const channelSubscriptions = new Map();
 
+// WEBSOCKET SERVER on 80
 const WebSocket = require('ws');
 const wss = new WebSocket.Server({ port: 80 });
 const url = require('url');
+
+// Callback for pub/sub chat message handling
+const listener = (message, channel) => {
+  console.log("Received message from pub/sub channel");
+  console.log(message, channel);
+};
 
 wss.on('connection', async (ws, req) => {
 
@@ -103,6 +130,8 @@ async function handleMessage(ws, data) {
       const dataString = data.toString();
 
       // Check message type
+
+      // Set new name for the user
       if (dataString.startsWith("set-name:")) {
           // Set the user's name in Redis
           const username = dataString.split(":")[1];
@@ -110,6 +139,25 @@ async function handleMessage(ws, data) {
           console.log("Setting username for " + userID + " to " + username);
           redisClient.set(userID, username);
       }
+      
+      // Subscribe to a channel
+      else if (dataString.startsWith("join:")) {
+          // Check if we subscribed already and if not, add to the list
+          const channel = dataString.split(":")[1];
+          // log the userID and channel
+          console.log("Subscribing " + userID + " to " + channel);
+          // add the user to the channel's list of subscribers and create one if it doesn't exist
+          if (!channelSubscriptions.has(channel)) {
+              console.log("Channel subscription not set yet on this server, creating..");
+              channelSubscriptions.set(channel, new Set());
+              // subscribe the redis client to the channel
+              redisPubSubClient.sSubscribe(channel, listener);
+              console.log("Done!");
+          }
+          channelSubscriptions.get(channel).add(userID);
+      }
+
+      // Receive message to a channel
       else if (dataString.startsWith("message:")) {
           const username = await redisClient.get(userID);
           if (!username) {
@@ -122,9 +170,13 @@ async function handleMessage(ws, data) {
           const channel = dataString.split(":")[1];
           // Get the message from data
           const message = dataString.split(":")[2];
-          // Placeholder: Just send the message and channel and username back
-          ws.send("TODO: Message sent to " + channel + " by " + username + ": " + message);
-      } 
+          // Publish to channel
+          redisClient.publish(channel, username + ": " + message);
+          // Send response to client
+          ws.send(" Message sent to " + channel + " by " + username + ": " + message);
+      }
+      
+      // Any other messages
       else {
           ws.send("Invalid message");
       }
