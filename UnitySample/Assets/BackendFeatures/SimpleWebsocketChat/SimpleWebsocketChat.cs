@@ -1,19 +1,17 @@
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: MIT-0
 
-using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.Networking;
 using UnityEngine.UI;
-using System;
-using Unity.VisualScripting;
 
 public class SimpleWebsocketChat : MonoBehaviour
 {
     public string loginEndpointUrl;
     public string websocketEndpointUrl;
     public Text logOutput;
+
+    WebsocketClient websocketClient;
 
     // UI Fields and buttons
     public InputField usernameInput;
@@ -22,6 +20,7 @@ public class SimpleWebsocketChat : MonoBehaviour
     public InputField SendMessageInput;
     public Button SetUserNameButton;
     public Button JoinChannelButton;
+    public Button LeaveChannelButton;
     public Button SendMessageButton;
 
 
@@ -34,6 +33,9 @@ public class SimpleWebsocketChat : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
+        // Find the Websocket Client
+        this.websocketClient = GameObject.Find("WebsocketClient").GetComponent<WebsocketClient>();
+
         // Set the login endpoint
         Debug.Log("Setting login endpoint");
         AWSGameSDKClient.Instance.Init(loginEndpointUrl, this.OnLoginOrRefreshError);
@@ -57,6 +59,7 @@ public class SimpleWebsocketChat : MonoBehaviour
         this.SetUserNameButton.onClick.AddListener(this.SetUserName);
         this.JoinChannelButton.onClick.AddListener(this.JoinChannel);
         this.SendMessageButton.onClick.AddListener(this.SendMessage);
+        this.LeaveChannelButton.onClick.AddListener(this.LeaveChannel);
     }
 
     // Define the callbacks for the UI buttons
@@ -72,6 +75,14 @@ public class SimpleWebsocketChat : MonoBehaviour
 
         Debug.Log("Setting username to: " + this.usernameInput.text);
         this.logOutput.text += "Setting username to: " + this.usernameInput.text + "\n";
+
+        // Define the SetUserNameRequest
+        SetUserNameRequest request = new SetUserNameRequest();
+        request.type = "set-name";
+        request.payload = new UserNameData();
+        request.payload.username = this.usernameInput.text;
+        // Send the set-name command over JSON to the server
+        this.websocketClient.SendMessage(JsonUtility.ToJson(request));
 
         //AWSGameSDKClient.Instance.SetUsername(this.usernameInput.text);
     }
@@ -89,7 +100,33 @@ public class SimpleWebsocketChat : MonoBehaviour
         Debug.Log("Joining channel: " + this.JoinChannelInput.text);
         this.logOutput.text += "Joining channel: " + this.JoinChannelInput.text + "\n";
 
-        //AWSGameSDKClient.Instance.JoinChannel(this.JoinChannelInput.text);
+        // Define the ChannelRequest and send over websocket
+        ChannelRequest request = new ChannelRequest();
+        request.type = "join";
+        request.payload = new ChannelData();
+        request.payload.channel = this.JoinChannelInput.text;
+        this.websocketClient.SendMessage(JsonUtility.ToJson(request));
+    }
+
+    void LeaveChannel()
+    {
+        // If channel field is empty, return
+        if (this.JoinChannelInput.text == "")
+        {
+            Debug.Log("Channel field is empty");
+            this.logOutput.text += "Channel field is empty\n";
+            return;
+        }
+
+        Debug.Log("Leaving channel: " + this.JoinChannelInput.text);
+        this.logOutput.text += "Leaving channel: " + this.JoinChannelInput.text + "\n";
+
+        // Define the ChannelRequest and send over websocket
+        ChannelRequest request = new ChannelRequest();
+        request.type = "leave";
+        request.payload = new ChannelData();
+        request.payload.channel = this.JoinChannelInput.text;
+        this.websocketClient.SendMessage(JsonUtility.ToJson(request));
     }
 
     void SendMessage()
@@ -109,11 +146,17 @@ public class SimpleWebsocketChat : MonoBehaviour
             this.logOutput.text += "Message field is empty\n";
             return;
         }
-        
+
         Debug.Log("Sending message to channel: " + this.ChannelNameInput.text);
         this.logOutput.text += "Sending message to channel: " + this.ChannelNameInput.text + "\n";
 
-       // AWSGameSDKClient.Instance.SendMessageToChannel(this.ChannelNameInput.text, this.SendMessageInput.text);
+        // Define the MessageRequest and send over websocket
+        SendMessageRequest request = new SendMessageRequest();
+        request.type = "message";
+        request.payload = new MessageData();
+        request.payload.channel = this.ChannelNameInput.text;
+        request.payload.message = this.SendMessageInput.text;
+        this.websocketClient.SendMessage(JsonUtility.ToJson(request));
     }
 
     // Update is called once per frame
@@ -169,7 +212,7 @@ public class SimpleWebsocketChat : MonoBehaviour
 
         // Create the Websocket client, TODO: Could optimally be managed by the SDK with callbacks!
         //AWSGameSDKClient.Instance.InitWebsocketClient(websocketEndpointUrl, userInfo.auth_token, this.OnWebsocketError);
-        GameObject.Find("WebsocketClient").GetComponent<WebsocketClient>().CreateWebSocketConnection(this.websocketEndpointUrl, userInfo.auth_token, this.OnWebsocketMessage);
+        websocketClient.CreateWebSocketConnection(this.websocketEndpointUrl, userInfo.auth_token, this.OnWebsocketMessage);
 
     }
 
