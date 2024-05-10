@@ -3,8 +3,7 @@
 
 'use strict';
 
-// AWS-provided JWT verifier
-const { JwtRsaVerifier } = require("aws-jwt-verify");
+
 
 // X-ray for distributed tracing
 var AWSXRay = require('aws-xray-sdk');
@@ -13,6 +12,8 @@ AWSXRay.config([AWSXRay.plugins.ECSPlugin]);
 // AWS SDK with tracing
 const AWS = AWSXRay.captureAWS(require('aws-sdk'));
 
+// AWS-provided JWT verifier
+const { JwtRsaVerifier } = require("aws-jwt-verify");
 const verifier = JwtRsaVerifier.create({
   issuer: process.env.ISSUER_ENDPOINT, // Get our custom issuer url from environment
   audience: "gamebackend", // set this to the expected "aud" claim to gamebackend
@@ -20,7 +21,7 @@ const verifier = JwtRsaVerifier.create({
   scope: ["guest", "authenticated"], // We accept guest and authenticated scope
 });
 
-// Create a Redis client for our ElastiCache Serverless endpoint
+// Redis client for our ElastiCache Serverless endpoint
 const redis = require('redis');
 const redisClient = redis.createClient({
   socket: {
@@ -31,7 +32,7 @@ const redisClient = redis.createClient({
 });
 redisClient.connect();
 
-// Create a Redis client for pubSub
+// Redis client for pubSub
 const redisPubSubClient = redis.createClient({
   socket: {
     host: process.env.REDIS_ENDPOINT,
@@ -68,7 +69,7 @@ redisPubSubClient.on('reconnecting', () => {
 // Websockets mapped to userIDs
 const websockets = new Map();
 
-// Map of maps of userIDs mapped to channels
+// Map of maps of websockets mapped to channels
 const channelSubscriptions = new Map();
 
 // WEBSOCKET SERVER on 80
@@ -80,6 +81,18 @@ const url = require('url');
 const listener = (message, channel) => {
   console.log("Received message from pub/sub channel");
   console.log(message, channel);
+
+  // Send the message to all websockets subscribed to this channel
+  const channelSubscribers = channelSubscriptions.get(channel);
+  if (channelSubscribers) {
+    channelSubscribers.forEach((ws) => {
+      try {
+        ws.send(JSON.stringify({ type: "chat_message_received", payload: { message: message, channel: channel } }));
+      } catch (err) {
+        console.error("Error sending chat message over websocket: " + err);
+      }
+    });
+  }
 };
 
 wss.on('connection', async (ws, req) => {
@@ -95,7 +108,6 @@ wss.on('connection', async (ws, req) => {
   }
   
   try {
-    // Note: This is a blocking call and could be non-blocking optimally. With cached keys it's really fast though
     var payload = await verifier.verify(params.query.auth_token);
     console.log("Token is valid");
     // Add the user to the websocket map
@@ -114,6 +126,27 @@ wss.on('connection', async (ws, req) => {
   ws.on('message', function message(data) {
     console.log('received: %s', data);
     handleMessage(ws, data);
+  });
+
+  // Callback for disconnecting
+  ws.on('close', function close() {
+    try {
+      console.log('User disconnected');
+      // Remove user from all subscriptions
+      channelSubscriptions.forEach((subscriberMap, key) => {
+        subscriberMap.delete(ws);
+        // If channel is empty, unsubscribe
+        if (subscriberMap.size === 0) {
+          // unsubscribe the redis client from the channel
+          redisPubSubClient.sUnsubscribe(key, listener);
+          console.log("No more people on channel, Unsubscribed server from " + subscriberMap);
+        }
+      });
+      // Remove the user from the websocket map
+      websockets.delete(ws);
+    } catch (err) {
+      console.log("Error disconnecting user: " + err);
+    }
   });
 
 });
@@ -139,6 +172,8 @@ async function handleMessage(ws, data) {
           // log the userID and username
           console.log("Setting username for " + userID + " to " + username);
           redisClient.set(userID, username);
+          // Send a message back to the client
+          ws.send(JSON.stringify({ message: `Username set to ${username}` }));
       }
       
       // Subscribe to a channel
@@ -155,7 +190,34 @@ async function handleMessage(ws, data) {
               redisPubSubClient.sSubscribe(channel, listener);
               console.log("Done!");
           }
-          channelSubscriptions.get(channel).add(userID);
+          // add the websocket to the channel's list of subscribers if it's not already there
+          if (!channelSubscriptions.get(channel).has(ws)) {
+            channelSubscriptions.get(channel).add(ws);
+            ws.send(JSON.stringify({ message: `You have joined ${channel}` }));
+          }
+          else {
+            ws.send(JSON.stringify({ message: `You have already joined ${channel}` }));
+          }
+      }
+
+      // Unsubscribe from a channel
+      else if (parsedData.type === "leave") {
+          // Get the channel we're unsubscribing from from data
+          const channel = parsedData.payload.channel;
+          // log the userID and channel
+          console.log("Unsubscribing " + userID + " from " + channel);
+          // remove the user from the channel's list of subscribers
+          channelSubscriptions.get(channel).delete(ws);
+          // if there are no more subscribers, unsubscribe from the channel
+          if (channelSubscriptions.get(channel).size === 0) {
+              console.log("No more subscribers, unsubscribing..");
+              // unsubscribe the redis client from the channel
+              redisPubSubClient.sUnsubscribe(channel, listener);
+              console.log("Done!");
+              // remove the channel from the map
+              channelSubscriptions.delete(channel);
+          }
+          ws.send(JSON.stringify({ message: `You have left ${channel}` }));
       }
 
       // Receive message to a channel
@@ -174,7 +236,7 @@ async function handleMessage(ws, data) {
           // Publish to channel
           redisClient.publish(channel, username + ": " + message);
           // Send response to client
-          ws.send(JSON.stringify({ message: `Message sent to ${channel} by ${username}: ${message}` }));
+          ws.send(JSON.stringify({ message: `Message sent to ${channel}: ${message}` }));
       }
       
       // Any other messages
@@ -187,7 +249,7 @@ async function handleMessage(ws, data) {
     }
 }
 
-// HEALTH CHECK SERVER on 8080
+// HEALTH CHECK SERVER for load balancer on 8080
 
 const express = require('express');
 
