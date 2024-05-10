@@ -223,16 +223,28 @@ async function handleMessage(ws, data) {
       // Receive message to a channel
       else if (parsedData.type === "message") {
           const username = await redisClient.get(userID);
-          if (!username) {
-              ws.send(JSON.stringify({ error: "You must set a username first" }));
-              return;
-          }
+
           // log the datastring and ws
           console.log("Message received: " + dataString + " from " + ws);
           // Get the channel we're sending to from data
           const channel = parsedData.payload.channel;
           // Get the message from data
           const message = parsedData.payload.message;
+
+          if (!username) {
+              ws.send(JSON.stringify({ error: "You must set a username first" }));
+              return;
+          }
+          // Check that this websocket is subscribed to the channel
+          if (!channelSubscriptions.has(channel)) {
+              ws.send(JSON.stringify({ error: "You must join the channel first" }));
+              return;
+          }
+          else if(!channelSubscriptions.get(channel).has(ws)) {
+            ws.send(JSON.stringify({ error: "You must join the channel first" }));
+            return;
+          }
+          
           // Publish to channel
           redisClient.publish(channel, username + ": " + message);
           // Send response to client
