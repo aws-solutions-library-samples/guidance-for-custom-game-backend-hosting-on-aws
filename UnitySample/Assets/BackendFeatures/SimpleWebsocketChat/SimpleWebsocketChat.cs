@@ -15,6 +15,16 @@ public class SimpleWebsocketChat : MonoBehaviour
     public string websocketEndpointUrl;
     public Text logOutput;
 
+    // UI Fields and buttons
+    public InputField usernameInput;
+    public InputField JoinChannelInput;
+    public InputField ChannelNameInput;
+    public InputField SendMessageInput;
+    public Button SetUserNameButton;
+    public Button JoinChannelButton;
+    public Button SendMessageButton;
+
+
     // A list of messages received from the server
     private List<string> messages = new List<string>();
     private float messageTimer = 0.0f;
@@ -42,6 +52,68 @@ public class SimpleWebsocketChat : MonoBehaviour
             this.logOutput.text += "Requesting new identity\n";
             AWSGameSDKClient.Instance.LoginAsNewGuestUser(this.OnLoginResponse);
         }
+
+        // Set the callbacks for the UI buttons
+        this.SetUserNameButton.onClick.AddListener(this.SetUserName);
+        this.JoinChannelButton.onClick.AddListener(this.JoinChannel);
+        this.SendMessageButton.onClick.AddListener(this.SendMessage);
+    }
+
+    // Define the callbacks for the UI buttons
+    void SetUserName()
+    {
+        // If name field is empty, return
+        if (this.usernameInput.text == "")
+        {
+            Debug.Log("Username field is empty");
+            this.logOutput.text += "Username field is empty\n";
+            return;
+        }
+
+        Debug.Log("Setting username to: " + this.usernameInput.text);
+        this.logOutput.text += "Setting username to: " + this.usernameInput.text + "\n";
+
+        //AWSGameSDKClient.Instance.SetUsername(this.usernameInput.text);
+    }
+
+    void JoinChannel()
+    {
+        // If channel field is empty, return
+        if (this.JoinChannelInput.text == "")
+        {
+            Debug.Log("Channel field is empty");
+            this.logOutput.text += "Channel field is empty\n";
+            return;
+        }
+
+        Debug.Log("Joining channel: " + this.JoinChannelInput.text);
+        this.logOutput.text += "Joining channel: " + this.JoinChannelInput.text + "\n";
+
+        //AWSGameSDKClient.Instance.JoinChannel(this.JoinChannelInput.text);
+    }
+
+    void SendMessage()
+    {
+        // If channel field is empty, return
+        if (this.ChannelNameInput.text == "")
+        {
+            Debug.Log("Channel field is empty");
+            this.logOutput.text += "Channel field is empty\n";
+            return;
+        }
+
+        // If message field is empty, return
+        if (this.SendMessageInput.text == "")
+        {
+            Debug.Log("Message field is empty");
+            this.logOutput.text += "Message field is empty\n";
+            return;
+        }
+        
+        Debug.Log("Sending message to channel: " + this.ChannelNameInput.text);
+        this.logOutput.text += "Sending message to channel: " + this.ChannelNameInput.text + "\n";
+
+       // AWSGameSDKClient.Instance.SendMessageToChannel(this.ChannelNameInput.text, this.SendMessageInput.text);
     }
 
     // Update is called once per frame
@@ -54,6 +126,8 @@ public class SimpleWebsocketChat : MonoBehaviour
         }
         // Clean up the messages list
         this.messages.Clear();
+
+        /*
 
         messageTimer -= Time.deltaTime;
         // Every 1 seconds send a message to the server
@@ -68,8 +142,9 @@ public class SimpleWebsocketChat : MonoBehaviour
             }
 
             messageTimer = 1.0f;
-
         }  
+
+        */
     }
 
     // Triggered by the SDK if there's any login error or error refreshing access token
