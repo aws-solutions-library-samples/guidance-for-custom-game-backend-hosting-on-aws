@@ -13,7 +13,6 @@ public class WebsocketClient : MonoBehaviour
 
     private async void Start()
     {
-        //await CreateWebSocketConnection();
     }
 
     public async Task CreateWebSocketConnection(string ServerUrl, string AuthToken, Action<string> callback)
@@ -26,7 +25,6 @@ public class WebsocketClient : MonoBehaviour
 
             // Start the threads for Send and receive
             Task.Run(() => ReceiveLoop(callback));
-            //Task.Run(() => SendLoop());
         }
         catch (Exception ex)
         {
@@ -71,14 +69,6 @@ public class WebsocketClient : MonoBehaviour
             return false;
         }
         return true;
-    }
-
-    private async Task<string> GetMessageFromUser()
-    {
-        // Implement your logic to get a message from the user or other sources
-        // For example, you can use Unity's Input.GetKeyDown or UI input fields
-        //return await Task.FromResult(string.Empty);
-        return string.Empty;
     }
 
     private void OnApplicationQuit()
