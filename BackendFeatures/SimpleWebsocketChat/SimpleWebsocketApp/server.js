@@ -133,15 +133,22 @@ wss.on('connection', async (ws, req) => {
     try {
       console.log('User disconnected');
       // Remove user from all subscriptions
+      const channelsToRemove = new Set();
       channelSubscriptions.forEach((subscriberMap, key) => {
         subscriberMap.delete(ws);
-        // If channel is empty, unsubscribe
+        // If channel is empty, mark for removal
         if (subscriberMap.size === 0) {
-          // unsubscribe the redis client from the channel
-          redisPubSubClient.sUnsubscribe(key, listener);
-          console.log("No more people on channel, Unsubscribed server from " + subscriberMap);
+          channelsToRemove.add(key);
         }
       });
+
+      // Unsubscribe the redis client from channels with no more subscribers
+      channelsToRemove.forEach((channel) => {
+        redisPubSubClient.sUnsubscribe(channel, listener);
+        console.log("No more people on channel, Unsubscribed server from " + channel);
+        channelSubscriptions.delete(channel);
+      });
+
       // Remove the user from the websocket map
       websockets.delete(ws);
     } catch (err) {
