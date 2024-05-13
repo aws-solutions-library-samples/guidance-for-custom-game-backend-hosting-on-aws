@@ -170,12 +170,10 @@ public class SimpleWebsocketChat : MonoBehaviour
         // Clean up the messages list
         this.messages.Clear();
 
-        // Remove the first line from the log output every 4 seconds
-        this.messageTimer += Time.deltaTime;
-        if (this.messageTimer > 4.0f)
+        // Remove the first line from the log output if it's longer than 20 lines
+        if (this.logOutput.text.Split('\n').Length > 20)
         {
             this.logOutput.text = this.logOutput.text.Substring(this.logOutput.text.IndexOf('\n') + 1);
-            this.messageTimer = 0.0f;
         }
     }
 
