@@ -170,24 +170,13 @@ public class SimpleWebsocketChat : MonoBehaviour
         // Clean up the messages list
         this.messages.Clear();
 
-        /*
-
-        messageTimer -= Time.deltaTime;
-        // Every 1 seconds send a message to the server
-        if (messageTimer <= 0 && this.connected)
+        // Remove the first line from the log output every 4 seconds
+        this.messageTimer += Time.deltaTime;
+        if (this.messageTimer > 4.0f)
         {
-            string message = "Hello from Unity!";
-            this.logOutput.text += "Sending message to server: " + message + "\n"; 
-            var success = GameObject.Find("WebsocketClient").GetComponent<WebsocketClient>().SendMessage(message);
-            if(!success) {
-                Debug.LogError("Failed to send message to server");
-                this.logOutput.text += "Failed to send message to server\n";
-            }
-
-            messageTimer = 1.0f;
-        }  
-
-        */
+            this.logOutput.text = this.logOutput.text.Substring(this.logOutput.text.IndexOf('\n') + 1);
+            this.messageTimer = 0.0f;
+        }
     }
 
     // Triggered by the SDK if there's any login error or error refreshing access token
