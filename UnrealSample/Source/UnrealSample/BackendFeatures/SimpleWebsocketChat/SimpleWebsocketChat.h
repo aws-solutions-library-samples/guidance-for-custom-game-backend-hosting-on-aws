@@ -20,6 +20,7 @@ public:
 	void OnLoginResultCallback(const UserInfo& userInfo);
 	void OnLoginOrRefreshErrorCallback(const FString& error);
 
+	void OnMessageReceived(const FString& message);
 
 	UPROPERTY(EditAnywhere)
     FString m_loginEndpoint;

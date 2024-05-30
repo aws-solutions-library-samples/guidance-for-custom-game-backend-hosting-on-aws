@@ -3,6 +3,7 @@
 
 #include "SimpleWebsocketChat.h"
 #include "../../AWSGameSDK/AWSGameSDK.h"
+#include "../../AWSGameSDK/WebSocketClient.h"
 #include "../../PlayerDataSave.h"
 #include "Engine/World.h"
 #include "Kismet/GameplayStatics.h"
@@ -12,8 +13,8 @@
 #include "Interfaces/IHttpResponse.h"
 #include "GenericPlatform/GenericPlatformHttp.h"
 
-#include "WebSocketsModule.h"
-#include "IWebSocket.h"
+//#include "WebSocketsModule.h"
+//#include "IWebSocket.h"
 
 #include <stdio.h>
 #include <locale.h>
@@ -97,42 +98,16 @@ void USimpleWebsocketChat::OnLoginResultCallback(const UserInfo& userInfo){
     UPlayerDataManager* PlayerDataManager = GameInstance->GetSubsystem<UPlayerDataManager>(); 
     PlayerDataManager->SaveGameData(userInfo.user_id, userInfo.guest_secret);
 
-    const FString ServerURL = this->m_websocketEndpointUrl+"/?auth_token="+*userInfo.auth_token; // Your server URL. You can use ws, wss or wss+insecure.
-    const FString ServerProtocol = TEXT("wss");              // The WebServer protocol you want to use.
-        
-    TSharedPtr<IWebSocket> Socket = FWebSocketsModule::Get().CreateWebSocket(ServerURL, ServerProtocol);
+    // Create a new WebSocket and bind callback
+    WebSocketClient::FOnMessageReceived messageCallback;
+	messageCallback.BindUObject(this, &USimpleWebsocketChat::OnMessageReceived);
+    auto webSocketClient = new WebSocketClient(userInfo.auth_token, this->m_websocketEndpointUrl, messageCallback);
+}
 
-    // We bind all available events
-    Socket->OnConnected().AddLambda([]() -> void {
-        // This code will run once connected.
-        // Log resposne
-        UE_LOG(LogTemp, Display, TEXT("Connected"));
-    });
-        
-    Socket->OnConnectionError().AddLambda([](const FString & Error) -> void {
-        // This code will run if the connection failed. Check Error to see what happened.
-    });
-        
-    Socket->OnClosed().AddLambda([](int32 StatusCode, const FString& Reason, bool bWasClean) -> void {
-        // This code will run when the connection to the server has been terminated.
-        // Because of an error or a call to Socket->Close().
-    });
-        
-    Socket->OnMessage().AddLambda([](const FString & Message) -> void {
-        // This code will run when we receive a string message from the server.
-        UE_LOG(LogTemp, Display, TEXT("Received message: %s"), *Message);
-        if(GEngine)
-            GEngine->AddOnScreenDebugMessage(-1, 30.0f, FColor::Black, FString::Printf(TEXT("Received message: %s \n"), *Message), false, FVector2D(1.5f, 1.5f));
-    });
-        
-    Socket->OnRawMessage().AddLambda([](const void* Data, SIZE_T Size, SIZE_T BytesRemaining) -> void {
-        // This code will run when we receive a raw (binary) message from the server.
-    });
-        
-    Socket->OnMessageSent().AddLambda([](const FString& MessageString) -> void {
-        // This code is called after we sent a message to the server.
-    });
-        
-    // And we finally connect to the server. 
-    Socket->Connect();
+void USimpleWebsocketChat::OnMessageReceived(const FString& message){
+
+    // Show the message
+    UE_LOG(LogTemp, Display, TEXT("Received message: %s \n"), *message);
+    if(GEngine)
+        GEngine->AddOnScreenDebugMessage(-1, 30.0f, FColor::Black, FString::Printf(TEXT("Received message: \n %s \n"), *message), false, FVector2D(1.5f, 1.5f));
 }
