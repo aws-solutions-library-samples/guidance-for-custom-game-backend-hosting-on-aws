@@ -75,6 +75,14 @@ export class CustomIdentityComponentStack extends Stack {
       encryption: s3.BucketEncryption.S3_MANAGED
     });
 
+    // Add cdk-nag exception to not have logging enabled for the logging bucket itself to avoid excessive amount of unneeded log files
+    NagSuppressions.addResourceSuppressions(loggingBucket, [
+      {
+        id: 'AwsSolutions-S1',
+        reason: 'This is the logging bucket itself'
+      },
+    ]);
+
     // Creates an S3 bucket for issuer data such as JWKS and a CloudFront distribution to access the data
     const issuer_bucket = new s3.Bucket(this, 'issuerdatabucket', {
       enforceSSL: true,
