@@ -15,6 +15,8 @@ The custom identity component is a serverless solution that manages a JSON Web K
 
 The solution also allows guest login, and supports linking new identity providers to existing identities, for example upgrading from a guest identity to an authenticated identity with Steam, Apple or Google Play, or using Facebook identities as a link between platforms.
 
+**IMPORTANT NOTE:** The sample identity component doesn't use a custom domain to route traffic, but rather the default endpoints provided by Amazon API Gateway. The recommendation is to use [Amazon Route53](https://aws.amazon.com/route53) to create your own domain, and route subdomains to the individual public backend endpoints. This way you can use TLS certificates created for your domain to validate your endpoints, and have control over changing the endpoints as needed without modifying your client.
+
 ## Deploy the Custom Identity Component
 
 To deploy the custom identity component you'll need the following tools:

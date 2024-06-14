@@ -9,6 +9,8 @@
   
 These sample components can be deployed to test integration from a game client to a backend using the authentication feature of the custom identity component.
 
+**IMPORTANT NOTE:** The sample components don't use a custom domain to route traffic, but rather the default endpoints provided by Amazon API Gateway and Application Load Balancer. The recommendation is to use [Amazon Route53](https://aws.amazon.com/route53) to create your own domain, and route subdomains to the individual public backend endpoints. This way you can use TLS certificates created for your domain to validate your endpoints, and have control over changing the endpoints as needed without modifying your client. In addition, the sample Fargate backend API uses HTTP instead of HTTPS because we are not configuring access through your own domain. You should configure a TLS certificate for your own domain using using [AWS Certificate Manager](https://aws.amazon.com/certificate-manager/), and use this on the load balancer for HTTTPS traffic ([docs](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/create-https-listener.html)). In addition, you can add a CloudFront distribution to improve the connectivity and host your certificate on CloudFront instead.
+
 **Logs and Distributed Tracing**
 
 All the backend template components leverage **AWS X-Ray** for distributed tracing, as well as **AWS CloudWatch** for logs. You can find both the logs and the tracing map and individual trace information the **AWS CloudWatch** console.
