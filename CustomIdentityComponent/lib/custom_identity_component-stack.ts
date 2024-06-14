@@ -72,8 +72,7 @@ export class CustomIdentityComponentStack extends Stack {
     var loggingBucket = new s3.Bucket(this, 'IdentityComponentLoggingBucket', {
       enforceSSL: true,
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
-      encryption: s3.BucketEncryption.S3_MANAGED,
-      serverAccessLogsPrefix: 'logging-bucket-access-logs',
+      encryption: s3.BucketEncryption.S3_MANAGED
     });
 
     // Creates an S3 bucket for issuer data such as JWKS and a CloudFront distribution to access the data
