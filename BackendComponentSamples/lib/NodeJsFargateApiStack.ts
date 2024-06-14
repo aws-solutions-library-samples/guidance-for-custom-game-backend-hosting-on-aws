@@ -32,11 +32,10 @@ export class NodeJsFargateApiStack extends Stack {
     });
 
     // Bucket for logging ELB and VPC access
-    var loggingBucket = new s3.Bucket(this, 'IdentityComponentLoggingBucket', {
+    var loggingBucket = new s3.Bucket(this, 'NodeJsFargateApiStackLoggingBucket', {
       enforceSSL: true,
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
-      encryption: s3.BucketEncryption.S3_MANAGED,
-      serverAccessLogsPrefix: 'logging-bucket-access-logs',
+      encryption: s3.BucketEncryption.S3_MANAGED
     });
 
     // VPC for our Fargate service
