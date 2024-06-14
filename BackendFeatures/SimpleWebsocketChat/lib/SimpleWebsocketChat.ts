@@ -34,11 +34,10 @@ export class SimpleWebsocketChat extends Stack {
     });
 
     // Bucket for logging ELB and VPC access, and CloudFront logs
-    var loggingBucket = new s3.Bucket(this, 'IdentityComponentLoggingBucket', {
+    var loggingBucket = new s3.Bucket(this, 'SimpleWebSocketChatLogging', {
       enforceSSL: true,
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
-      encryption: s3.BucketEncryption.S3_MANAGED,
-      serverAccessLogsPrefix: 'logging-bucket-access-logs',
+      encryption: s3.BucketEncryption.S3_MANAGED
     });
 
     // VPC for our Fargate service, using 2 AZs to reduce the amount of NAT Gateways, feel free to use 3 for higher availability
