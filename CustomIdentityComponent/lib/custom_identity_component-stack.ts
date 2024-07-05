@@ -180,17 +180,17 @@ export class CustomIdentityComponentStack extends Stack {
     });
 
     // Define a Web Application Firewall with the standard AWS provided rule set
-    const cfnWebACLManaged = new wafv2.CfnWebACL(this,'CustomIdentityWebACL',{
+    const cfnWebACLManaged = new wafv2.CfnWebACL(this,'CustomIdentityWebACLRules',{
             defaultAction: {
               allow: {}
             },
             scope: 'REGIONAL',
             visibilityConfig: {
               cloudWatchMetricsEnabled: true,
-              metricName:'MetricForWebACLCDK',
+              metricName:'MetricForWebACLCustomIdentity',
               sampledRequestsEnabled: true,
             },
-            name:'CustomIdentityWebACL',
+            name:'CustomIdentityWebACLRules',
             rules: [{
               name: 'ManagedWafRules',
               priority: 0,
@@ -208,40 +208,26 @@ export class CustomIdentityComponentStack extends Stack {
               overrideAction: {
                 none: {}
               },
+            },
+            // Add rate limiting rule to allow 3.33 TPS from a single IP (1000 per 5 minutes)
+            {
+              name: 'RateLimitingRule',
+              priority: 1,
+              action: {
+                block: {}
+              },
+              statement: {
+                rateBasedStatement: {
+                  limit: 1000,
+                  aggregateKeyType: 'IP'
+                }
+              },
+              visibilityConfig: {
+                cloudWatchMetricsEnabled: true,
+                metricName:'MetricForWebACLCDK-RateLimiting',
+                sampledRequestsEnabled: true,
+              }
             }]
-    });
-
-    const cfnWebACLRateLimit = new wafv2.CfnWebACL(this,'CustomIdentityWebACLRateLimit',{
-      defaultAction: {
-        allow: {}
-      },
-      scope: 'REGIONAL',
-      visibilityConfig: {
-        cloudWatchMetricsEnabled: true,
-        metricName:'MetricForWebACLCDKRateLimit',
-        sampledRequestsEnabled: true,
-      },
-      name:'CustomIdentityWebACLRateLimit',
-      rules: [
-      // Add rate limiting rule to allow 3.33 TPS from a single IP (1000 per 5 minutes)
-      {
-        name: 'RateLimitingRule',
-        priority: 1,
-        action: {
-          block: {}
-        },
-        statement: {
-          rateBasedStatement: {
-            limit: 1000,
-            aggregateKeyType: 'IP'
-          }
-        },
-        visibilityConfig: {
-          cloudWatchMetricsEnabled: true,
-          metricName:'MetricForWebACLCDK-RateLimiting',
-          sampledRequestsEnabled: true,
-        }
-      }]
     });
 
     // Define an API Gateway for the authentication component public endpoint
@@ -268,15 +254,10 @@ export class CustomIdentityComponentStack extends Stack {
           reason: "We are using the default CW Logs access of API Gateway",
         },],true);
 
-    // Attach the Web Application Firewall with the standard AWS provided rule set
+    // Attach the Web Application Firewall with the standard AWS provided rule set and the rate limit rule
     new wafv2.CfnWebACLAssociation(this,'ApiGatewayWebACLAssociation',{
       resourceArn: api_gateway.deploymentStage.stageArn,
       webAclArn:cfnWebACLManaged.attrArn,
-    });
-    // Attach the WAF with the rate limit rules
-    new wafv2.CfnWebACLAssociation(this,'ApiGatewayWebACLAssociationRateLimit',{
-      resourceArn: api_gateway.deploymentStage.stageArn,
-      webAclArn:cfnWebACLRateLimit.attrArn,
     });
 
     // Request validator for the API
