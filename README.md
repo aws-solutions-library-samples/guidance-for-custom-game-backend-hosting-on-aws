@@ -179,7 +179,7 @@ The Custom Identity Component costs can be estimated more easily, and the follow
   * *10.29 USD / month*
 * **AWS CloudWatch Logs**: 10 GB data estimated ingested per month
   * *5.55 USD / month*
-* **AWS Secrets Manager**: 10000 request per hour (very pessimistically estimated for 200 concurrent Lambda invocations)
+* **AWS Secrets Manager**: 1000 request per hour (very pessimistically estimated for 250 concurrent Lambda invocations)
   * *4.05 USD / month*
 * **AWS X-Ray**: 667 traces per minute, 5% default sampling rate
   * *7.20 USD / month*
