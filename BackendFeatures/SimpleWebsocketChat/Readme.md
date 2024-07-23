@@ -56,45 +56,57 @@ TODO
 
 ### Unreal Engine integration
 
-TODO
-
 To test the integrations with Unreal, **open** the Unreal sample project (`UnrealSample`) in Unreal Engine 5 first.
 
 **NOTE:** On Windows it will prompt you if you don't have Visual Studio installed yet. Once you have Visual Studio installed and set up for Unreal, you can open the project in the Unreal Editor and generate the project files from *Tools -> Generate Visual Studio Project*. On MacOS, you need to do *right click -> Services -> Generate XCode Project* on the uproject file in Finder. If you have problems generating the project files on MacOS, [this forum post](https://forums.unrealengine.com/t/generate-xcode-project-doesnt-do-anything/123149/3) can help run the shell script correctly from your UE installation folder against the project in the terminal.
 
-* Then **open** the level `BackendFeatures/DatabricksDeltaLakeIntegration`
+* Then **open** the level `BackendFeatures/SimpleWebSocketChat`
 
-This is a test level that will login as a new guest user if a save file is not present, or login using the user_id and guest_secret found in the save file if available to login as an existing user. It will then use the credentials of the logged in user to send test events to the data pipeline and print out the requests and responses.
+This is a test level that will login as a new guest user if a save file is not present, or login using the user_id and guest_secret found in the save file if available to login as an existing user. It will then use the credentials of the logged in user to test the WebSocket connection to the chat application, set name, join channel, send message, and leave channel.
 
-Configure the `DatabricksDeltaLakeIntegration` component of the `DatabricksDeltaLakeIntegration` Actor to set up API endpoints. Set `M Login Endpoint` value to the `LoginEndpoint` value found in the CustomIdentityComponentStack Outputs. Then set the `M Data Pipeline Endpoint` to the endpoint value `DeltaLakeIntegrationBackendEndpointUrlWithoutResource` found in the *DeltaLakeIntegrationBackend* Outputs. **NOTE:** This is a different value than the one used in the test script and it doesn't contain the `put-record` resource as part of the URL (the EventSender will add this).
+Configure the `SimpleWebsocketChat` component of the `SimpleWebsocketChat` Actor to set up API and WebSocket endpoints. Set `M Login Endpoint` value to the `LoginEndpoint` value found in the CustomIdentityComponentStack Outputs. Then set the `M Websocket Endpoint Url` to the endpoint value `WebSocketEndpoint` found in the *SimpleWebsocketChat* Outputs.
 
-Press play to test the integration. You'll see the login as a guest user, sending of 5 test events, and the responses from the backend.
+Press play to test the integration. You'll see the login as a guest user and starting the websocket connection with this user. Then you'll see joining a channel, sending and receiving a message on the channel, and leaving the channel in the end.
 
-**Adding the integration to your custom project:** You can follow the [guidelines found in the Unreal Engine Integration Readme](../../UnrealSample/README.md#adding-the-sdk-to-an-existing-project) to add the AWS Game SDK to your own project. After that, you can use `UnrealSample/Source/BackendFeatures/DatabricksDeltaLakeIntegration/DatabricksDeltaLakeIntegration.cpp` as a reference for how to send events to the data pipeline. It also includes an `EventDataSender` helper class for sending events.
+**Adding the integration to your custom project:** You can follow the [guidelines found in the Unreal Engine Integration Readme](../../UnrealSample/README.md#adding-the-sdk-to-an-existing-project) to add the AWS Game SDK to your own project. After that, you can use `UnrealSample/Source/UnrealSample/BackendFeatures/SimpleWebsocketChat/SimpleWebsocketChat.cpp.cpp` as a reference for how to implement the WebSocket connection.
 
 ## WebSocket message reference
 
-TODO: REPLACE
+The initial connection to the websocket expects to receive the `auth_token` as a URL Parameter, for example `wss://abcdefghijklm.cloudfront.net/?auth_token=eyMYTOKEN`. It will disconnect any client that doesn't send an auth token that validates correctly against the public key found in the Identity component endpoint.
 
-All API requests expect the `Authorization` header is set to the JWT value received when logging in. This is automatically done by the AWS Game SDK's for the different game engines when you call the POST and GET requests through their API's.
+After this, the messages use a JSON format for the different features of the chat application.
 
-### POST /put-record
+### set-name
 
-`POST /put-record`
+Sets the name of the user. This must be called before any messages can be sent to any channel as the broadcasted messages will have the name included.
 
-**Parameters**
+**Message content**:
 
-> | name      |  required | description                                                                    |
-> |-----------|-----------|--------------------------------------------------------------------------------|
-> | `body`   |  Yes       | The body of the POST request. Must be in JSON format with latencies to the different Regions. Example: `{"event_id": "00006", "event_type": "Login", "updated_at": "2024-02-22 03:03:02", "event_data": "The only thing we have to fear is fear itself."}`  |
+`{ "type" : "set-name", "payload" : { "name" : "YOUR NAME" }`
 
-**Responses**
+### join
 
-> | http code     | response                                                            |
-> |---------------|---------------------------------------------------------------------|
-> | `200`         | `"Successfully added event"`                                |
-> | `401`         | `"Unauthorized"`                                  |
-> | `500`         |  `"Failed"`                            |
+Joins the defined channel. After this, all messages sent to this channel will be sent over the WebSocket to this user
+
+**Message content**:
+
+`{ "type" : "join", "payload" : { "channel" : "YOUR CHANNEL" }`
+
+### leave
+
+Leaves the defined channel. After this, no messages are received from this channel. User will also disconnect from all channels when disconnecting from the backend.
+
+**Message content**:
+
+`{ "type" : "leave", "payload" : { "channel" : "YOUR CHANNEL" }`
+
+### message
+
+Sends a message to the defined channel. The message is broadcasted to all users who have joined the channel.
+
+**Message content**:
+
+`{ "type" : "message", "payload" : { "channel" : "YOUR CHANNEL", "message" : "YOUR MESSAGE" }`
 
 ---
 
