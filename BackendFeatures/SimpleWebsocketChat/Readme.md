@@ -48,7 +48,15 @@ websocat "$websocket_endpoint/?auth_token=$auth_token"
 
 ### Unity integration
 
-TODO
+To test the integrations with Unity, **open** the Unity sample project (`UnitySample`) with Unity 2021 (or above).
+
+* Then **open** the scene `BackendFeatures/SimpleWebsocketChat/SimpleWebsocketChat.unity`
+
+This is a test level that will login as a new guest user if a PlayePrefs configuration is not present. It has a UI to 1/ set name, 2/ join channels, 3/ leave channels, and 4/ send messages. You can see the output of using the UI in the output and when you join a channel and a message is sent to that, it will be passed to the client. 
+
+Configure the `SimpleWebsocketChat` component of the `SimpleWebsocketChatIntegration` GameObject to set up API endpoints. Set `Login Endpoint Url` value to the `LoginEndpoint` value found in the CustomIdentityComponentStack Outputs, and the `Websocket Endpoint Url` to the `WebSocketEndpoint` value found in the *SimpleWebsocketChat* Outputs.
+
+Press play to test the integration. You'll see the login and WebSocket connection happen. You can then use the UI to test the chat application.
 
 ### Unreal Engine integration
 
