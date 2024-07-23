@@ -101,7 +101,11 @@ void USimpleWebsocketChat::OnLoginResultCallback(const UserInfo& userInfo){
     // Create a new WebSocket and bind callback
     WebSocketClient::FOnMessageReceived messageCallback;
 	messageCallback.BindUObject(this, &USimpleWebsocketChat::OnMessageReceived);
-    auto webSocketClient = new WebSocketClient(userInfo.auth_token, this->m_websocketEndpointUrl, messageCallback);
+    this->m_webSocketClient = new WebSocketClient(userInfo.auth_token, this->m_websocketEndpointUrl, messageCallback);
+
+    // Test the Websocket client
+    this->SetUserName("John Doe");
+
 }
 
 void USimpleWebsocketChat::OnMessageReceived(const FString& message){
@@ -110,4 +114,21 @@ void USimpleWebsocketChat::OnMessageReceived(const FString& message){
     UE_LOG(LogTemp, Display, TEXT("Received message: %s \n"), *message);
     if(GEngine)
         GEngine->AddOnScreenDebugMessage(-1, 30.0f, FColor::Black, FString::Printf(TEXT("Received message: \n %s \n"), *message), false, FVector2D(1.5f, 1.5f));
+}
+
+// Websocket messages
+
+void USimpleWebsocketChat::SetUserName(const FString& username){
+    
+    // Create a JSON object for the set-name message
+    TSharedPtr<FJsonObject> JsonMessage = MakeShareable(new FJsonObject());
+    JsonMessage->SetStringField("type", "set-name");
+    TSharedPtr<FJsonObject> JsonPayload = MakeShareable(new FJsonObject());
+    JsonPayload->SetStringField("username", username);
+    JsonMessage->SetObjectField("payload", JsonPayload);
+    FString JsonString;
+    TSharedRef<TJsonWriter<>> JsonWriter = TJsonWriterFactory<>::Create(&JsonString);
+    FJsonSerializer::Serialize(JsonMessage.ToSharedRef(), JsonWriter);
+
+    this->m_webSocketClient->SendMessage(JsonString);
 }

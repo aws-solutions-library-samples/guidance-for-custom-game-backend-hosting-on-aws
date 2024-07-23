@@ -16,7 +16,7 @@ WebSocketClient::WebSocketClient(const FString& authToken, const FString& endpoi
     const FString ServerProtocol = TEXT("wss");
         
     // Create the WebSocket
-    TSharedPtr<IWebSocket> Socket = FWebSocketsModule::Get().CreateWebSocket(ServerURL, ServerProtocol);
+    this->Socket = FWebSocketsModule::Get().CreateWebSocket(ServerURL, ServerProtocol);
 
     // Bind our message handler
     Socket->OnMessage().AddRaw(this, &WebSocketClient::OnMessageReceived);
@@ -52,4 +52,10 @@ void WebSocketClient::OnMessageReceived(const FString & Message) {
 
     // Call the callback function with the received message
     this->callback.ExecuteIfBound(Message);
+}
+
+void WebSocketClient::SendMessage(const FString& message) {
+
+    // Send the message through the WebSocket
+    this->Socket->Send(message);
 }

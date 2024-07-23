@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "../../AWSGameSDK/AWSGameSDK.h"
+#include "../../AWSGameSDK/WebSocketClient.h"
 #include "SimpleWebsocketChat.generated.h"
 
 
@@ -35,6 +36,9 @@ public:
 	// Called every frame
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 	
+	void SetUserName(const FString& userName);
+
+	WebSocketClient *m_webSocketClient;
 
 private:
 
