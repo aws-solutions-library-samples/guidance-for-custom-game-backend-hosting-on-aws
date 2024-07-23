@@ -105,7 +105,9 @@ void USimpleWebsocketChat::OnLoginResultCallback(const UserInfo& userInfo){
 
     // Test the Websocket client
     this->SetUserName("John Doe");
-
+    this->JoinChannel("global");
+    this->SendMessage("global", "Hello, World!");
+    this->LeaveChannel("global");
 }
 
 void USimpleWebsocketChat::OnMessageReceived(const FString& message){
@@ -125,6 +127,52 @@ void USimpleWebsocketChat::SetUserName(const FString& username){
     JsonMessage->SetStringField("type", "set-name");
     TSharedPtr<FJsonObject> JsonPayload = MakeShareable(new FJsonObject());
     JsonPayload->SetStringField("username", username);
+    JsonMessage->SetObjectField("payload", JsonPayload);
+    FString JsonString;
+    TSharedRef<TJsonWriter<>> JsonWriter = TJsonWriterFactory<>::Create(&JsonString);
+    FJsonSerializer::Serialize(JsonMessage.ToSharedRef(), JsonWriter);
+
+    this->m_webSocketClient->SendMessage(JsonString);
+}
+
+void USimpleWebsocketChat::JoinChannel(const FString& channelName){
+
+    // Create a JSON object for the join-channel message
+    TSharedPtr<FJsonObject> JsonMessage = MakeShareable(new FJsonObject());
+    JsonMessage->SetStringField("type", "join");
+    TSharedPtr<FJsonObject> JsonPayload = MakeShareable(new FJsonObject());
+    JsonPayload->SetStringField("channel", channelName);
+    JsonMessage->SetObjectField("payload", JsonPayload);
+    FString JsonString;
+    TSharedRef<TJsonWriter<>> JsonWriter = TJsonWriterFactory<>::Create(&JsonString);
+    FJsonSerializer::Serialize(JsonMessage.ToSharedRef(), JsonWriter);
+
+    this->m_webSocketClient->SendMessage(JsonString);
+}
+
+void USimpleWebsocketChat::LeaveChannel(const FString& channelName){
+
+    // Create a JSON object for the leave-channel message
+    TSharedPtr<FJsonObject> JsonMessage = MakeShareable(new FJsonObject());
+    JsonMessage->SetStringField("type", "leave");
+    TSharedPtr<FJsonObject> JsonPayload = MakeShareable(new FJsonObject());
+    JsonPayload->SetStringField("channel", channelName);
+    JsonMessage->SetObjectField("payload", JsonPayload);
+    FString JsonString;
+    TSharedRef<TJsonWriter<>> JsonWriter = TJsonWriterFactory<>::Create(&JsonString);
+    FJsonSerializer::Serialize(JsonMessage.ToSharedRef(), JsonWriter);
+
+    this->m_webSocketClient->SendMessage(JsonString);
+}
+
+void USimpleWebsocketChat::SendMessage(const FString& channelName, const FString& message){
+
+    // Create a JSON object for the send-message message
+    TSharedPtr<FJsonObject> JsonMessage = MakeShareable(new FJsonObject());
+    JsonMessage->SetStringField("type", "message");
+    TSharedPtr<FJsonObject> JsonPayload = MakeShareable(new FJsonObject());
+    JsonPayload->SetStringField("channel", channelName);
+    JsonPayload->SetStringField("message", message);
     JsonMessage->SetObjectField("payload", JsonPayload);
     FString JsonString;
     TSharedRef<TJsonWriter<>> JsonWriter = TJsonWriterFactory<>::Create(&JsonString);

@@ -37,6 +37,9 @@ public:
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 	
 	void SetUserName(const FString& userName);
+	void JoinChannel(const FString& channelName);
+	void LeaveChannel(const FString& channelName);
+	void SendMessage(const FString& channelName, const FString& message);
 
 	WebSocketClient *m_webSocketClient;
 
