@@ -37,8 +37,18 @@ export class SimpleWebsocketChat extends Stack {
     var loggingBucket = new s3.Bucket(this, 'SimpleWebSocketChatLogging', {
       enforceSSL: true,
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
-      encryption: s3.BucketEncryption.S3_MANAGED
+      encryption: s3.BucketEncryption.S3_MANAGED,
+      // enable ACL for CloudFront logging
+      accessControl: s3.BucketAccessControl.LOG_DELIVERY_WRITE
     });
+
+    // Add cdk-nag exception to not have logging enabled for the logging bucket itself to avoid excessive amount of unneeded log files
+    NagSuppressions.addResourceSuppressions(loggingBucket, [
+      {
+        id: 'AwsSolutions-S1',
+        reason: 'This is the logging bucket itself'
+      },
+    ]);
 
     // VPC for our Fargate service, using 2 AZs to reduce the amount of NAT Gateways, feel free to use 3 for higher availability
     const vpc = new ec2.Vpc(this, "MyVpc", {
@@ -211,6 +221,13 @@ export class SimpleWebsocketChat extends Stack {
       { id: 'AwsSolutions-CFR4', reason: 'TLS v.1.2 already set' },
       { id: 'AwsSolutions-CFR5', reason: "We don't use certificates on the ALB by default, but customers can add them to enable TLS from CloudFront to origin" }
     ], true);
+
+    // Add a CloudFormation Output for the distribution
+    new cdk.CfnOutput(this, 'WebSocketEndpoint', {
+      value: "wss://"+distribution.domainName,
+      description: 'The distribution Websocket endpoint',
+      exportName: 'WebSocketEndpoint',
+    });
 
   }
 }
