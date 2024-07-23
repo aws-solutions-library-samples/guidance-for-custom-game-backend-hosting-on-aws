@@ -3,7 +3,7 @@
 This feature of the AWS Game Backend Framework showcases how you can host a WebSocket backend on AWS for simple chat application that supports the following features:
 
 * Set your user name (stored in an ElastiCache for Redis Serverless cluster)
-* Join a channel (using Pub/Sub mechanism of ElastiCache)
+* Join a channel (using Pub/Sub mechanism of Redis)
 * Leave a channel
 * Send a message to a channel
 
@@ -13,6 +13,10 @@ This feature of the AWS Game Backend Framework showcases how you can host a WebS
 * We are not limiting access to join channels, you should implement any logic that makes sense for your game to validate on the backend side which channels the player can join
 * We are allowing players to set any chat name they want. You might want to grab this name from a database instead and have control on for example the uniqueness of these names
 * We are not filtering the chat traffic in any way. You can implement content moderation tooling on the backend side to control what is written in the chat
+
+## Architecture
+
+TODO 
 
 ## Required preliminary setup
 
@@ -74,7 +78,7 @@ Sets the name of the user. This must be called before any messages can be sent t
 
 **Message content**:
 
-`{ "type" : "set-name", "payload" : { "name" : "YOUR NAME" }`
+`{ "type" : "set-name", "payload" : { "name" : "YOUR NAME" }}`
 
 ### join
 
@@ -82,7 +86,7 @@ Joins the defined channel. After this, all messages sent to this channel will be
 
 **Message content**:
 
-`{ "type" : "join", "payload" : { "channel" : "YOUR CHANNEL" }`
+`{ "type" : "join", "payload" : { "channel" : "YOUR CHANNEL" }}`
 
 ### leave
 
@@ -90,7 +94,7 @@ Leaves the defined channel. After this, no messages are received from this chann
 
 **Message content**:
 
-`{ "type" : "leave", "payload" : { "channel" : "YOUR CHANNEL" }`
+`{ "type" : "leave", "payload" : { "channel" : "YOUR CHANNEL" }}`
 
 ### message
 
@@ -98,7 +102,7 @@ Sends a message to the defined channel. The message is broadcasted to all users 
 
 **Message content**:
 
-`{ "type" : "message", "payload" : { "channel" : "YOUR CHANNEL", "message" : "YOUR MESSAGE" }`
+`{ "type" : "message", "payload" : { "channel" : "YOUR CHANNEL", "message" : "YOUR MESSAGE" }}`
 
 ---
 
