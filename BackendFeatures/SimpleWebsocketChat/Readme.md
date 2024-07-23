@@ -40,14 +40,6 @@ websocket_endpoint=wss://YOURENDPOINT.cloudfront.net
 auth_token=$(curl $login_endpoint/login-as-guest | jq -j '.auth_token')
 websocat "$websocket_endpoint/?auth_token=$auth_token"
 ```
-
-login_endpoint=https://wzhxxbesd0.execute-api.us-east-1.amazonaws.com/prod/
-websocket_endpoint=wss://dxlghbkhd0vee.cloudfront.net
-
-# GET A USER AND CONNECT
-auth_token=$(curl $login_endpoint/login-as-guest | jq -j '.auth_token')
-websocat "$websocket_endpoint/?auth_token=$auth_token"
-
 ## Integration with the Game Engines
 
 ### Unity integration
