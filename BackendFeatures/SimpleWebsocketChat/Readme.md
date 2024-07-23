@@ -78,7 +78,7 @@ Sets the name of the user. This must be called before any messages can be sent t
 
 **Message content**:
 
-`{ "type" : "set-name", "payload" : { "name" : "YOUR NAME" }}`
+`{ "type" : "set-name", "payload" : { "username" : "YOUR NAME" }}`
 
 ### join
 
