@@ -72,9 +72,16 @@ export class CustomIdentityComponentStack extends Stack {
     var loggingBucket = new s3.Bucket(this, 'IdentityComponentLoggingBucket', {
       enforceSSL: true,
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
-      encryption: s3.BucketEncryption.S3_MANAGED,
-      serverAccessLogsPrefix: 'logging-bucket-access-logs',
+      encryption: s3.BucketEncryption.S3_MANAGED
     });
+
+    // Add cdk-nag exception to not have logging enabled for the logging bucket itself to avoid excessive amount of unneeded log files
+    NagSuppressions.addResourceSuppressions(loggingBucket, [
+      {
+        id: 'AwsSolutions-S1',
+        reason: 'This is the logging bucket itself'
+      },
+    ]);
 
     // Creates an S3 bucket for issuer data such as JWKS and a CloudFront distribution to access the data
     const issuer_bucket = new s3.Bucket(this, 'issuerdatabucket', {
@@ -173,17 +180,17 @@ export class CustomIdentityComponentStack extends Stack {
     });
 
     // Define a Web Application Firewall with the standard AWS provided rule set
-    const cfnWebACLManaged = new wafv2.CfnWebACL(this,'CustomIdentityWebACL',{
+    const cfnWebACLManaged = new wafv2.CfnWebACL(this,'CustomIdentityWebACLRules',{
             defaultAction: {
               allow: {}
             },
             scope: 'REGIONAL',
             visibilityConfig: {
               cloudWatchMetricsEnabled: true,
-              metricName:'MetricForWebACLCDK',
+              metricName:'MetricForWebACLCustomIdentity',
               sampledRequestsEnabled: true,
             },
-            name:'CustomIdentityWebACL',
+            name:'CustomIdentityWebACLRules',
             rules: [{
               name: 'ManagedWafRules',
               priority: 0,
@@ -201,40 +208,26 @@ export class CustomIdentityComponentStack extends Stack {
               overrideAction: {
                 none: {}
               },
+            },
+            // Add rate limiting rule to allow 3.33 TPS from a single IP (1000 per 5 minutes)
+            {
+              name: 'RateLimitingRule',
+              priority: 1,
+              action: {
+                block: {}
+              },
+              statement: {
+                rateBasedStatement: {
+                  limit: 1000,
+                  aggregateKeyType: 'IP'
+                }
+              },
+              visibilityConfig: {
+                cloudWatchMetricsEnabled: true,
+                metricName:'MetricForWebACLCDK-RateLimiting',
+                sampledRequestsEnabled: true,
+              }
             }]
-    });
-
-    const cfnWebACLRateLimit = new wafv2.CfnWebACL(this,'CustomIdentityWebACLRateLimit',{
-      defaultAction: {
-        allow: {}
-      },
-      scope: 'REGIONAL',
-      visibilityConfig: {
-        cloudWatchMetricsEnabled: true,
-        metricName:'MetricForWebACLCDKRateLimit',
-        sampledRequestsEnabled: true,
-      },
-      name:'CustomIdentityWebACLRateLimit',
-      rules: [
-      // Add rate limiting rule to allow 3.33 TPS from a single IP (1000 per 5 minutes)
-      {
-        name: 'RateLimitingRule',
-        priority: 1,
-        action: {
-          block: {}
-        },
-        statement: {
-          rateBasedStatement: {
-            limit: 1000,
-            aggregateKeyType: 'IP'
-          }
-        },
-        visibilityConfig: {
-          cloudWatchMetricsEnabled: true,
-          metricName:'MetricForWebACLCDK-RateLimiting',
-          sampledRequestsEnabled: true,
-        }
-      }]
     });
 
     // Define an API Gateway for the authentication component public endpoint
@@ -261,15 +254,10 @@ export class CustomIdentityComponentStack extends Stack {
           reason: "We are using the default CW Logs access of API Gateway",
         },],true);
 
-    // Attach the Web Application Firewall with the standard AWS provided rule set
+    // Attach the Web Application Firewall with the standard AWS provided rule set and the rate limit rule
     new wafv2.CfnWebACLAssociation(this,'ApiGatewayWebACLAssociation',{
       resourceArn: api_gateway.deploymentStage.stageArn,
       webAclArn:cfnWebACLManaged.attrArn,
-    });
-    // Attach the WAF with the rate limit rules
-    new wafv2.CfnWebACLAssociation(this,'ApiGatewayWebACLAssociationRateLimit',{
-      resourceArn: api_gateway.deploymentStage.stageArn,
-      webAclArn:cfnWebACLRateLimit.attrArn,
     });
 
     // Request validator for the API

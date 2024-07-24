@@ -9,6 +9,8 @@
   
 These sample components can be deployed to test integration from a game client to a backend using the authentication feature of the custom identity component.
 
+**IMPORTANT NOTE:** The sample components don't use a custom domain to route traffic, but rather the default endpoints provided by Amazon API Gateway and Application Load Balancer. The recommendation is to use [Amazon Route53](https://aws.amazon.com/route53) to create your own domain, and route subdomains to the individual public backend endpoints. This way you can use TLS certificates created for your domain to validate your endpoints, and have control over changing the endpoints as needed without modifying your client. In addition, the sample Fargate backend API uses HTTP instead of HTTPS because we are not configuring access through your own domain. You should configure a TLS certificate for your own domain using using [AWS Certificate Manager](https://aws.amazon.com/certificate-manager/), and use this on the load balancer for HTTTPS traffic ([docs](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/create-https-listener.html)). In addition, you can add a CloudFront distribution to improve the connectivity and host your certificate on CloudFront instead.
+
 **Logs and Distributed Tracing**
 
 All the backend template components leverage **AWS X-Ray** for distributed tracing, as well as **AWS CloudWatch** for logs. You can find both the logs and the tracing map and individual trace information the **AWS CloudWatch** console.
@@ -27,7 +29,7 @@ To deploy the component, follow the _Preliminary Setup_, and then run the follow
 1. `cd ..` to return to the root and `cd BackendComponentSamples` to navigate to samples
 2. `npm install` to install CDK app dependencies
 4. `cdk synth` to synthesize the CDK app and validate your configuration works
-5. `cdk deploy PythonServerlessHttpApiStack` to deploy the CDK app to your account. It's also possible to set the issuer endpoint here using command line parameters (`--parameters IssuerEndpointUrl=<YOUR-ENDPOINT-HERE>`).
+5. `cdk deploy PythonServerlessHttpApiStack --no-previous-parameters` to deploy the CDK app to your account. It's also possible to set the issuer endpoint here using command line parameters (`--parameters IssuerEndpointUrl=<YOUR-ENDPOINT-HERE>`).
 
 You'll see a new stack deployed in the AWS CloudFormation console, with an API Gateway HTTP API to set and get player data, backed up with Python Lambda functions and an Amazon DynamoDB PlayerData table.
 
@@ -48,7 +50,7 @@ To deploy the component, follow the _Preliminary Setup_, and then run the follow
 2. `cd ..` to return to the root and `cd BackendComponentSamples` to navigate to samples
 3. `npm install` to install CDK app dependencies
 4. `cdk synth` to synthesize the CDK app and validate your configuration works
-5. `cdk deploy NodeJsFargateApiStack` to deploy the CDK app to your account
+5. `cdk deploy NodeJsFargateApiStack --no-previous-parameters` to deploy the CDK app to your account. It's also possible to set the issuer endpoint here using command line parameters (`--parameters IssuerEndpointUrl=<YOUR-ENDPOINT-HERE>`).
 
 ## Architecture
 
