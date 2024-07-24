@@ -74,7 +74,7 @@ Press play to test the integration. You'll see the login and WebSocket connectio
 **Key code files:**
 * `UnitySample/Assets/AWSGameSDK/WebSocketClient.cs`: A WebSocket client class that can be used by any WebSocket integration.
 * `UnitySample/Assets/BackendFeatures/SimpleWebsocketChat/ChatSerializationClasses.cs`: The data structure for messages between client and server that are sent over in JSON format
-* ``UnitySample/Assets/BackendFeatures/SimpleWebsocketChat/SimpleWebsocketChat.cs`: The main class for the chat application
+* `UnitySample/Assets/BackendFeatures/SimpleWebsocketChat/SimpleWebsocketChat.cs`: The main class for the chat application
 
 ### Unreal Engine integration
 
