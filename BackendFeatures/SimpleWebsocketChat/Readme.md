@@ -39,10 +39,11 @@ This backend feature **requires** that you have deployed the [Identity component
 
 To deploy the component, follow the _Preliminary Setup_, and then run the following commands:
 
-1. Navigate to `BackendFeatures/SimpleWebSocketChat/` folder in your terminal or Powershell[^2].
-2. Run `npm install` to install CDK app dependencies.
-3. Run `cdk deploy --all --require-approval never` to the deploy the backend feature to your AWS account[^3].
-4. After the `SimpleWebsocketChat` stack has been deployed, capture the value of `WebSocketEndpoint` found in the outputs of the _SimpleWebsocketChat_ stack. You can find it in the CloudFormation console, or in the terminal after deploying the component.
+1. Make sure you have __Docker running__ before you open the terminal, as the deployment process creates a Docker image
+2. Navigate to `BackendFeatures/SimpleWebSocketChat/` folder in your terminal or Powershell[^2].
+3. Run `npm install` to install CDK app dependencies.
+4. Run `cdk deploy --all --require-approval never` to the deploy the backend feature to your AWS account[^3].
+5. After the `SimpleWebsocketChat` stack has been deployed, capture the value of `WebSocketEndpoint` found in the outputs of the _SimpleWebsocketChat_ stack. You can find it in the CloudFormation console, or in the terminal after deploying the component.
 
 ## Testing the Simple WebSocket Chat feature
 
