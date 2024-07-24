@@ -34,6 +34,8 @@ public void BackendGetRequest(string url, string resource, Action<UnityWebReques
 public void BackendPostRequest(string url, string resource, Action<UnityWebRequest> callback, string body)
 ```
 
+In addition, there is a `WebSocketClient.cs` class that supports setting up authenticated two-way WebSocket connections between your game client and backend. See the [Simple WebSocket Chat](../BackendFeatures/SimpleWebsocketChat/Readme.md) for an example of utilizing WebSocket connections.
+
 ## Adding the SDK to an existing project
 
 To add the SDK to an existing project:

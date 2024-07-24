@@ -40,6 +40,9 @@ void LinkFacebookIdToCurrentUser(const FString& facebookAccessToken, const FStri
 void LoginWithRefreshToken(const FString& refreshToken, FLoginComplete callback);
 void RefreshAccessToken(FLoginComplete callback);
 ```
+
+In addition, there is a `WebSocketClient.cpp` class that supports setting up authenticated two-way WebSocket connections between your game client and backend. See the [Simple WebSocket Chat](../BackendFeatures/SimpleWebsocketChat/Readme.md) for an example of utilizing WebSocket connections.
+
 ## Adding the SDK to an existing project
 
 To add the SDK to an existing project:
