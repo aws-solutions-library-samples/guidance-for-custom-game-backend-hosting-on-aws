@@ -7,7 +7,9 @@ This feature of the AWS Game Backend Framework showcases how you can host a WebS
 * Leave a channel
 * Send a message to a channel
 
-**NOTES**: While this is a simple sample application, it is designed for scale. The chat channels are managed with ElastiCache for Redis Serverless that automatically scales based on demand. The Node.js backend is hosted on Amazon ECS Fargate as a stateless application, which allows you to configure scaling based on selected metrics. By default, it will automatically scale to keep a maximum of 80% CPU load across the ECS Tasks. There are however some key considerations when you start working towards a more production ready setup:
+While this is a simple sample application, it is designed for scale. The chat channels are managed with ElastiCache for Redis Serverless that automatically scales based on demand. The Node.js backend is hosted on Amazon ECS Fargate as a stateless application, which allows you to configure scaling based on selected metrics. By default, it will automatically scale to keep a maximum of 80% CPU load across the ECS Tasks.
+
+**NOTE**: There are however some key considerations when you start working towards a more production ready setup:
 
 * We are using encrypted WebSocket connections over Amazon CloudFront, but the communication from CloudFront to the Application Load Balancer is not encrypted. You should set up your own certificates on the ALB level to make that connection encrypted as well.
 * We are not limiting access to join channels, you should implement any logic that makes sense for your game to validate on the backend side which channels the player can join
@@ -16,7 +18,18 @@ This feature of the AWS Game Backend Framework showcases how you can host a WebS
 
 ## Architecture
 
-TODO 
+Here's the high level architecture for the solution:
+
+![High Level Reference Architecture](WebsocketChatArchitecture.png)
+
+Key things to note:
+
+* The AWS Game SDK for Unity and Unreal include a WebSocket connection option for any WebSocket needs, which is utilized by this implementation
+* Client connects with a secure WebSocket connection (wss) to a CloudFront distribution that accelerates the connection at the edge
+* CloudFront routes the traffic to an Application Load Balancer that routes the WebSocket connection to a cluster of Amazon ECS Fargate Tasks
+* A Node.js application will validate the authentication token received from the client as part of the connection. It will validate the token with the public keys provided by the Identity Component. Any invalid connection will be terminated
+* After connection is established, the client and server can send any messages both directions over the WebSocket connection
+* Amazon ElastiCache for Redis Serverless is used to manage the chat channels. The servers will use Redis Pub/Sub features to send and receive messages
 
 ## Required preliminary setup
 
@@ -33,7 +46,7 @@ To deploy the component, follow the _Preliminary Setup_, and then run the follow
 
 ## Testing the Simple WebSocket Chat feature
 
-You can quickly test that the solution is correctly deployed on a Linux or MacOS terminal by first installing [websockat](https://github.com/vi/websocat), setting up the correct endpoints in the script below, and running it. You should get a response of a successful connection (`{"message":"Successfully connected!"}`):
+You can quickly test that the solution is correctly deployed on a Linux or MacOS terminal by first installing [websocat](https://github.com/vi/websocat), setting up the correct endpoints in the script below, and running it. You should get a response of a successful connection (`{"message":"Successfully connected!"}`):
 
 ```bash
 # SET THESE FIRST
@@ -58,6 +71,11 @@ Configure the `SimpleWebsocketChat` component of the `SimpleWebsocketChatIntegra
 
 Press play to test the integration. You'll see the login and WebSocket connection happen. You can then use the UI to test the chat application.
 
+**Key code files:**
+* `UnitySample/Assets/AWSGameSDK/WebSocketClient.cs`: A WebSocket client class that can be used by any WebSocket integration.
+* `UnitySample/Assets/BackendFeatures/SimpleWebsocketChat/ChatSerializationClasses.cs`: The data structure for messages between client and server that are sent over in JSON format
+* ``UnitySample/Assets/BackendFeatures/SimpleWebsocketChat/SimpleWebsocketChat.cs`: The main class for the chat application
+
 ### Unreal Engine integration
 
 To test the integrations with Unreal, **open** the Unreal sample project (`UnrealSample`) in Unreal Engine 5 first.
@@ -74,13 +92,19 @@ Press play to test the integration. You'll see the login as a guest user and sta
 
 **Adding the integration to your custom project:** You can follow the [guidelines found in the Unreal Engine Integration Readme](../../UnrealSample/README.md#adding-the-sdk-to-an-existing-project) to add the AWS Game SDK to your own project. After that, you can use `UnrealSample/Source/UnrealSample/BackendFeatures/SimpleWebsocketChat/SimpleWebsocketChat.cpp.cpp` as a reference for how to implement the WebSocket connection.
 
+**Key code files:**
+* `UnrealSample/Source/UnrealSample/AWSGameSDK/WebSocketClient.cpp`: A WebSocket client class that can be used by any WebSocket integration.
+* `UnrealSample/Source/UnrealSample/BackendFeatures/SimpleWebsocketChat/SimpleWebsocketChat.cpp`: The main class for the chat application
+
 ## WebSocket message reference
 
-The initial connection to the websocket expects to receive the `auth_token` as a URL Parameter, for example `wss://abcdefghijklm.cloudfront.net/?auth_token=eyMYTOKEN`. It will disconnect any client that doesn't send an auth token that validates correctly against the public key found in the Identity component endpoint.
+The initial connection to the websocket expects to receive the `auth_token` as a URL Parameter, for example `wss://abcdefghijklm.cloudfront.net/?auth_token=eyMYTOKEN`.
 
-After this, the messages use a JSON format for the different features of the chat application.
+Server will disconnect any client that doesn't send an auth token that validates correctly against the public key found in the Identity component endpoint. After this, the messages use a JSON format for the different features of the chat application.
 
-### set-name
+### Message types
+
+#### type: set-name
 
 Sets the name of the user. This must be called before any messages can be sent to any channel as the broadcasted messages will have the name included.
 
@@ -88,7 +112,7 @@ Sets the name of the user. This must be called before any messages can be sent t
 
 `{ "type" : "set-name", "payload" : { "username" : "YOUR NAME" }}`
 
-### join
+#### type: join
 
 Joins the defined channel. After this, all messages sent to this channel will be sent over the WebSocket to this user
 
@@ -96,7 +120,7 @@ Joins the defined channel. After this, all messages sent to this channel will be
 
 `{ "type" : "join", "payload" : { "channel" : "YOUR CHANNEL" }}`
 
-### leave
+#### type: leave
 
 Leaves the defined channel. After this, no messages are received from this channel. User will also disconnect from all channels when disconnecting from the backend.
 
@@ -104,7 +128,7 @@ Leaves the defined channel. After this, no messages are received from this chann
 
 `{ "type" : "leave", "payload" : { "channel" : "YOUR CHANNEL" }}`
 
-### message
+#### type: message
 
 Sends a message to the defined channel. The message is broadcasted to all users who have joined the channel.
 
