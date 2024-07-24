@@ -86,6 +86,10 @@ Once the build is successful, you're all set to test! You can jump right into [T
   * Godot 4 version of the AWS Game SDK and sample scenes for integration with different identity providers
   * For SDK details see the [Godot 4 SDK Overview](GodotSample/README.md#sdk-overview)
 
+**Note on VPC implementation of the components and features:**
+
+All components and features that require a VPC deploy their own, which includes resources such as NAT Gateways that generate cost. This makes it easy to test the features, but you likely want to share a VPC between multiple components and provide that as a parameter to the different CDK applications.
+
 **High Level Architecture**
 
 ![High Level Reference Architecture](highlevelarchitecture.png)

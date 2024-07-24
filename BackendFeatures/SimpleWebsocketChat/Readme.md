@@ -16,6 +16,10 @@ While this is a simple sample application, it is designed for scale. The chat ch
 * We are allowing players to set any chat name they want. You might want to grab this name from a database instead and have control on for example the uniqueness of these names
 * We are not filtering the chat traffic in any way. You can implement content moderation tooling on the backend side to control what is written in the chat
 
+**Note on VPC implementation of the feature:**
+
+This feature deploys a VPC which includes resources such as NAT Gateways that generate cost. This makes it easy to test the feature, but you likely want to share a VPC between multiple components and provide that as a parameter to the different CDK applications.
+
 ## Architecture
 
 Here's the high level architecture for the solution:
