@@ -28,8 +28,9 @@ The framework consists of four key components:
 * Lightweight game engine SDK:s for __Unreal Engine 5__,  __Unity 2021 (and up)__, and __Godot 4__
 * Sample backend component templates showcasing simple player data management to get started with backend feature development
 * Backend Features for specific use cases (such as **Amazon GameLift integration**, **WebSocket Chat**, and **Databricks Delta Lake integration**)
+* SDK support for both **REST API** and **WebSocket** integrations between game client and your backend
 
-The currently supported engines include Unity, Unreal Engine 5, and Godot 4, but as the features are exposed as REST API:s, you can easily integrate the identity component and custom backend components to any game engine of choice.
+The currently supported engines include Unity, Unreal Engine 5, and Godot 4, but as the features are exposed as REST API:s or WebSocket connections, you can easily integrate the identity component and custom backend components to any game engine of choice.
 
 The currently supported login options for the identity component include __guest identities__, __Steam__, __Sign in with Apple__, __Google Play__, and __Facebook__. Using these integrations as a template, it's possible to add other platforms such as console identity systems and other PC game stores.
 
