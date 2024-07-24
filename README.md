@@ -74,7 +74,7 @@ Once the build is successful, you're all set to test! You can jump right into [T
 * **Backend Features**
   * Full backend feature implementations for different use cases
   * See the [Amazon GameLift Integration Readme](BackendFeatures/AmazonGameLiftIntegration/README.md) for details on the Amazon GameLift integration
-  * See the [Simple WebSocket Chat Readme](BackendFeature/SimpleWebsocketChat/Readme.md) for details on the WebSocket-based chat implementation
+  * See the [Simple WebSocket Chat Readme](BackendFeatures/SimpleWebsocketChat/Readme.md) for details on the WebSocket-based chat implementation
   * See the [Databricks Delta Lake Integration Readme](BackendFeatures/DeltaLakeIntegration/README.md) for details on the Databrics Delta Lake integration
 * **Unreal Engine 5 Samples with AWS Game SDK** (`UnrealSample` folder contains [Readme](UnrealSample/README.md))
   * Unreal Engine 5 version of the AWS Game SDK and sample levels for integration with different identity providers
