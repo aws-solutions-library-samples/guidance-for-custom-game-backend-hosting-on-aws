@@ -108,7 +108,7 @@ Server will disconnect any client that doesn't send an auth token that validates
 
 Sets the name of the user. This must be called before any messages can be sent to any channel as the broadcasted messages will have the name included.
 
-**Message content**:
+Message content:
 
 `{ "type" : "set-name", "payload" : { "username" : "YOUR NAME" }}`
 
@@ -116,7 +116,7 @@ Sets the name of the user. This must be called before any messages can be sent t
 
 Joins the defined channel. After this, all messages sent to this channel will be sent over the WebSocket to this user
 
-**Message content**:
+Message content:
 
 `{ "type" : "join", "payload" : { "channel" : "YOUR CHANNEL" }}`
 
@@ -124,7 +124,7 @@ Joins the defined channel. After this, all messages sent to this channel will be
 
 Leaves the defined channel. After this, no messages are received from this channel. User will also disconnect from all channels when disconnecting from the backend.
 
-**Message content**:
+Message content:
 
 `{ "type" : "leave", "payload" : { "channel" : "YOUR CHANNEL" }}`
 
@@ -132,7 +132,7 @@ Leaves the defined channel. After this, no messages are received from this chann
 
 Sends a message to the defined channel. The message is broadcasted to all users who have joined the channel.
 
-**Message content**:
+Message content:
 
 `{ "type" : "message", "payload" : { "channel" : "YOUR CHANNEL", "message" : "YOUR MESSAGE" }}`
 
