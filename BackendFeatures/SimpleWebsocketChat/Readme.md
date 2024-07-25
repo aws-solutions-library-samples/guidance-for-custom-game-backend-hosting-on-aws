@@ -7,10 +7,11 @@ This feature of the AWS Game Backend Framework showcases how you can host a WebS
 * Leave a channel
 * Send a message to a channel
 
-While this is a simple sample application, it is designed for scale. The chat channels are managed with ElastiCache for Redis Serverless that automatically scales based on demand. The Node.js backend is hosted on Amazon ECS Fargate as a stateless application, which allows you to configure scaling based on selected metrics. By default, it will automatically scale to keep a maximum of 80% CPU load across the ECS Tasks.
+While this is a simple sample application, it is designed for scale. The chat channels are managed with ElastiCache for Redis Serverless that automatically scales based on demand. The Node.js backend is hosted on Amazon ECS Fargate as a stateless application, which allows you to configure scaling based on selected metrics. By default, it will automatically scale to keep a maximum of 80% CPU load across the ECS Tasks. The solution has been tested with around 100 chat messages per second, which consumed ~15% of CPU and ~4% of memory across the default 3 Fargate Tasks. With players sending messages on average once per minute (which would be a lot), this would map to 6000 CCU, showing great scalability even before the Fargate scaling would kick in.
 
 **NOTE**: There are however some key considerations when you start working towards a more production ready setup:
 
+* You're always responsible for your own production configuration, including any load, reliability, and security testing. This solution, while thoroughly tested, is for sample purposes only.
 * We are using encrypted WebSocket connections over Amazon CloudFront, but the communication from CloudFront to the Application Load Balancer is not encrypted. You should set up your own certificates on the ALB level to make that connection encrypted as well.
 * We are not limiting access to join channels, you should implement any logic that makes sense for your game to validate on the backend side which channels the player can join
 * We are allowing players to set any chat name they want. You might want to grab this name from a database instead and have control on for example the uniqueness of these names
