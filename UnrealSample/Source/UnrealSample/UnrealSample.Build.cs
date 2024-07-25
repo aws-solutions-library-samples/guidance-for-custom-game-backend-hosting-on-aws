@@ -9,7 +9,7 @@ public class UnrealSample : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 	
-		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore","Http", "Json", "JsonUtilities" });
+		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore","Http", "Json", "JsonUtilities", "WebSockets" });
 
 		PrivateDependencyModuleNames.AddRange(new string[] {  });
 
