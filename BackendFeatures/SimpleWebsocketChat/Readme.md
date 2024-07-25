@@ -15,6 +15,7 @@ While this is a simple sample application, it is designed for scale. The chat ch
 * We are not limiting access to join channels, you should implement any logic that makes sense for your game to validate on the backend side which channels the player can join
 * We are allowing players to set any chat name they want. You might want to grab this name from a database instead and have control on for example the uniqueness of these names
 * We are not filtering the chat traffic in any way. You can implement content moderation tooling on the backend side to control what is written in the chat
+* Unsubscribing from redis channels is disabled for the server because of a rare issue with redis when the server is under heavy load (see comments under `SimpleWebSocketApp/RedisManager.js` for more details). The Tasks can handle open subscriptions to thousands of channels, so this should not be an issue, but we'll update this once it's fixed in the redis package.
 
 **Note on VPC implementation of the feature:**
 
