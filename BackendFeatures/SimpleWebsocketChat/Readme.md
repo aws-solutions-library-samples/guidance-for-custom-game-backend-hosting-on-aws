@@ -14,7 +14,7 @@ While this is a simple sample application, it is designed for scale. The chat ch
 
 There are some key considerations when you start working towards a more production ready setup:
 
-* You're always responsible for your own production configuration, including any load, reliability, and security testing. This solution is for sample purposes only.
+* You're always responsible for your own production configuration, including any load, reliability, and security testing. **This solution is for sample purposes only**.
 * We are using encrypted WebSocket connections over Amazon CloudFront, but the communication from CloudFront to the Application Load Balancer is not encrypted. You should set up your own certificates on the ALB level to make that connection encrypted as well.
 * We are not limiting access to join channels, you should implement any logic that makes sense for your game to validate on the backend side which channels the player can join
 * We are allowing players to set any chat name they want. You might want to grab this name from a database instead and have control on for example the uniqueness of these names
@@ -148,11 +148,11 @@ Message content:
 
 ## Scaling Considerations
 
-The solution has been load tested 1500 clients generating a total of 1500 chat messages per second. With players sending on average 1 message per minute (which would be a lot), this would map to 90 000 CCU. Note that the amount of Websocket connections to the Fargate service would still be 60x higher in that scenario, which requires separate testing.
+The solution has been load tested with 1500 clients generating a total of 1500 chat messages per second. With players sending on average 1 message per minute (which would be a lot), this would map to 90 000 CCU. Note that the amount of Websocket connections to the Fargate service would still be 60x higher in that scenario, which requires separate testing.
 
-With this amount of traffic, the Fargate application consumed 61% CPU and 16.2% memory on average across the 3 Tasks initially launched. The ECS Service is configured to scale to up to 10 Tasks and scaling targets 80% average CPU utilization. The ElastiCache for Redis Serverless cluster scales automatically, and didn't show any issues with this traffic.
+With this amount of traffic, the Fargate application consumed 61% CPU and 16.2% memory on average across the 3 Tasks initially launched. The ECS Service is configured to scale to up to 10 Tasks and scaling targets 80% average CPU utilization. The ElastiCache for Redis Serverless cluster scales automatically, and didn't show any issues with this traffic. Also, testing with a sample Unity client, the player experience was fast and responsive.
 
-Make sure to do extensive load testing for your own needs, and configure the resources and scaling to match your needs
+Make sure to do extensive load testing for your own needs, and configure the resources and scaling to match your needs. The solution is intended for sample purposes only, and you're always responsible for your own production environments.
 
 ---
 
