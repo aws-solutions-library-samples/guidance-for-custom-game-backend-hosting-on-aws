@@ -6,17 +6,20 @@ This feature of the AWS Game Backend Framework showcases how you can host a WebS
 * Join a channel (using Pub/Sub mechanism of Redis)
 * Leave a channel
 * Send a message to a channel
+* Utilizes the WebSocketClient functionality in the Unity and Unreal SDK:s for authenticated WebSocket communication
 
-While this is a simple sample application, it is designed for scale. The chat channels are managed with ElastiCache for Redis Serverless that automatically scales based on demand. The Node.js backend is hosted on Amazon ECS Fargate as a stateless application, which allows you to configure scaling based on selected metrics. By default, it will automatically scale to keep a maximum of 80% CPU load across the ECS Tasks. The solution has been tested with around 100 chat messages per second, which consumed ~15% of CPU and ~4% of memory across the default 3 Fargate Tasks. With players sending messages on average once per minute (which would be a lot), this would map to 6000 CCU, showing great scalability even before the Fargate scaling would kick in.
+While this is a simple sample application, it is designed for scale. The chat channels are managed with ElastiCache for Redis Serverless that automatically scales based on demand. The Node.js backend is hosted on Amazon ECS Fargate as a stateless application, which allows you to configure scaling based on selected metrics. See [Scaling considerations](#scaling-considerations) for more details.
 
-**NOTE**: There are however some key considerations when you start working towards a more production ready setup:
+## Considerations
 
-* You're always responsible for your own production configuration, including any load, reliability, and security testing. This solution, while thoroughly tested, is for sample purposes only.
+There are some key considerations when you start working towards a more production ready setup:
+
+* You're always responsible for your own production configuration, including any load, reliability, and security testing. This solution is for sample purposes only.
 * We are using encrypted WebSocket connections over Amazon CloudFront, but the communication from CloudFront to the Application Load Balancer is not encrypted. You should set up your own certificates on the ALB level to make that connection encrypted as well.
 * We are not limiting access to join channels, you should implement any logic that makes sense for your game to validate on the backend side which channels the player can join
 * We are allowing players to set any chat name they want. You might want to grab this name from a database instead and have control on for example the uniqueness of these names
 * We are not filtering the chat traffic in any way. You can implement content moderation tooling on the backend side to control what is written in the chat
-* Unsubscribing the server from redis channels is disabled because of a rare issue with redis when the server is under heavy load (see comments under `SimpleWebSocketApp/RedisManager.js` for more details). The Tasks can handle open subscriptions to thousands of channels, so this should not be an issue, but we'll update this once it's fixed in the redis package. This does **not** affect client joining and leaving channels which works as intended.
+* Unsubscribing the server containers from redis channels is disabled because of a rare issue with redis when the server is under heavy load (see comments under `SimpleWebSocketApp/RedisManager.js` for more details). This does **not** affect client joining and leaving channels which works as intended.
  
 **Note on VPC implementation of the feature:**
 
@@ -142,6 +145,14 @@ Sends a message to the defined channel. The message is broadcasted to all users 
 Message content:
 
 `{ "type" : "message", "payload" : { "channel" : "YOUR CHANNEL", "message" : "YOUR MESSAGE" }}`
+
+## Scaling Considerations
+
+The solution has been load tested 1500 clients generating a total of 1500 chat messages per second. With players sending on average 1 message per minute (which would be a lot), this would map to 90 000 CCU. Note that the amount of Websocket connections to the Fargate service would still be 60x higher in that scenario, which requires separate testing.
+
+With this amount of traffic, the Fargate application consumed 61% CPU and 16.2% memory on average across the 3 Tasks initially launched. The ECS Service is configured to scale to up to 10 Tasks and scaling targets 80% average CPU utilization. The ElastiCache for Redis Serverless cluster scales automatically, and didn't show any issues with this traffic.
+
+Make sure to do extensive load testing for your own needs, and configure the resources and scaling to match your needs
 
 ---
 
