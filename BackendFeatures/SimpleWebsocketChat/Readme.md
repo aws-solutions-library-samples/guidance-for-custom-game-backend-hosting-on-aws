@@ -16,6 +16,7 @@ There are some key considerations when you start working towards a more producti
 
 * You're always responsible for your own production configuration, including any load, reliability, and security testing. **This solution is for sample purposes only**.
 * We are using encrypted WebSocket connections over Amazon CloudFront, but the communication from CloudFront to the Application Load Balancer is not encrypted. You should set up your own certificates on the ALB level to make that connection encrypted as well.
+* Client reconnects are not implemented, you should capture disconnect from the server and implement reconnect based on your game's needs
 * We are not limiting access to join channels, you should implement any logic that makes sense for your game to validate on the backend side which channels the player can join
 * We are allowing players to set any chat name they want. You might want to grab this name from a database instead and have control on for example the uniqueness of these names
 * We are not filtering the chat traffic in any way. You can implement content moderation tooling on the backend side to control what is written in the chat
