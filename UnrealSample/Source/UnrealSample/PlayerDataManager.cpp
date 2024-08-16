@@ -8,8 +8,6 @@
 void UPlayerDataManager::Initialize(FSubsystemCollectionBase& Collection){
     UE_LOG(LogTemp, Display, TEXT("Init PlayerDataManager Subsystem") );
 
-    // Load the Player Data
-	PlayerData = Cast<UPlayerDataSave>(UGameplayStatics::LoadGameFromSlot(SaveSlot, 0));
 }
 
 void UPlayerDataManager::SaveGameData(FString UserId, FString GuestSecret)
@@ -28,6 +26,9 @@ void UPlayerDataManager::SaveGameData(FString UserId, FString GuestSecret)
 
 UPlayerDataSave* UPlayerDataManager::LoadGameData()
 {
+    // Load the Player Data
+    PlayerData = Cast<UPlayerDataSave>(UGameplayStatics::LoadGameFromSlot(SaveSlot, 0));
+	
     // Return the player data loaded in Initialize or null
 	if (PlayerData)
 		return PlayerData;
