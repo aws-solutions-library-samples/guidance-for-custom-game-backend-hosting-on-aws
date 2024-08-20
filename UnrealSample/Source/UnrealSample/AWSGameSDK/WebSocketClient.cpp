@@ -1,5 +1,5 @@
 // Implement WebsocketClient.cpp with constructor and destructor
-#include "WebsocketClient.h"
+#include "WebSocketClient.h"
 #include "CoreMinimal.h"
 #include "WebSocketsModule.h"
 #include "IWebSocket.h"
