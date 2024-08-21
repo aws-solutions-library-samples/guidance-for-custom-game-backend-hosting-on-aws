@@ -94,11 +94,17 @@ def write_ticket_to_dynamoDB(ticket_id, matchmaking_status, player_session_id = 
         )
     # Else we just have the ticketId and the status
     else:
+
+        # Put item to the database with a condition to never overwrite a succeeded status (for race conditions of 2 Lambdas updating the same item)
         table.put_item(
             Item={
                 'TicketID': ticket_id,
                 'MatchmakingStatus': matchmaking_status,
                 'ExpirationTime': epoch_time
+            },
+            ConditionExpression='MatchmakingStatus <> :succeeded',
+            ExpressionAttributeValues={
+                ':succeeded': 'MatchmakingSucceeded'
             }
         )
 
