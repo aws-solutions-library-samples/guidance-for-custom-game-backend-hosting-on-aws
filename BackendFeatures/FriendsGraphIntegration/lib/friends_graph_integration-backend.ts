@@ -449,38 +449,5 @@ export class FriendsGraphIntegrationBackend extends cdk.Stack {
 
     //#endregion
 
-    // // API Gateway
-    // const apiGwLogGroup = new logs.LogGroup(this, "FriendsGraphIntegrationApiLogs",
-    // {
-    //   logGroupName: '/aws/apigateway/FriendsGraphIntegrationApiLogs',
-    //   retention: logs.RetentionDays.ONE_MONTH,
-    // });
-    
-    // const apiGateway = new apigw.RestApi(this, 'ApiGateway', {
-    //   restApiName: 'FriendsGraphIntegrationApi',
-    //   description: 'Friends Graph Integration API',
-    //   deployOptions: {
-    //     accessLogDestination: new apigw.LogGroupLogDestination(apiGwLogGroup),
-    //     accessLogFormat: apigw.AccessLogFormat.clf(),
-    //     loggingLevel : apigw.MethodLoggingLevel.ERROR,
-    //     tracingEnabled: true,
-    //     stageName: 'prod',
-    //   }
-    // });
-
-    // // Map player functions to API gateway
-    // const apiPlayerResource = apiGateway.root.addResource('player');
-    // apiPlayerResource.addMethod('POST', new apigw.LambdaIntegration(playerPostFunction));
-    // apiPlayerResource.addMethod('GET', new apigw.LambdaIntegration(playerGetFunction));
-    // apiPlayerResource.addMethod('DELETE', new apigw.LambdaIntegration(playerDeleteFunction));
-
-    // // Map friend functions to API gateway
-    // const apiFriendResource = apiGateway.root.addResource('friend');
-    // apiFriendResource.addMethod('POST', new apigw.LambdaIntegration(friendPostFunction));
-    // apiFriendResource.addMethod('DELETE', new apigw.LambdaIntegration(friendDeleteFunction));
-
-    // // Map friends functions to API gateway
-    // const apiFriendsResource = apiGateway.root.addResource('friends');
-    // apiFriendsResource.addMethod('GET', new apigw.LambdaIntegration(friendsGetFunction));
   }
 }
