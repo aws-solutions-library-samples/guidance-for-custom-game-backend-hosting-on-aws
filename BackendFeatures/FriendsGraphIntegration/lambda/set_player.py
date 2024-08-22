@@ -8,7 +8,7 @@ from gremlin_python.driver import serializer
 from gremlin_python.process.anonymous_traversal import traversal
 from gremlin_python.process.graph_traversal import __
 from gremlin_python.process.strategies import *
-from gremlin_python.process.traversal import T, P
+from gremlin_python.process.traversal import T
 from aiohttp.client_exceptions import ClientConnectorError
 from botocore.auth import SigV4Auth
 from botocore.awsrequest import AWSRequest
@@ -112,38 +112,24 @@ def reset_connection_if_connection_issue(params):
     interval=1)
 def query(**kwargs):
     
-    body = kwargs['body']
-    from_id = body['from_id']
-    to_id = body['to_id']
-
-    player_vertices= g.V().hasId(P.within([from_id, to_id])).toList()
-    if len(player_vertices) != 2:
-        logger.error('Either {} or {} does not exist.'.format(from_id, to_id))
-        raise ValueError('Either {} or {} does not exist.'.format(from_id, to_id))
+    player_id = kwargs['player_id']
+    logger.info('Upserting player: {}'.format(player_id))
     
-    # logger.info('Upserting edge from {} to {}'.format(from_id, to_id))
-    # return (g.V(from_id).outE('friendWith').where(__.in_v().hasId(to_id)).fold().coalesce(__.unfold(),__.addE('friendWith').from_(__.V('from_id')).to(__.V('to_id'))).toList())
-    
-    logger.info('Checking if edge already exists between {} and {}.'.format(from_id, to_id))
-    friend_edge = g.V(from_id).hasLabel('player').outE('friendWith').where(__.in_v().hasId(to_id).hasLabel('player')).id_().toList()
-    
-    if not friend_edge:
-        logger.info('Creating edge from {} to {}'.format(from_id, to_id))
-        return (g.V(from_id).addE('friendWith').to(__.V(to_id)).id_().toList())
-    else:
-        logger.info('Friend edge already exists: {}'.format(friend_edge))
-        return friend_edge
+    return (g.V(player_id).fold().coalesce(__.unfold(), __.addV('player').property(T.id, player_id)).next())
         
 def doQuery(event):
     logger.info('Event received: {}'.format(event))
 
-    eventBody = json.loads(event['body'])
-    # {'from_id': <PLAYER_ID>, 'to_id': <FRIEND_ID>}
-    if 'from_id' not in eventBody or 'to_id' not in eventBody:
-        logger.error('from_id or to_id parameter is missing.')
-        raise KeyError('from_id or to_id parameter is missing.')
-    
-    return query(body=eventBody)
+    # We expect a successful JWT authorization has been done
+    player_id = None
+    try:
+        player_id = event['requestContext']['authorizer']['jwt']['claims']['sub']
+        print("player_id: ", player_id)
+    except Exception as err:
+        logger.error('Authorizer JWT claims not found: {}'.format(type(err), str(err)))
+        raise err
+
+    return query(player_id=player_id)
 
 @tracer.capture_lambda_handler
 def lambda_handler(event, context):
@@ -161,7 +147,7 @@ def lambda_handler(event, context):
         }
     except Exception as err:
         logger.error('Unexpected {}: {}'.format(type(err), str(err)))
-        return error_response(str(err), 500)
+        return error_response('Unexpected {}: {}'.format(type(err), str(err)), 500)
     
 def create_graph_traversal_source(conn):
     return traversal().withRemote(conn)

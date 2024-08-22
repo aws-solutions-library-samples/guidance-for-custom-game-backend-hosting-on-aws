@@ -112,23 +112,27 @@ def reset_connection_if_connection_issue(params):
     interval=1)
 def query(**kwargs):
     
-    body = kwargs['body']
-    player_id = body['id']
-    logger.info('Deleting player: {}'.format(player_id))
-    
-    return (g.V(player_id).drop().iterate())
+    queryString = kwargs['queryString'] 
+
+    # { player_id = '<PLAYER_ID>'}
+    if 'player_id' not in queryString:
+        logger.error('player_id parameter is missing.')
+        raise KeyError('player_id parameter is missing.')
+    player_id = queryString['player_id']
+
+    logger.info('Getting player: {}'.format(player_id))
+    return (g.V(player_id).toList())
         
 def doQuery(event):
     logger.info('Event received: {}'.format(event))
 
-    eventBody = json.loads(event['body'])
-
-    # {'id' : <PLAYER_ID>}
-    if 'id' not in eventBody:
-        logger.error('id parameter is missing.')
-        raise KeyError('id parameter is missing.')
+    if 'queryStringParameters' not in event: # or 'id' not in event['queryStringParameters']:
+        logger.error('querystring parameter is missing.')
+        raise KeyError('querystring parameter is missing.')
     
-    return query(body=eventBody)
+    queryString = event['queryStringParameters']
+
+    return query(queryString=queryString)
 
 @tracer.capture_lambda_handler
 def lambda_handler(event, context):

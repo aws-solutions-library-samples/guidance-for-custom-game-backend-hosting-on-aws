@@ -8,7 +8,7 @@ from gremlin_python.driver import serializer
 from gremlin_python.process.anonymous_traversal import traversal
 from gremlin_python.process.graph_traversal import __
 from gremlin_python.process.strategies import *
-from gremlin_python.process.traversal import T
+from gremlin_python.process.traversal import T, P, Order, Scope, Column
 from aiohttp.client_exceptions import ClientConnectorError
 from botocore.auth import SigV4Auth
 from botocore.awsrequest import AWSRequest
@@ -112,23 +112,62 @@ def reset_connection_if_connection_issue(params):
     interval=1)
 def query(**kwargs):
     
-    body = kwargs['body']
-    player_id = body['id']
-    logger.info('Upserting player: {}'.format(player_id))
+    player_id = kwargs['player_id']
+    queryString = kwargs['queryString']
+
+    # { player_id = '<PLAYER_ID>', dir = ['in'|'out'|'new'], max='[<MAX_COUNT>]'}
+    # Default to current user. Otherwise get player_id from query string
+    if 'player_id' in queryString:
+        player_id = queryString['player_id']
     
-    return (g.V(player_id).fold().coalesce(__.unfold(), __.addV('player').property(T.id, player_id)).next())
+    player_v = g.V(player_id).toList()
+    if not player_v:
+        logger.error('Player {} does not exist.', format(player_id))
+        raise ValueError('Player {} does not exist.'.format(player_id))
+
+    # Default values
+    friend_dir = 'out'
+    max_count = 10
+    
+    if 'dir' in queryString:
+        friend_dir = str.lower(queryString['dir'])
+
+    if 'max' in queryString:
+        max_count = int(queryString['max'])
+
+    logger.info('Getting friends of player {}, direction {}'.format(player_id, dir))
+    match (friend_dir):
+        case 'in':
+            result = g.V(player_id).inE('friendWith').out_v().hasLabel('player').dedup().toList()[0:max_count]
+        case 'out':
+            result = g.V(player_id).outE('friendWith').in_v().hasLabel('player').dedup().toList()[0:max_count]
+        case 'new':
+            result = g.V(player_id).as_('user').out('friendWith').aggregate('friends').both('friendWith').where(P.neq('user')).where(P.without(['friends'])).groupCount().by(T.id_).order(Scope.local).by(Column.values,Order.desc).unfold().toList()[0:max_count]
+        case _:
+            logger.error('Invalid direction {}'.format(friend_dir))
+            raise ValueError('Invalid direction {}'.format(friend_dir))
+    
+    return result
         
 def doQuery(event):
     logger.info('Event received: {}'.format(event))
 
-    eventBody = json.loads(event['body'])
-
-    # {'id' : <PLAYER_ID>}
-    if 'id' not in eventBody:
-        logger.error('id parameter is missing.')
-        raise KeyError('id parameter is missing.')
+    # We expect a successful JWT authorization has been done
+    player_id = None
+    try:
+        player_id = event['requestContext']['authorizer']['jwt']['claims']['sub']
+        print("player_id: ", player_id)
+    except Exception as err:
+        logger.error('Authorizer JWT claims not found: {}'.format(type(err), str(err)))
+        raise err
     
-    return query(body=eventBody)
+    # Default values
+    queryString = {'dir': 'out', 'max': '10'}
+    # Query string is optional
+    if 'queryStringParameters' in event:
+        queryString = event['queryStringParameters']
+    
+    return query(player_id=player_id, queryString=queryString)
 
 @tracer.capture_lambda_handler
 def lambda_handler(event, context):

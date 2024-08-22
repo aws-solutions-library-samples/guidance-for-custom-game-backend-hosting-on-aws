@@ -5,11 +5,24 @@ import * as ec2 from 'aws-cdk-lib/aws-ec2';
 
 import { Construct } from 'constructs';
 
-export class GameBackendSocialIntegrationVpcStack extends cdk.Stack {
+// Custom stack properties
+export interface GameBackendFriendsIntegrationVpcStackProps extends cdk.StackProps {
+    // custom identity provider issuer URL
+    issuerEndpointUrl: string,
+  }
+
+export class GameBackendFriendsIntegrationVpcStack extends cdk.Stack {
     readonly vpc: ec2.Vpc;
 
-    constructor(scope: Construct, id: string, props?: cdk.StackProps) {
+    constructor(scope: Construct, id: string, props: GameBackendFriendsIntegrationVpcStackProps) {
         super(scope, id, props);
+
+        // Define a CloudFormation parameter for the issuer endpoint URL
+        const issuerEndpointUrl = new cdk.CfnParameter(this, 'IssuerEndpointUrl', {
+            type: 'String',
+            description: 'The URL of the issuer endpoint',
+            default: props.issuerEndpointUrl,
+        });
 
         // Create a new VPC
         this.vpc = new ec2.Vpc(this, 'VPC', {

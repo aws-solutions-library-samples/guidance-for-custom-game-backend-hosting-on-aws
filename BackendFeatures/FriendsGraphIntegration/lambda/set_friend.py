@@ -112,23 +112,57 @@ def reset_connection_if_connection_issue(params):
     interval=1)
 def query(**kwargs):
     
-    body = kwargs['body']
-    edge_id = body['id']
+    player_id = kwargs['player_id']
+    queryString = kwargs['queryString']
 
-    logger.info('Deleting friend relationship: {}'.format(edge_id))
+    # friend_id = '<FRIEND_ID>'
+    if 'friend_id' not in queryString:
+        logger.error('friend_id parameter is missing.')
+        raise KeyError('friend_id parameter is missing.')
+    friend_id = queryString['friend_id']
+
+    if player_id == friend_id:
+        logger.error('player_id and friend_id cannot be the same.')
+        raise ValueError('player_id and friend_id cannot be the same.')
+
+    player_vertices= g.V().hasId(P.within([player_id, friend_id])).toList()
+    if len(player_vertices) != 2:
+        logger.error('Either v[{}] or v[{}] does not exist.'.format(player_id, friend_id))
+        raise ValueError('Either v[{}] or v[{}] does not exist.'.format(player_id, friend_id))
     
-    return (g.E(edge_id).drop().iterate())
+    # logger.info('Upserting edge from {} to {}'.format(player_id, friend_id))
+    # return (g.V(player_id).outE('friendWith').where(__.in_v().hasId(friend_id)).fold().coalesce(__.unfold(),__.addE('friendWith').from_(__.V('player_id')).to(__.V('friend_id'))).toList())
+    
+    logger.info('Checking if edge already exists between {} and {}.'.format(player_id, friend_id))
+    friend_edge = g.V(player_id).hasLabel('player').outE('friendWith').where(__.in_v().hasId(friend_id).hasLabel('player')).id_().toList()
+    
+    if not friend_edge:
+        logger.info('Creating edge from {} to {}'.format(player_id, friend_id))
+        return (g.V(player_id).addE('friendWith').to(__.V(friend_id)).id_().toList())
+    else:
+        logger.info('Friend edge already exists: {}'.format(friend_edge))
+        return friend_edge
         
 def doQuery(event):
     logger.info('Event received: {}'.format(event))
 
-    eventBody = json.loads(event['body'])
-    # {'id': <EDGE_ID> }
-    if 'id' not in eventBody:
-        logger.error('id parameter is missing.')
-        raise KeyError('id parameter is missing.')
+    # We expect a successful JWT authorization has been done
+    player_id = None
+    try:
+        player_id = event['requestContext']['authorizer']['jwt']['claims']['sub']
+        print("player_id: ", player_id)
+    except Exception as err:
+        logger.error('Authorizer JWT claims not found: {}'.format(type(err), str(err)))
+        raise err
     
-    return query(body=eventBody)
+    # We expect query string parameters
+    if 'queryStringParameters' not in event:
+        logger.error('querystring parameter is missing.')
+        raise KeyError('querystring parameter is missing.')
+    
+    queryString = event['queryStringParameters']
+    
+    return query(player_id=player_id, queryString=queryString)
 
 @tracer.capture_lambda_handler
 def lambda_handler(event, context):

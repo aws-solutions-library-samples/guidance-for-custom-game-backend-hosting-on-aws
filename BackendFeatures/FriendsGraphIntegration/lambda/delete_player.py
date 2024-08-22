@@ -112,27 +112,24 @@ def reset_connection_if_connection_issue(params):
     interval=1)
 def query(**kwargs):
     
-    queryString = kwargs['queryString'] # = kwargs['id']
-
-    # { id = '<PLAYER_ID>'}
-    if 'id' not in queryString:
-        logger.error('id parameter is missing.')
-        raise KeyError('id parameter is missing.')
-    player_id = queryString['id']
-
-    logger.info('Getting player: {}'.format(player_id))
-    return (g.V(player_id).toList())
+    player_id = kwargs['player_id']
+    logger.info('Deleting player: {}'.format(player_id))
+    
+    return (g.V(player_id).drop().iterate())
         
 def doQuery(event):
     logger.info('Event received: {}'.format(event))
 
-    if 'queryStringParameters' not in event: # or 'id' not in event['queryStringParameters']:
-        logger.error('querystring parameter is missing.')
-        raise KeyError('querystring parameter is missing.')
+    # We expect a successful JWT authorization has been done
+    player_id = None
+    try:
+        player_id = event['requestContext']['authorizer']['jwt']['claims']['sub']
+        print("player_id: ", player_id)
+    except Exception as err:
+        logger.error('Authorizer JWT claims not found: {}'.format(type(err), str(err)))
+        raise err
     
-    queryString = event['queryStringParameters']
-
-    return query(queryString=queryString)
+    return query(player_id=player_id)
 
 @tracer.capture_lambda_handler
 def lambda_handler(event, context):
@@ -150,7 +147,7 @@ def lambda_handler(event, context):
         }
     except Exception as err:
         logger.error('Unexpected {}: {}'.format(type(err), str(err)))
-        return error_response(str(err), 500)
+        return error_response('Unexpected {}: {}'.format(type(err), str(err)), 500)
     
 def create_graph_traversal_source(conn):
     return traversal().withRemote(conn)
