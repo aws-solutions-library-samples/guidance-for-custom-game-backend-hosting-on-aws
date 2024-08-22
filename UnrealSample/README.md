@@ -49,7 +49,7 @@ To add the SDK to an existing project:
 
 1. Copy the folder `AWSGameSDK` to your Unreal C++ Project in `Source\<YOUR_PROJECT>\`
 2. Modify the file `AWSGameSDK.h` by replacing the class definition with reference you your project name: `class UNREALSAMPLE_API UAWSGameSDK` replaced with `class <YOUR_PROJECT>_API UAWSGameSDK`
-3. Add the code line `PrivateDependencyModuleNames.AddRange(new string[] {  "Http", "Json", "JsonUtilities" });` to `<YOUR_PROJECT>.Build.cs` file found under `Source\<YOUR_PROJECT>\`.
+3. Add the code line `PublicDependencyModuleNames.AddRange(new string[] { "Http", "Json", "JsonUtilities", "WebSockets" });` to `<YOUR_PROJECT>.Build.cs` file found under `Source\<YOUR_PROJECT>\`.
 3. Integrate with the SDK from your custom code (see Unreal Integration Samples for example integrations)
 
 # Unreal Integration Samples
