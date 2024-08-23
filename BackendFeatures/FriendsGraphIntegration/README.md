@@ -27,11 +27,60 @@ To deploy the component, follow the _Preliminary Setup_, and then run the follow
 
 The architecture diagram below shows the main steps of integration from the game engine to the backend and Amazon Neptune. See the main Readme of the project for details on how the Custom Identity Component is implemented.
 
-**TBD**
+![High Level Reference Architecture](assets/FriendsGraphIntegrationArchitecture.png)
 
 # Solution overview
 
-**TBD**
+The solution follows the Python Serverless REST API template in `../BackendComponentSamples` and uses Amazon Neptune to store players and friends lists.
+
+Amazon Neptune is a fully managed graph database that allows you to traverse relationships between entities. Each player is stored in the Neptune database as a vertex. When a player adds another player to their friends list, a single-direction edge is created from the player to the friend. The diagram below depicts players and relationships in the graph.
+
+![Sample Friends Graph](assets/SampleFriendsGraph.png)
+
+In the sample graph above:
+
+* **Player 1** added **Player 2** and **Player 3** to their friends list. 
+* **Player 2** also added **Player 1** to their friends list. 
+* **Player 3** added **Player 4** to their friends list.
+* **Player 4** does not have anybody on their friends list yet.
+
+## Collaborative Filtering
+
+The `get-friends` function can be used to see all users who are friends with a player, who have added the player to their friends list, or recommend new friends.
+
+If the **dir** parameter is set to `out` (default), the function returns all users on the player's friends list (i.e., outbound relationships).
+
+If the **dir** parameter is set to `in`, the function returns all users who have added the player to their friends list (i.e., inbound relationships).
+
+If the **dir** parameter is set to `new`, the function uses collaborative filtering to recommend other users who the player might want to add to their friends list based on the number of mutual connections they share. Collaborative filtering is a a method used to make predictions by filtering for users with similar traits and behaviors.
+
+The diagram below depicts 7 players and their relationships in the graph.
+
+![Sample Collaborative Filter](assets/SampleCollaborativeFilter.png)
+
+In the sample graph above, when you run the `get-friends` function with the following parameters:
+* **player_id:** Player 1
+* **dir:** new
+
+The function recommends the following new friends, ordered by the number of edges they share with existing friends:
+
+```
+[
+    { "Player 5" : 3 },
+    { "Player 6" : 2 },
+    { "Player 4" : 1 }
+]
+```
+
+Note that **Player 7** is not returned because they do not share a connection with any of **Player 1**'s existing friends.
+
+## Additional Resources
+
+To learn more about collaborative filtering and using Amazon Neptune to build a social network in your games, we recommend the following resources:
+
+* [Getting Started with Amazon Neptune](https://docs.aws.amazon.com/neptune/latest/userguide/graph-get-started.html)
+* [Building a Social Network for Games](https://github.com/aws/graph-notebook/blob/main/src/graph_notebook/notebooks/01-Neptune-Database/03-Sample-Applications/07-Games-Industry-Graphs/01-Building-a-Social-Network-for-Games-Gremlin.ipynb)
+* [Amazon Neptune Samples - Collaborative Filtering](https://github.com/aws-samples/amazon-neptune-samples/tree/master/gremlin/collaborative-filtering)
 
 # API Reference
 
