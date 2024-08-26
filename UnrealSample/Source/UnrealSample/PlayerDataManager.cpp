@@ -26,6 +26,8 @@ void UPlayerDataManager::SaveGameData(FString UserId, FString GuestSecret)
 
 UPlayerDataSave* UPlayerDataManager::LoadGameData()
 {
+    PlayerData = NULL;
+
     // Load the Player Data
     PlayerData = Cast<UPlayerDataSave>(UGameplayStatics::LoadGameFromSlot(SaveSlot, 0));
 	
