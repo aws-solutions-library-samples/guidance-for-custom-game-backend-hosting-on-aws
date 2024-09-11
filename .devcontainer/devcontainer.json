@@ -1,0 +1,29 @@
+{
+	"name": "AWS CDK",
+	"image": "mcr.microsoft.com/devcontainers/python:1-3.12-bullseye",
+	"remoteUser": "vscode",
+	"features": {
+		"ghcr.io/devcontainers/features/aws-cli:1": {
+			"version": "latest"
+		},
+		"ghcr.io/devcontainers/features/docker-in-docker:2": {
+			"moby": true,
+			"installDockerBuildx": true,
+			"version": "latest",
+			"dockerDashComposeVersion": "v1"
+		},
+		"ghcr.io/devcontainers-contrib/features/aws-cdk:2": {
+			"version": "2.157.0"
+		}
+	},
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"ms-python.python",
+				"streetsidesoftware.code-spell-checker",
+                "amazonwebservices.aws-toolkit-vscode",
+				"AmazonWebServices.amazon-q-vscode"
+			]
+		}
+	}
+}
