@@ -11,23 +11,23 @@ import * as logs from 'aws-cdk-lib/aws-logs';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 
 // Define custom stack properties
-interface DeltaLakeIntegrationBackendProps extends cdk.StackProps {
+interface AnalyticsIntegrationBackendProps extends cdk.StackProps {
   issuerEndpointUrl : string;
   etlScriptName : string;
 }
 
-export class DeltaLakeIntegrationBackend extends cdk.Stack {
-  constructor(scope: Construct, id: string, props: DeltaLakeIntegrationBackendProps) {
+export class AnalyticsIntegrationBackend extends cdk.Stack {
+  constructor(scope: Construct, id: string, props: AnalyticsIntegrationBackendProps) {
     super(scope, id, props);
 
-    let streamDbName : string = 'delta_lake_stream_db';
-    let streamTableName : string = 'kinesis_stream_table';
-    let lakeDbName : string = 'delta_lake_events_db';
-    let connectionName : string = 'deltalake-connector-1_0_0';
+    // let streamDbName : string = 'analytics_stream_db';
+    let dbName : string = 'analytics_events_db';
+    let streamTableName : string = 'analytics_stream_table';
+    let connectionName : string = 'iceberg-connection';
     let glueJobName: string = 'GlueStreamEtlJob';
 
     // Create an S3 Bucket to serve as the delta lake object store
-    const s3Bucket = new s3.Bucket(this, 'DeltaLakeBucket', {
+    const s3Bucket = new s3.Bucket(this, 'AnalyticsBucket', {
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
       versioned: true,
       removalPolicy: RemovalPolicy.DESTROY,
@@ -74,15 +74,15 @@ export class DeltaLakeIntegrationBackend extends cdk.Stack {
       }
     });
 
-    // Create specific IAM Role for the `record` Lambda Function
+    // Create specific IAM Role for the `recordHandler` Lambda Function
     const recordHandlerRole = new iam.Role(this, 'RecordFunctionRole', {
       assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com')
     });
     recordHandlerRole.addToPolicy(lambdaBasicsPolicy);
 
-    // Create the Glue Job IAM Role
+    // Create the Glue Streaming ETL Job IAM Role
     const glueRole = new iam.Role(this, 'GlueJobRole', {
-      roleName: 'DeltalakeGlueRole',
+      roleName: 'StreamingEtlGlueRole',
       assumedBy: new iam.ServicePrincipal('glue.amazonaws.com'),
       managedPolicies: [
         iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSGlueServiceRole'),
@@ -96,6 +96,7 @@ export class DeltaLakeIntegrationBackend extends cdk.Stack {
           statements: [
             new iam.PolicyStatement({
               actions: [
+                's3:GetBucketLocation',
                 's3:ListBucket',
                 's3:GetBucketAcl',
                 's3:GetObject',
@@ -106,6 +107,37 @@ export class DeltaLakeIntegrationBackend extends cdk.Stack {
               resources: [
                 s3Bucket.bucketArn,
                 `${s3Bucket.bucketArn}/*`
+              ],
+            }),
+          ],
+        }),
+        DynamoDBAccess: new iam.PolicyDocument({
+          statements: [
+            new iam.PolicyStatement({
+              actions: [
+                'dynamodb:BatchGetItem',
+                'dynamodb:DescribeStream',
+                'dynamodb:DescribeTable',
+                'dynamodb:GetItem',
+                'dynamodb:Query',
+                'dynamodb:Scan',
+                'dynamodb:BatchWriteItem',
+                'dynamodb:CreateTable',
+                'dynamodb:DeleteTable',
+                'dynamodb:UpdateTable',
+                'dynamodb:PutItem',
+                'dynamodb:UpdateItem',
+                'dynamodb:DeleteItem',
+                'dynamodb:DescribeTable',
+              ],
+              effect: iam.Effect.ALLOW,
+              resources: [
+                this.formatArn({
+                  service: 'dynamodb',
+                  region: '',
+                  resource: 'table',
+                  resourceName: '*',
+                }),
               ],
             }),
           ],
@@ -122,9 +154,14 @@ export class DeltaLakeIntegrationBackend extends cdk.Stack {
                   service: 'iam',
                   region: '',
                   resource: 'role',
-                  resourceName: 'DeltalakeGlueRole',
+                  resourceName: 'StreamingEtlGlueRole',
                 }),
               ],
+              conditions: {
+                StringLike: {
+                  'iam:PassedToService': 'glue.amazonaws.com',
+                },
+              },
             }),
           ],
         }),
@@ -143,8 +180,8 @@ export class DeltaLakeIntegrationBackend extends cdk.Stack {
     const streamDB = new glue.CfnDatabase(this, 'IngestStreamDatabase', {
       catalogId: cdk.Aws.ACCOUNT_ID,
       databaseInput: {
-        name: `${streamDbName}`,
-        description: 'Kinesis stream Database'
+        name: `${dbName}`,
+        description: 'Kinesis Stream Database'
       },
     });
     streamDB.applyRemovalPolicy(RemovalPolicy.DESTROY);
@@ -152,10 +189,10 @@ export class DeltaLakeIntegrationBackend extends cdk.Stack {
     // Create the stream data Glue Table
     const streamTable = new glue.CfnTable(this, 'IngestStreamTable', {
       catalogId: cdk.Aws.ACCOUNT_ID,
-      databaseName: streamDbName,
+      databaseName: dbName,
       tableInput: {
         name: streamTableName,
-        description: 'Kines Stream Table',
+        description: 'Kinesis Stream Table',
         parameters: {
           'classification': 'json'
         },
@@ -195,36 +232,10 @@ export class DeltaLakeIntegrationBackend extends cdk.Stack {
     streamTable.addDependency(streamDB);
     streamTable.applyRemovalPolicy(RemovalPolicy.DESTROY);
 
-    // Create a Glue Catalog for the delta lake
-    const deltaLakeDB = new glue.CfnDatabase(this, 'DeltaLakeEventsDatabase', {
-      catalogId: cdk.Aws.ACCOUNT_ID,
-      databaseInput: {
-        name: lakeDbName,
-        description: 'Delta Lake Events Database',
-        locationUri: s3Bucket.s3UrlForObject(`${lakeDbName}/events`),
-      },
-    });
-    deltaLakeDB.applyRemovalPolicy(RemovalPolicy.DESTROY);
-
-    // Create the Delta Lake connection for the Glue Job
-    new glue.CfnConnection(this, 'GlueDeltaLakeConnection', {
-      catalogId: cdk.Aws.ACCOUNT_ID,
-      connectionInput: {
-        name: connectionName,
-        description: 'Delta Lake Connector 1.0.0 for AWS Glue 3.0',
-        connectionType: 'MARKETPLACE',
-        connectionProperties: {
-          'CONNECTOR_TYPE': 'Spark',
-          'CONNECTOR_URL': 'https://709825985650.dkr.ecr.us-east-1.amazonaws.com/amazon-web-services/glue/delta:1.0.0-glue3.0-2',
-          'CONNECTOR_CLASS_NAME': 'org.apache.spark.sql.delta.sources.DeltaDataSource',
-        },
-      },
-    });
-
     // Create the Glue Stream ETL job
-    new glue.CfnJob(this, 'GlueETLJob', {
+    new glue.CfnJob(this, 'GlueStreamingEtlJob', {
       name: glueJobName,
-      description: 'AWS Glue Job to load the data from Kinesis Data Streams to Delta Lake table in S3',
+      description: 'AWS Glue Job to load the data from Kinesis Data Streams to Apache Iceberg Table in S3',
       command: {
         name: 'gluestreaming',
         pythonVersion: '3',
@@ -235,35 +246,37 @@ export class DeltaLakeIntegrationBackend extends cdk.Stack {
         connections: [connectionName],
       },
       defaultArguments: {
-        '--catalog': 'spark_catalog',
-        '--database_name': lakeDbName,
+        '--catalog': 'job_catalog',
+        '--database_name': dbName,
         '--table_name': 'events_table',
         '--primary_key': 'event_id',
         '--partition_key': 'event_type',
-        '--kinesis_database_name': streamDbName,
         '--kinesis_table_name': streamTableName,
         '--kinesis_stream_arn': kinesisStream.streamArn,
         '--starting_position_of_kinesis_iterator': 'LATEST',
-        '--delta_s3_path': s3Bucket.s3UrlForObject(`${lakeDbName}/events`),
+        '--iceberg_s3_path': s3Bucket.s3UrlForObject(`${dbName}/game-events`),
         '--aws_region': cdk.Aws.REGION,
+        '--local_table_name': 'iceberg_local',
         '--window_size': '100 seconds',
-        '--extra-jars': s3Bucket.s3UrlForObject('assets/aws-sdk-java-2.23.13.jar'),
+        '--extra-jars': s3Bucket.s3UrlForObject('assets/aws-sdk-java-2.17.224'),
         '--extra-jars-first': 'true',
         '--enable-metrics': 'true',
-        '--spark-event-logs-path': s3Bucket.s3UrlForObject(`${lakeDbName}/events/spark_history_logs/`),
+        '--enable-spark-ui': 'true',
+        '--spark-event-logs-path': s3Bucket.s3UrlForObject(`${dbName}/game-events/spark_history_logs/`),
         '--enable-job-insights': 'false',
         '--enable-glue-datacatalog': 'true',
         '--enable-continuous-cloudwatch-log': 'true',
         '--job-bookmark-option': 'job-bookmark-disable',
         '--job-language': 'python',
-        '--TempDir': s3Bucket.s3UrlForObject(`${lakeDbName}/events/temp`)
+        '--TempDir': s3Bucket.s3UrlForObject(`${dbName}/game-events/temp`),
       },
       executionProperty: {
         maxConcurrentRuns: 1,
       },
-      glueVersion: '3.0',
+      glueVersion: '4.0',
       maxRetries: 0,
       timeout: 2880,
+      // NOTE: Use the following to scale compute resources for large ingest data/multiple put records
       workerType: 'G.1X',
       numberOfWorkers: 2,
     });
@@ -342,6 +355,7 @@ export class DeltaLakeIntegrationBackend extends cdk.Stack {
       integrationMethod: 'POST',
       payloadFormatVersion: '2.0',
     });
+
     new api.CfnRoute(this, 'PutRecordRoute', {
       apiId: httpApi.ref,
       routeKey: 'POST /put-record',
@@ -354,6 +368,5 @@ export class DeltaLakeIntegrationBackend extends cdk.Stack {
     // Outputs
     new CfnOutput(this, 'GlueJobName', {value: glueJobName});
     new CfnOutput(this, 'DeltaLakeIntegrationBackendEndpointUrl', {value: `${httpApi.attrApiEndpoint}/prod/put-record`});
-
   }
 }
