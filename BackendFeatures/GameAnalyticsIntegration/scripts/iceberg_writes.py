@@ -10,10 +10,7 @@ from awsglue.utils import getResolvedOptions
 from pyspark.context import SparkContext
 from awsglue.context import GlueContext
 from awsglue.job import Job
-from awsglue import DynamicFrame
-
 from pyspark.conf import SparkConf
-from pyspark.sql import DataFrame, Row
 from pyspark.sql.types import *
 from pyspark.sql.functions import *
 
@@ -28,61 +25,49 @@ args = getResolvedOptions(sys.argv, ['JOB_NAME',
   'database_name',
   'table_name',
   'partition_key',
-  'kinesis_database_name',
   'kinesis_table_name',
   'kinesis_stream_arn',
   'starting_position_of_kinesis_iterator',
-  'delta_s3_path',
+  'iceberg_s3_path',
   'aws_region',
   'window_size'
 ])
 
 CATALOG = args['catalog']
-
-DELTA_S3_PATH = args['delta_s3_path']
+ICEBERG_S3_PATH = args['iceberg_s3_path']
 DATABASE = args['database_name']
 TABLE_NAME = args['table_name']
-PARTITION_KEY = args['partition_key']
-
-KINESIS_DATABASE_NAME = args['kinesis_database_name']
+DYNAMODB_LOCK_TABLE = args['dynamo_lock_table']
 KINESIS_TABLE_NAME = args['kinesis_table_name']
 KINESIS_STREAM_ARN = args['kinesis_stream_arn']
 KINESIS_STREAM_NAME = get_kinesis_stream_name_from_arn(KINESIS_STREAM_ARN)
-
-#XXX: starting_position_of_kinesis_iterator: ['LATEST', 'TRIM_HORIZON']
 STARTING_POSITION_OF_KINESIS_ITERATOR = args.get('starting_position_of_kinesis_iterator', 'LATEST')
-
 AWS_REGION = args['aws_region']
 WINDOW_SIZE = args.get('window_size', '100 seconds')
 
 
-def setSparkDeltalakeConf() -> SparkConf:
+def setSparkIcebergConf() -> SparkConf:
   conf_list = [
-    (f"spark.sql.catalog.{CATALOG}", "org.apache.spark.sql.delta.catalog.DeltaCatalog"),
-    ("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
+    (f"spark.sql.catalog.{CATALOG}", "org.apache.iceberg.spark.SparkCatalog"),
+    (f"spark.sql.catalog.{CATALOG}.warehouse", ICEBERG_S3_PATH),
+    (f"spark.sql.catalog.{CATALOG}.catalog-impl", "org.apache.iceberg.aws.glue.GlueCatalog"),
+    (f"spark.sql.catalog.{CATALOG}.io-impl", "org.apache.iceberg.aws.s3.S3FileIO"),
+    (f"spark.sql.catalog.{CATALOG}.lock-impl", "org.apache.iceberg.aws.glue.DynamoLockManager"),
+    (f"spark.sql.catalog.{CATALOG}.lock.table", DYNAMODB_LOCK_TABLE),
+    ("spark.sql.extensions", "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions"),
+    ("spark.sql.iceberg.handle-timestamp-without-timezone", "true")
   ]
   spark_conf = SparkConf().setAll(conf_list)
   return spark_conf
 
+
 # Set the Spark + Glue context
-conf = setSparkDeltalakeConf()
+conf = setSparkIcebergConf()
 sc = SparkContext(conf=conf)
 glueContext = GlueContext(sc)
 spark = glueContext.spark_session
 job = Job(glueContext)
 job.init(args['JOB_NAME'], args)
-
-CREATE_DELTA_TABLE_SQL = f'''CREATE TABLE IF NOT EXISTS {DATABASE}.{TABLE_NAME} (
-  event_id STRING,
-  event_type STRING,
-  updated_at TIMESTAMP,
-  event_data STRING
-) USING DELTA
-PARTITIONED BY ({PARTITION_KEY})
-LOCATION '{DELTA_S3_PATH}'
-'''
-
-spark.sql(CREATE_DELTA_TABLE_SQL)
 
 # Read from Kinesis Data Stream
 streaming_data = spark.readStream \
@@ -99,13 +84,18 @@ streaming_data_df = streaming_data \
     .select("source_table.*") \
     .withColumn('updated_at', to_timestamp(col('updated_at'), 'yyyy-MM-dd HH:mm:ss'))
 
+table_identifier = f"{CATALOG}.{DATABASE}.{TABLE_NAME}"
 checkpointPath = os.path.join(args["TempDir"], args["JOB_NAME"], "checkpoint/")
 
+# NOTE: Writing against partitioned table
+# (SEE https://iceberg.apache.org/docs/0.14.0/spark-structured-streaming/#writing-against-partitioned-table)
+# Complete output mode not supported when there are no streaming aggregations on streaming DataFrame/Datasets
 query = streaming_data_df.writeStream \
-    .format("delta") \
+    .format("iceberg") \
     .outputMode("append") \
     .trigger(processingTime=WINDOW_SIZE) \
-    .option("path", DELTA_S3_PATH) \
+    .option("path", table_identifier) \
+    .option("fanout-enabled", "true") \
     .option("checkpointLocation", checkpointPath) \
     .start()
 

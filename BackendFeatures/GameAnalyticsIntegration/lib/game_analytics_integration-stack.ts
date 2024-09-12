@@ -273,7 +273,7 @@ export class AnalyticsIntegrationBackend extends cdk.Stack {
       executionProperty: {
         maxConcurrentRuns: 1,
       },
-      glueVersion: '4.0',
+      glueVersion: '3.0',
       maxRetries: 0,
       timeout: 2880,
       // NOTE: Use the following to scale compute resources for large ingest data/multiple put records

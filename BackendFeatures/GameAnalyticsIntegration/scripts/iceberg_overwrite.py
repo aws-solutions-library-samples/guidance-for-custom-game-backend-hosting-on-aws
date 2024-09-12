@@ -11,9 +11,7 @@ from pyspark.context import SparkContext
 from awsglue.context import GlueContext
 from awsglue.job import Job
 from awsglue import DynamicFrame
-
 from pyspark.conf import SparkConf
-from pyspark.sql import DataFrame, Row
 from pyspark.sql.window import Window
 from pyspark.sql.functions import (
   col,
@@ -22,43 +20,46 @@ from pyspark.sql.functions import (
   to_timestamp
 )
 
-
 args = getResolvedOptions(sys.argv, ['JOB_NAME',
   'catalog',
   'database_name',
   'table_name',
   'primary_key',
-  'partition_key',
   'kinesis_stream_arn',
   'starting_position_of_kinesis_iterator',
-  'delta_s3_path',
+  'iceberg_s3_path',
+  'lock_table_name',
   'aws_region',
   'window_size'
 ])
 
 CATALOG = args['catalog']
-DELTA_S3_PATH = args['delta_s3_path']
+ICEBERG_S3_PATH = args['iceberg_s3_path']
 DATABASE = args['database_name']
 TABLE_NAME = args['table_name']
 PRIMARY_KEY = args['primary_key']
-PARTITION_KEY = args['partition_key']
-
+DYNAMODB_LOCK_TABLE = args['lock_table_name']
 KINESIS_STREAM_ARN = args['kinesis_stream_arn']
-#XXX: starting_position_of_kinesis_iterator: ['LATEST', 'TRIM_HORIZON']
 STARTING_POSITION_OF_KINESIS_ITERATOR = args.get('starting_position_of_kinesis_iterator', 'LATEST')
 AWS_REGION = args['aws_region']
 WINDOW_SIZE = args.get('window_size', '100 seconds')
 
-def setSparkDeltalakeConf() -> SparkConf:
+def setSparkIcebergConf() -> SparkConf:
   conf_list = [
-    (f"spark.sql.catalog.{CATALOG}", "org.apache.spark.sql.delta.catalog.DeltaCatalog"),
-    ("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
+    (f"spark.sql.catalog.{CATALOG}", "org.apache.iceberg.spark.SparkCatalog"),
+    (f"spark.sql.catalog.{CATALOG}.warehouse", ICEBERG_S3_PATH),
+    (f"spark.sql.catalog.{CATALOG}.catalog-impl", "org.apache.iceberg.aws.glue.GlueCatalog"),
+    (f"spark.sql.catalog.{CATALOG}.io-impl", "org.apache.iceberg.aws.s3.S3FileIO"),
+    (f"spark.sql.catalog.{CATALOG}.lock-impl", "org.apache.iceberg.aws.glue.DynamoLockManager"),
+    (f"spark.sql.catalog.{CATALOG}.lock.table", DYNAMODB_LOCK_TABLE),
+    ("spark.sql.extensions", "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions"),
+    ("spark.sql.iceberg.handle-timestamp-without-timezone", "true")
   ]
   spark_conf = SparkConf().setAll(conf_list)
   return spark_conf
 
 # Set the Spark + Glue context
-conf = setSparkDeltalakeConf()
+conf = setSparkIcebergConf()
 sc = SparkContext(conf=conf)
 glueContext = GlueContext(sc)
 spark = glueContext.spark_session
@@ -78,19 +79,6 @@ kds_df = glueContext.create_data_frame.from_options(
 )
 
 def processBatch(data_frame, batch_id):
-
-  CREATE_DELTA_TABLE_SQL = f'''CREATE TABLE IF NOT EXISTS {DATABASE}.{TABLE_NAME} (
-  event_id STRING,
-  event_type STRING,
-  updated_at TIMESTAMP,
-  event_data STRING
-) USING DELTA
-PARTITIONED BY ({PARTITION_KEY})
-LOCATION '{DELTA_S3_PATH}'
-'''
-
-  spark.sql(CREATE_DELTA_TABLE_SQL)
-
   if data_frame.count() > 0:
     stream_data_dynf = DynamicFrame.fromDF(
       data_frame, glueContext, "from_data_frame"
@@ -105,18 +93,15 @@ LOCATION '{DELTA_S3_PATH}'
     upsert_data_df = stream_data_df.withColumn("row", row_number().over(window)) \
       .filter(col("row") == 1).drop("row") \
       .select(_df.schema.names)
-
     upsert_data_df.createOrReplaceTempView(f"{TABLE_NAME}_upsert")
-    # print(f"Table '{TABLE_NAME}' is upserting...")
-
     sql_query = f"""
     INSERT OVERWRITE {CATALOG}.{DATABASE}.{TABLE_NAME} SELECT * FROM {TABLE_NAME}_upsert
     """
     try:
       spark.sql(sql_query)
-    except Exception as ex:
+    except Exception as e:
       traceback.print_exc()
-      raise ex
+      raise e
 
 
 checkpointPath = os.path.join(args["TempDir"], args["JOB_NAME"], "checkpoint/")

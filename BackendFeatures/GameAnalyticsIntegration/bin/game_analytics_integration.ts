@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 import 'source-map-support/register';
-import * as cdk from 'aws-cdk-lib';
 import { AnalyticsIntegrationBackend } from '../lib/game_analytics_integration-stack';
 import {App, Aspects, Tags} from 'aws-cdk-lib';
 
@@ -14,14 +13,14 @@ tags['CostCenter'] = '1000';
 // TODO: Set this to your issuer endpoint URL
 const ISSUER_ENDPOINT = '';
 
-// TODO: Set this to the name of the the ETL Script
-const ETL_SCRIPT = 'datalake_writes.py';
+// TODO: Set this to the name of the the ETL Script. (Current default is to write new data to Apache Iceberg)
+const STREAMING_ETL_SCRIPT = 'iceberg_writes.py';
 
 const app = new App();
 
-var backend = new AnalyticsIntegrationBackend(app, 'DeltaLakeIntegrationBackend', {
+var backend = new AnalyticsIntegrationBackend(app, 'AnalyticsIntegrationBackend', {
   issuerEndpointUrl: ISSUER_ENDPOINT,
-  etlScriptName: ETL_SCRIPT
+  etlScriptName: STREAMING_ETL_SCRIPT
 });
 
 // Apply all the tags in the tags object to the stack
