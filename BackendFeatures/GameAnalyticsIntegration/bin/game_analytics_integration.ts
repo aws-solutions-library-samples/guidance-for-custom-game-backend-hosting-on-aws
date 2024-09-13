@@ -11,7 +11,7 @@ tags['Environment'] = 'Dev';
 tags['CostCenter'] = '1000';
 
 // TODO: Set this to your issuer endpoint URL
-const ISSUER_ENDPOINT = '';
+const ISSUER_ENDPOINT = 'https://dugr8wjawwa7o.cloudfront.net';
 
 // TODO: Set this to the name of the the ETL Script. (Current default is to write new data to Apache Iceberg)
 const STREAMING_ETL_SCRIPT = 'iceberg_writes.py';

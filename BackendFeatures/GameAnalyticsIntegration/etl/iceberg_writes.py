@@ -20,7 +20,24 @@ def get_kinesis_stream_name_from_arn(stream_arn):
   results = ARN_PATTERN.match(stream_arn)
   return results.group(3)
 
-args = getResolvedOptions(sys.argv, ['JOB_NAME',
+
+def setSparkIcebergConf() -> SparkConf:
+  conf_list = [
+    ("spark.sql.extensions", "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions"),
+    (f"spark.sql.catalog.{CATALOG}", "org.apache.iceberg.spark.SparkCatalog"),
+    (f"spark.sql.catalog.{CATALOG}.warehouse", ICEBERG_S3_PATH),
+    (f"spark.sql.catalog.{CATALOG}.catalog-impl", "org.apache.iceberg.aws.glue.GlueCatalog"),
+    (f"spark.sql.catalog.{CATALOG}.io-impl", "org.apache.iceberg.aws.s3.S3FileIO"),
+    (f"spark.sql.catalog.{CATALOG}.lock-impl", "org.apache.iceberg.aws.glue.DynamoLockManager"),
+    (f"spark.sql.catalog.{CATALOG}.lock.table", DYNAMODB_LOCK_TABLE),
+    ("spark.sql.iceberg.handle-timestamp-without-timezone", "true")
+  ]
+  spark_conf = SparkConf().setAll(conf_list)
+  return spark_conf
+
+
+args = getResolvedOptions(sys.argv, [
+  'JOB_NAME',
   'catalog',
   'database_name',
   'table_name',
@@ -29,15 +46,18 @@ args = getResolvedOptions(sys.argv, ['JOB_NAME',
   'kinesis_stream_arn',
   'starting_position_of_kinesis_iterator',
   'iceberg_s3_path',
+  'lock_table_name',
   'aws_region',
   'window_size'
-])
+  ]
+)
 
 CATALOG = args['catalog']
 ICEBERG_S3_PATH = args['iceberg_s3_path']
 DATABASE = args['database_name']
 TABLE_NAME = args['table_name']
-DYNAMODB_LOCK_TABLE = args['dynamo_lock_table']
+PARTITION_KEY = args['partition_key']
+DYNAMODB_LOCK_TABLE = args['lock_table_name']
 KINESIS_TABLE_NAME = args['kinesis_table_name']
 KINESIS_STREAM_ARN = args['kinesis_stream_arn']
 KINESIS_STREAM_NAME = get_kinesis_stream_name_from_arn(KINESIS_STREAM_ARN)
@@ -45,29 +65,28 @@ STARTING_POSITION_OF_KINESIS_ITERATOR = args.get('starting_position_of_kinesis_i
 AWS_REGION = args['aws_region']
 WINDOW_SIZE = args.get('window_size', '100 seconds')
 
-
-def setSparkIcebergConf() -> SparkConf:
-  conf_list = [
-    (f"spark.sql.catalog.{CATALOG}", "org.apache.iceberg.spark.SparkCatalog"),
-    (f"spark.sql.catalog.{CATALOG}.warehouse", ICEBERG_S3_PATH),
-    (f"spark.sql.catalog.{CATALOG}.catalog-impl", "org.apache.iceberg.aws.glue.GlueCatalog"),
-    (f"spark.sql.catalog.{CATALOG}.io-impl", "org.apache.iceberg.aws.s3.S3FileIO"),
-    (f"spark.sql.catalog.{CATALOG}.lock-impl", "org.apache.iceberg.aws.glue.DynamoLockManager"),
-    (f"spark.sql.catalog.{CATALOG}.lock.table", DYNAMODB_LOCK_TABLE),
-    ("spark.sql.extensions", "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions"),
-    ("spark.sql.iceberg.handle-timestamp-without-timezone", "true")
-  ]
-  spark_conf = SparkConf().setAll(conf_list)
-  return spark_conf
-
-
-# Set the Spark + Glue context
+# Set the Spark, and Glue context
 conf = setSparkIcebergConf()
 sc = SparkContext(conf=conf)
 glueContext = GlueContext(sc)
 spark = glueContext.spark_session
 job = Job(glueContext)
 job.init(args['JOB_NAME'], args)
+
+# Create the iceberg table (if it doesn't already exist)
+# NOTE: Partitioned Iceberg tables can't currently be created in CDK 
+# SEE: https://github.com/aws-cloudformation/cloudformation-coverage-roadmap/issues/1827
+CREATE_DELTA_TABLE_SQL = f'''CREATE TABLE IF NOT EXISTS {CATALOG}.{DATABASE}.{TABLE_NAME} (
+  event_id STRING,
+  event_type STRING,
+  updated_at TIMESTAMP,
+  event_data STRING
+) USING iceberg
+PARTITIONED BY ({PARTITION_KEY})
+OPTIONS ('format-version'='2')
+'''
+
+spark.sql(CREATE_DELTA_TABLE_SQL)
 
 # Read from Kinesis Data Stream
 streaming_data = spark.readStream \
@@ -79,7 +98,7 @@ streaming_data = spark.readStream \
 
 streaming_data_df = streaming_data \
     .select(from_json(col("data").cast("string"), \
-      glueContext.get_catalog_schema_as_spark_schema(KINESIS_DATABASE_NAME, KINESIS_TABLE_NAME)) \
+      glueContext.get_catalog_schema_as_spark_schema(DATABASE, KINESIS_TABLE_NAME)) \
     .alias("source_table")) \
     .select("source_table.*") \
     .withColumn('updated_at', to_timestamp(col('updated_at'), 'yyyy-MM-dd HH:mm:ss'))

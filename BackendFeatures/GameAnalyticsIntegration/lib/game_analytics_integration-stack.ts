@@ -42,7 +42,7 @@ export class AnalyticsIntegrationBackend extends cdk.Stack {
 
     // Deploy the script assets for the Glue streaming job
     new deployment.BucketDeployment(this, 'ScriptsDeployment', {
-      sources: [deployment.Source.asset('scripts')],
+      sources: [deployment.Source.asset('etl')],
       destinationBucket: s3Bucket,
       destinationKeyPrefix: 'scripts'
     });
@@ -128,17 +128,16 @@ export class AnalyticsIntegrationBackend extends cdk.Stack {
                 'dynamodb:PutItem',
                 'dynamodb:UpdateItem',
                 'dynamodb:DeleteItem',
-                'dynamodb:DescribeTable',
               ],
               effect: iam.Effect.ALLOW,
-              resources: [
-                this.formatArn({
-                  service: 'dynamodb',
-                  region: '',
-                  resource: 'table',
-                  resourceName: '*',
-                }),
-              ],
+              resources: ['*']
+              //   this.formatArn({
+              //     service: 'dynamodb',
+              //     region: '',
+              //     resource: 'table',
+              //     resourceName: '*',
+              //   }),
+              // ],
             }),
           ],
         }),
@@ -232,6 +231,21 @@ export class AnalyticsIntegrationBackend extends cdk.Stack {
     streamTable.addDependency(streamDB);
     streamTable.applyRemovalPolicy(RemovalPolicy.DESTROY);
 
+    // Create the Delta Lake connection for the Glue Job
+    new glue.CfnConnection(this, 'GlueIcebergConnection', {
+      catalogId: cdk.Aws.ACCOUNT_ID,
+      connectionInput: {
+        name: connectionName,
+        description: 'Apache Iceberg Connector for Glue 3.0',
+        connectionType: 'MARKETPLACE',
+        connectionProperties: {
+          'CONNECTOR_TYPE': 'MARKETPLACE',
+          'CONNECTOR_URL': 'https://709825985650.dkr.ecr.us-east-1.amazonaws.com/amazon-web-services/glue/iceberg:0.14.0-glue3.0-2',
+          'CONNECTOR_CLASS_NAME': 'iceberg',
+        },
+      },
+    });
+
     // Create the Glue Stream ETL job
     new glue.CfnJob(this, 'GlueStreamingEtlJob', {
       name: glueJobName,
@@ -256,9 +270,9 @@ export class AnalyticsIntegrationBackend extends cdk.Stack {
         '--starting_position_of_kinesis_iterator': 'LATEST',
         '--iceberg_s3_path': s3Bucket.s3UrlForObject(`${dbName}/game-events`),
         '--aws_region': cdk.Aws.REGION,
-        '--local_table_name': 'iceberg_local',
+        '--lock_table_name': 'iceberg_lock',
         '--window_size': '100 seconds',
-        '--extra-jars': s3Bucket.s3UrlForObject('assets/aws-sdk-java-2.17.224'),
+        '--extra-jars': s3Bucket.s3UrlForObject('assets/aws-sdk-java-2.17.224.jar'),
         '--extra-jars-first': 'true',
         '--enable-metrics': 'true',
         '--enable-spark-ui': 'true',
@@ -367,6 +381,6 @@ export class AnalyticsIntegrationBackend extends cdk.Stack {
 
     // Outputs
     new CfnOutput(this, 'GlueJobName', {value: glueJobName});
-    new CfnOutput(this, 'DeltaLakeIntegrationBackendEndpointUrl', {value: `${httpApi.attrApiEndpoint}/prod/put-record`});
+    new CfnOutput(this, 'AnalyticsIntegrationBackendEndpointUrl', {value: `${httpApi.attrApiEndpoint}/prod/put-record`});
   }
 }
