@@ -27,7 +27,7 @@ The framework consists of four key components:
 * Custom identity component, that can be deployed with AWS Cloud Development Kit. Supports __guest identities__, __Steam__, __Sign in with Apple__, __Google Play__, and __Facebook__.
 * Lightweight game engine SDK:s for __Unreal Engine 5__,  __Unity 2021 (and up)__, and __Godot 4__
 * Sample backend component templates showcasing simple player data management to get started with backend feature development
-* Backend Features for specific use cases (such as **Amazon GameLift integration**, **WebSocket Chat**, and **Databricks Delta Lake integration**)
+* Backend Features for specific use cases (such as **Amazon GameLift integration**, **WebSocket Chat**, **Friends Graph**, and **Databricks Delta Lake integration**)
 * SDK support for both **REST API** and **WebSocket** integrations between game client and your backend
 
 The currently supported engines include Unity, Unreal Engine 5, and Godot 4, but as the features are exposed as REST API:s or WebSocket connections, you can easily integrate the identity component and custom backend components to any game engine of choice.
@@ -76,6 +76,7 @@ Once the build is successful, you're all set to test! You can jump right into [T
   * See the [Amazon GameLift Integration Readme](BackendFeatures/AmazonGameLiftIntegration/README.md) for details on the Amazon GameLift integration
   * See the [Simple WebSocket Chat Readme](BackendFeatures/SimpleWebsocketChat/Readme.md) for details on the WebSocket-based chat implementation
   * See the [Databricks Delta Lake Integration Readme](BackendFeatures/DeltaLakeIntegration/README.md) for details on the Databrics Delta Lake integration
+  * See the [Friends Graph Integration Readme](BackendFeatures/FriendsGraphIntegration/README.md) for details on the Friends Graph implementation
 * **Unreal Engine 5 Samples with AWS Game SDK** (`UnrealSample` folder contains [Readme](UnrealSample/README.md))
   * Unreal Engine 5 version of the AWS Game SDK and sample levels for integration with different identity providers
   * For SDK details see the [Unreal SDK Overview](UnrealSample/README.md#sdk-overview)
