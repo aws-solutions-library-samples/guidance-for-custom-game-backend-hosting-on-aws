@@ -82,6 +82,20 @@ To learn more about collaborative filtering and using Amazon Neptune to build a 
 * [Building a Social Network for Games](https://github.com/aws/graph-notebook/blob/main/src/graph_notebook/notebooks/01-Neptune-Database/03-Sample-Applications/07-Games-Industry-Graphs/01-Building-a-Social-Network-for-Games-Gremlin.ipynb)
 * [Amazon Neptune Samples - Collaborative Filtering](https://github.com/aws-samples/amazon-neptune-samples/tree/master/gremlin/collaborative-filtering)
 
+## Unity integration
+
+To test the integrations with Unity, **open** the Unity sample project (`UnitySample`) with Unity 2021 (or above).
+
+* Then **open** the scene `BackendFeatures/FriendsGraph/FriendsGraph.unity`
+
+This is a test level that has a UI to add and remove friends (based on their vertex ID). At start it will login as a guest user, and then call the `set-player` API to make sure the player is added to the database. You can then add and remove friends, list your added friends, who added you, as well as get suggestions on new friends.
+
+Note that in this sample you need to copy and paste the identifiers across multiple Unity clients, but in your real life implementation you likely have some backend functionality to find friends or add people you've played a game with. Your backend would be the one managing these identifiers and you would map them to things like player names for the client view.
+
+Configure the `FriendsGraphIntegration` component of the `FriendsGraphIntegration` GameObject to set up API endpoints. Set `Login Endpoint Url` value to the `LoginEndpoint` value found in the CustomIdentityComponentStack Outputs, and the `Friends Graph Integration Endpoint Url` to the `BackendEndpointUrl` value found in the *FriendsGraphIntegrationBackend* Outputs.
+
+Press play to test the integration. You'll see the login output, the set-player API output, and can then try the different API:s through the UI.
+
 # API Reference
 
 All API requests expect the `Authorization` header is set to the JWT value received when logging in. This is automatically done by the AWS Game SDK's for the different game engines when you call the POST and GET requests through their API's.
