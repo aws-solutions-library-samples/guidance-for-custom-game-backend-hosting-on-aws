@@ -2,6 +2,10 @@
 
 This backend feature is currently ___PROTOTYPE___, and shows how to implement a modern *shift-left approach* to data quality for game events data on AWS. One that involves moving data quality checks, and assessments earlier in the data lifecycle, i.e. by performing data enrichment extract, transform, and load task (ETL) on ingest. This essentially means that businesses must move data quality responsibilities to the left of the data ingest process, where data quality is addressed as early as possible in the data lifecycle. Along with the Cloud Development Kit (CDK) code for deploying backend services for ingesting game event telemetry data to [Apache Iceberg](https://iceberg.apache.org/) tables, sample ETL scripts that support writing to open-source transactional table formats (or open table formats), this feature comes with a test script, from which you can then extend to using the Unreal, Unity and Godot Game Engines.
 
+## Architecture
+
+![architecture](./docs/architecture.png)
+
 ## Required preliminary setup
 
 This backend feature **requires** that you have deployed the [Identity component](../../CustomIdentityComponent/README.md)[^1]. Once that is done, **set** the `const ISSUER_ENDPOINT` in `BackendFeatures/GameAnalyticsIntegration/bin/game_analytics_integration.ts` to the value of `IssuerEndpointUrl` found in the stack outputs of the _CustomIdentityComponentStack_. You can find it in the CloudFormation console, or in the terminal after deploying the identity component. Additionally, ensure that you have subscribed to the[Apache Iceberg Connector for AWS Glue](https://aws.amazon.com/marketplace/pp/prodview-iicxofvpqvsio) in the **AWS Marketplace**. 
