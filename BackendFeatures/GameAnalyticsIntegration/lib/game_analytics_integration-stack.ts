@@ -130,14 +130,7 @@ export class AnalyticsIntegrationBackend extends cdk.Stack {
                 'dynamodb:DeleteItem',
               ],
               effect: iam.Effect.ALLOW,
-              resources: ['*']
-              //   this.formatArn({
-              //     service: 'dynamodb',
-              //     region: '',
-              //     resource: 'table',
-              //     resourceName: '*',
-              //   }),
-              // ],
+              resources: ['*'],
             }),
           ],
         }),
