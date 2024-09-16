@@ -224,7 +224,7 @@ export class AnalyticsIntegrationBackend extends cdk.Stack {
     streamTable.addDependency(streamDB);
     streamTable.applyRemovalPolicy(RemovalPolicy.DESTROY);
 
-    // Create the Delta Lake connection for the Glue Job
+    // Create the Apache Iceberg connection for the Glue Job
     new glue.CfnConnection(this, 'GlueIcebergConnection', {
       catalogId: cdk.Aws.ACCOUNT_ID,
       connectionInput: {
