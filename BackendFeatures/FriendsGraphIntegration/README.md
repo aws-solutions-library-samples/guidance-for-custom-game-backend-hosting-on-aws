@@ -4,7 +4,9 @@
 - [Deploying the Friends Graph with Amazon Neptune integration feature](#deploying-the-friends-graph-with-amazon-neptune-integration-feature)
 - [Architecture](#architecture)
 - [Solution overview](#solution-overview)
-- [API Reference](#api-reference)
+- [Test the solution](#test-the-solution)
+- [Integration with game endinges](#integration-with-game-engines)
+- [API reference](#api-reference)
 
 This backend feature integration shows how to deploy a backend service that interacts with Amazon Neptune to build a graph of players. Players can add friends and find new friends based on mutual relationships.
 
@@ -44,7 +46,7 @@ In the sample graph above:
 * **Player 3** added **Player 4** to their friends list.
 * **Player 4** does not have anybody on their friends list yet.
 
-## Collaborative Filtering
+## Collaborative filtering
 
 The `get-friends` function can be used to see all users who are friends with a player, who have added the player to their friends list, or recommend new friends.
 
@@ -74,13 +76,141 @@ The function recommends the following new friends, ordered by the number of edge
 
 Note that **Player 7** is not returned because they do not share a connection with any of **Player 1**'s existing friends.
 
-## Additional Resources
+## Additional resources
 
 To learn more about collaborative filtering and using Amazon Neptune to build a social network in your games, we recommend the following resources:
 
 * [Getting Started with Amazon Neptune](https://docs.aws.amazon.com/neptune/latest/userguide/graph-get-started.html)
 * [Building a Social Network for Games](https://github.com/aws/graph-notebook/blob/main/src/graph_notebook/notebooks/01-Neptune-Database/03-Sample-Applications/07-Games-Industry-Graphs/01-Building-a-Social-Network-for-Games-Gremlin.ipynb)
 * [Amazon Neptune Samples - Collaborative Filtering](https://github.com/aws-samples/amazon-neptune-samples/tree/master/gremlin/collaborative-filtering)
+
+# Testing the Friends Graph feature
+
+You can test that the solution is correctly deployed using a Linux or MacOS terminal. To test the solution, set up the login and backend endpoints using the CloudFormation output values of the Custom Identity Component and the Friends Graph Integration stacks.
+
+```
+# SET THESE FIRST
+login_endpoint=https://YOURENDPOINT/prod
+backend_endpoint=https://YOURENDPOINT/prod
+```
+
+## Add User 1 to friends graph
+Run the following commands to login as a new guest user and add the user to the graph.
+
+```
+# LOGIN AS GUEST
+login_output=$(curl $login_endpoint/login-as-guest)
+
+# STORE AUTH TOKEN AND USER ID
+user_id_1=$(jq -r '.user_id' <<< $login_output)
+auth_token_1=$(jq -r '.auth_token' <<< $login_output)
+
+# ADD USER TO FRIENDS GRAPH
+curl -H "Authorization: $auth_token_1" $backend_endpoint/set-player
+```
+
+You should see an output similar to this from the commands:
+
+```
+"v[a0896ee9-5b3c-4243-ac71-b79b1eff8919]"
+```
+
+## Add User 2 and User 1 to each other's friends lists
+Run the following commands to login as a second new guest user and add the user to the graph.
+
+```
+# LOGIN AS GUEST
+login_output=$(curl $login_endpoint/login-as-guest)
+
+# STORE AUTH TOKEN AND USER ID
+user_id_2=$(jq -r '.user_id' <<< $login_output)
+auth_token_2=$(jq -r '.auth_token' <<< $login_output)
+
+# ADD USER TO FRIENDS GRAPH
+curl -H "Authorization: $auth_token_2" $backend_endpoint/set-player
+```
+
+Run the following commands to add the two users to each others' friends list.
+
+```
+# ADD USER 2 TO USER 1'S FRIENDS LIST
+curl -H "Authorization: $auth_token_1" $backend_endpoint/set-friend?friend_id=$user_id_2
+
+# ADD USER 1 TO USER 2'S FRIENDS LIST
+curl -H "Authorization: $auth_token_2" $backend_endpoint/set-friend?friend_id=$user_id_1
+```
+
+You should see an output similar to this from the commands:
+
+```
+["08c900da-6c5f-3caa-7eaa-7a8ab04720bc"]
+["ecc900da-6eac-e02e-402c-706a282de657"]
+```
+
+Run the following command to see User 1's friends list.
+
+```
+curl -H "Authorization: $auth_token_1" $backend_endpoint/get-friends
+```
+
+You should see an output similar to this from the command:
+
+```
+["v[4e6f5e4e-30bb-4db7-bfd1-ceb35be5f7f6]"]
+```
+
+## Create User 3 and add User 2 to their friends list
+Run the following commands to login as a third new guest user, add the user to the graph, and add the second user to the third user's friends list.
+
+```
+# LOGIN AS GUEST
+login_output=$(curl $login_endpoint/login-as-guest)
+
+# STORE AUTH TOKEN AND USER ID
+user_id_3=$(jq -r '.user_id' <<< $login_output)
+auth_token_3=$(jq -r '.auth_token' <<< $login_output)
+
+# ADD USER TO FRIENDS GRAPH
+curl -H "Authorization: $auth_token_3" $backend_endpoint/set-player
+
+# ADD USER 2 TO USER 3'S FRIENDS LIST
+curl -H "Authorization: $auth_token_3" $backend_endpoint/set-friend?friend_id=$user_id_2
+```
+
+Run the following command to list users who have added User 2 to their friends list:
+
+```
+curl -H "Authorization: $auth_token_2" $backend_endpoint/get-friends?dir=in
+```
+
+You should see an output similar to this from the command:
+
+```
+[
+    "v[a0896ee9-5b3c-4243-ac71-b79b1eff8919]", 
+    "v[91b56194-6d9c-437a-ae49-f73a14483635]"
+]
+```
+
+## Recommend new friends for User 3
+
+Run the following command to find new friends that User 3 might know:
+
+```
+curl -H "Authorization: $auth_token_3" $backend_endpoint/get-friends?dir=new
+```
+
+You should see an output similar to this from the command:
+
+```
+[
+    {
+        "a0896ee9-5b3c-4243-ac71-b79b1eff8919": 2
+    }
+]
+```
+
+# Integration with Game Engines
 
 ## Unity integration
 
@@ -96,7 +226,7 @@ Configure the `FriendsGraphIntegration` component of the `FriendsGraphIntegratio
 
 Press play to test the integration. You'll see the login output, the set-player API output, and can then try the different API:s through the UI.
 
-# API Reference
+# API reference
 
 All API requests expect the `Authorization` header is set to the JWT value received when logging in. This is automatically done by the AWS Game SDK's for the different game engines when you call the POST and GET requests through their API's.
 
