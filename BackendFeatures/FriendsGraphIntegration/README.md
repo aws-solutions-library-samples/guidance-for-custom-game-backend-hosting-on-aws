@@ -5,7 +5,7 @@
 - [Architecture](#architecture)
 - [Solution overview](#solution-overview)
 - [Test the solution](#test-the-solution)
-- [Integration with game endinges](#integration-with-game-engines)
+- [Integration with game engines](#integration-with-game-engines)
 - [API reference](#api-reference)
 
 This backend feature integration shows how to deploy a backend service that interacts with Amazon Neptune to build a graph of players. Players can add friends and find new friends based on mutual relationships.
