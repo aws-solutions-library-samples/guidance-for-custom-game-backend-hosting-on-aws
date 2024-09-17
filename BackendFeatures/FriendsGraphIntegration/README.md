@@ -4,7 +4,7 @@
 - [Deploying the Friends Graph with Amazon Neptune integration feature](#deploying-the-friends-graph-with-amazon-neptune-integration-feature)
 - [Architecture](#architecture)
 - [Solution overview](#solution-overview)
-- [Test the solution](#test-the-solution)
+- [Testing the Friends Graph feature](#testing-the-friends-graph-feature)
 - [Integration with game engines](#integration-with-game-engines)
 - [API reference](#api-reference)
 
