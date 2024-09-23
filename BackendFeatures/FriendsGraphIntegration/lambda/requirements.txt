@@ -1,0 +1,8 @@
+aiohttp
+backoff
+boto3
+botocore
+gremlinpython
+async-timeout
+aws-xray-sdk
+aws-lambda-powertools[aws-sdk]
