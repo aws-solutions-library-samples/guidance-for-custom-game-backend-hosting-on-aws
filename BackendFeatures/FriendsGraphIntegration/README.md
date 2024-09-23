@@ -134,10 +134,10 @@ Run the following commands to add the two users to each others' friends list.
 
 ```
 # ADD USER 2 TO USER 1'S FRIENDS LIST
-curl -H "Authorization: $auth_token_1" $backend_endpoint/set-friend?friend_id=$user_id_2
+curl -H "Authorization: $auth_token_1" "$backend_endpoint/set-friend?friend_id=$user_id_2"
 
 # ADD USER 1 TO USER 2'S FRIENDS LIST
-curl -H "Authorization: $auth_token_2" $backend_endpoint/set-friend?friend_id=$user_id_1
+curl -H "Authorization: $auth_token_2" "$backend_endpoint/set-friend?friend_id=$user_id_1"
 ```
 
 You should see an output similar to this from the commands:
@@ -174,13 +174,13 @@ auth_token_3=$(jq -r '.auth_token' <<< $login_output)
 curl -H "Authorization: $auth_token_3" $backend_endpoint/set-player
 
 # ADD USER 2 TO USER 3'S FRIENDS LIST
-curl -H "Authorization: $auth_token_3" $backend_endpoint/set-friend?friend_id=$user_id_2
+curl -H "Authorization: $auth_token_3" "$backend_endpoint/set-friend?friend_id=$user_id_2"
 ```
 
 Run the following command to list users who have added User 2 to their friends list:
 
 ```
-curl -H "Authorization: $auth_token_2" $backend_endpoint/get-friends?dir=in
+curl -H "Authorization: $auth_token_2" "$backend_endpoint/get-friends?dir=in"
 ```
 
 You should see an output similar to this from the command:
@@ -197,7 +197,7 @@ You should see an output similar to this from the command:
 Run the following command to find new friends that User 3 might know:
 
 ```
-curl -H "Authorization: $auth_token_3" $backend_endpoint/get-friends?dir=new
+curl -H "Authorization: $auth_token_3" "$backend_endpoint/get-friends?dir=new"
 ```
 
 You should see an output similar to this from the command:
