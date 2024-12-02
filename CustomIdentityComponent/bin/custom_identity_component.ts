@@ -33,6 +33,8 @@ const googlePlayClientSecretArn = ""
 // Set this to the App ID of your Facebook app created in developer.facebook.com, found under "Basic Settings"
 // An empty value "" required to Not deploy the Facebook login endpoint
 const facebookAppId = ""
+// Set this vale to true if you want to provision Amazon Cognito as your identity provider
+const cognito = ""
 
 const app = new cdk.App();
 var identityComponentStack = new CustomIdentityComponentStack(app, 'CustomIdentityComponentStack', {
@@ -44,7 +46,8 @@ var identityComponentStack = new CustomIdentityComponentStack(app, 'CustomIdenti
     googlePlayClientId: googlePlayClientId,
     googlePlayAppId: googlePlayAppid,
     googlePlayClientSecretArn: googlePlayClientSecretArn,
-    facebookAppId: facebookAppId
+    facebookAppId: facebookAppId,
+    cognito: cognito
   });
   
   // Apply all the tags in the tags object to the stack
