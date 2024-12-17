@@ -776,9 +776,10 @@ export class CustomIdentityComponentStack extends Stack {
         "POWERTOOLS_METRICS_NAMESPACE": POWERTOOLS_METRICS_NAMESPACE,
         "POWERTOOLS_SERVICE_NAME": POWERTOOLS_SERVICE_NAME,
         "SECRET_KEY_ID": secret.secretName,
-        "USER_TABLE": user_table.tableName,
-        "COGNITO_APP_ID" : userPoolId,
-        "COGNITO_USER_TABLE": cognitoUserTable.tableName
+        "USER_TABLE": user_table.tableName, // writing a timestamp as uuid
+        "COGNITO_USER_POOL_ID" : userPoolId,
+        "COGNITO_APP_CLIENT_ID": userPoolClientId,
+        "COGNITO_USER_TABLE": cognitoUserTable.tableName //need to write to this in the lambda
       }
     });
     secret.grantRead(loginWithCognitoFunction);
@@ -793,8 +794,7 @@ export class CustomIdentityComponentStack extends Stack {
     // Map login-with-cognito function to the api_gateway GET request login-with-cognito
     api_gateway.root.addResource('login-with-cognito').addMethod('GET', new apigw.LambdaIntegration(loginWithCognitoFunction),{
       requestParameters: {
-        'method.request.querystring.cognito_access_token': true,
-        'method.request.querystring.cognito_user_id': true,
+        'method.request.querystring.access_token': true,
         'method.request.querystring.auth_token': false,
         'method.request.querystring.link_to_existing_user': false
       },
