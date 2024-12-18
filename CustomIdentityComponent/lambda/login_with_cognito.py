@@ -20,6 +20,7 @@ metrics.set_default_dimensions(function=os.environ['AWS_LAMBDA_FUNCTION_NAME'])
 config = Config(connect_timeout=2, read_timeout=2)
 dynamodb = boto3.resource('dynamodb')
 user_table = dynamodb.Table(os.environ['USER_TABLE'])
+client = boto3.client('cognito-idp')
 
 # Cognito configuration
 CognitoIssuer = f"https://cognito-idp.eu-central-1.amazonaws.com/{os.environ['COGNITO_USER_POOL_ID']}"
@@ -218,13 +219,32 @@ def response(status_code, message):
         "headers": {"Content-Type": "application/json"}
     }
 
+def auth_to_cognito(username, password):
+    try:
+        response = client.initiate_auth(
+            ClientId=app_client_id,
+            AuthFlow='USER_PASSWORD_AUTH',
+            AuthParameters={
+                'USERNAME': username,
+                'PASSWORD': password
+            }
+        )
+        return response
+    except Exception as e:
+        logger.error(f"Error during authentication: {e}")
+        return None
 
 @metrics.log_metrics
 @tracer.capture_lambda_handler
 def lambda_handler(event, context):
-    # Retrieve access token from the query string
-    cognito_access_token = event['queryStringParameters'].get('access_token')
-    backend_auth_token = event['queryStringParameters'].get('backend_auth_token')
+
+    username = event['body']['username']
+    password = event['body']['password']
+
+    auth_result = auth_to_cognito(username, password)
+    
+    # Retrieve access token from Cognito auth
+    cognito_access_token = auth_result.get('AuthenticationResult', {}).get('AccessToken')
 
     if not cognito_access_token:
         return response(400, "Cognito Access Token is missing from the request")
