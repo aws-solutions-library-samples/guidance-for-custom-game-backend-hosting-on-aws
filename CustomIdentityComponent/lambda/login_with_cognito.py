@@ -4,6 +4,7 @@ import uuid
 import boto3
 import requests
 import jwt  # Using PyJWT to decode the token
+from botocore.config import Config
 from aws_lambda_powertools import Tracer
 from aws_lambda_powertools import Logger
 from aws_lambda_powertools import Metrics
@@ -53,7 +54,7 @@ def create_user(cognito_user_id):
 
     # Check that user_id doesn't exist in DynamoDB table defined in environment variable USER_TABLE
     table = dynamodb.Table(os.environ['USER_TABLE'])
-    # Try to write a new iteam to the table with user_id as partition key
+    # Try to write a new item to the table with user_id as partition key
     try:
         table.put_item(
             Item={
@@ -62,6 +63,7 @@ def create_user(cognito_user_id):
             },
             ConditionExpression='attribute_not_exists(UserId)'
         )
+        return user_id
     except:
         logger.info("User already exists")
         return None
@@ -102,14 +104,14 @@ def generate_success(user_id, cognito_id, jwt_token, refresh_token, auth_token_e
 @tracer.capture_method
 def get_existing_user(cognito_id):
     try:
-        cognito_user_table_name = os.getenv("COGNITO_USER_TABLE");
+        cognito_user_table_name = os.getenv("COGNITO_USER_TABLE")
         cognito_user_table = dynamodb.Table(cognito_user_table_name)
         cognito_user_table_response = cognito_user_table.get_item(Key={'CognitoId': cognito_id})
         if 'Item' in cognito_user_table_response:
             logger.info("Found existing user in Cognito ID table:", user_id=cognito_user_table_response['Item']['UserId'])
             return True, cognito_user_table_response['Item']['UserId']
         else:
-            return True, None
+            return False, None
     except Exception as e:
         logger.info("Exception reading from user table: ", exception=e)
     
@@ -219,7 +221,8 @@ def response(status_code, message):
         "headers": {"Content-Type": "application/json"}
     }
 
-def auth_to_cognito(username, password):
+@tracer.capture_method
+def sign_in_to_cognito(username, password):
     try:
         response = client.initiate_auth(
             ClientId=app_client_id,
@@ -234,79 +237,233 @@ def auth_to_cognito(username, password):
         logger.error(f"Error during authentication: {e}")
         return None
 
+@tracer.capture_method
+def sign_up_to_cognito(username, password, email):
+    try:
+        response = client.sign_up(
+            ClientId=app_client_id,
+            Username=username,
+            Password=password,
+            UserAttributes=[
+                {'Name': 'email', 'Value': email}
+            ]
+        )
+        return response
+    except Exception as e:
+        logger.error(f"Error during sign up: {e}")
+        return None
+    
+@tracer.capture_method
+def confirm_sign_up(username, confirmation_code):
+    try:
+        response = client.confirm_sign_up(
+            ClientId=app_client_id,
+            Username=username,
+            ConfirmationCode=confirmation_code
+        )
+        return response
+    except Exception as e:
+        logger.error(f"Error during confirmation: {e}")
+        return None
+    
+@tracer.capture_method
+def sign_out_from_cognito(access_token):
+    print("Sign Out Function Envoked")
+    try:
+        response = client.global_sign_out(
+            AccessToken=access_token
+        )
+        print("Sign Out Response:", response)
+        return response 
+    except Exception as e:
+        logger.error(f"Error during sign out: {e}")
+        return None
+    
+@tracer.capture_method
+def forgot_password_cognito(username):
+    try:
+        response = client.forgot_password(
+            ClientId=app_client_id,
+            Username=username
+        )
+        return response
+    except Exception as e:
+        logger.error(f"Error during forgot password: {e}")
+        return None
+
+@tracer.capture_method
+def confirm_forgot_password(username, confirmation_code, password):
+    try:
+        response = client.confirm_forgot_password(
+            ClientId=app_client_id,
+            Username=username,
+            ConfirmationCode=confirmation_code,
+            Password=password
+        )
+        return response
+    except Exception as e:
+        logger.error(f"Error during confirmation: {e}")
+        return None
+
 @metrics.log_metrics
 @tracer.capture_lambda_handler
 def lambda_handler(event, context):
 
-    username = event['body']['username']
-    password = event['body']['password']
+    username = None
+    password = None
+    email = None
+    signin = None
+    signup = None
+    signup_confirmation_code = None
+    signout = None
+    forgot_password = None
+    reset_password = None
+    reset_password_code = None
+    access_token = None
 
-    auth_result = auth_to_cognito(username, password)
-    
-    # Retrieve access token from Cognito auth
-    cognito_access_token = auth_result.get('AuthenticationResult', {}).get('AccessToken')
+    if 'username' in event['body']:
+        username = event['body']['username']
+    if 'password' in event['body']:
+        password = event['body']['password']
+    if 'email' in event['body']:
+        email = event['body']['email']
+    if 'signin' in event['body']:
+        signin = event['body']['signin']
+    if 'signup' in event['body']:
+        signup = event['body']['signup']
+    if 'signup_confirmation_code' in event['body']:
+        signup_confirmation_code = event['body']['confirmation_code']
+    if 'signout' in event['body']:
+        signout = event['body']['signout']
+    if 'forgot_password' in event['body']:
+        forgot_password = event['body']['forgot_password']
+    if 'reset_password' in event['body']:
+        reset_password = event['body']['reset_password']
+    if 'reset_password_code' in event['body']:  
+        reset_password_code = event['body']['reset_password_code']
+    if 'access_token' in event['body']:    
+        access_token = event['body']['access_token']
 
-    if not cognito_access_token:
-        return response(400, "Cognito Access Token is missing from the request")
+    print("Event:", event)
+    print("Username:", username)
+    print("Password:", password)
 
-    # Validate the Cognito auth token, and get Cognito user ID
-    cognito_user_id = None
-    try:
-        verified_claims = verify_jwt(cognito_access_token)
-        cognito_user_id = verified_claims['sub']
-    except Exception as e:
-        logger.error(f"Token verification failed: {e}")
-        return response(401, "Invalid or expired access token")
+    print("Email:", email)
+    print("SignIn", signin)
 
-    if cognito_user_id != None:
-
-        success = False # Indicates the whole process success (existing user or new)
-
-        # OPTION 1: Try to get an existing user. This overrides any requests to link accounts
-        existing_user_request_success, user_id = get_existing_user(cognito_user_id)
-        # If there was a problem getting existing user, abort as we don't want to create duplicate
-        if existing_user_request_success is False:
-            record_failure_metric(f'Failed the try getting existing user')
-            return generate_error('Error: Failed the try getting existing user')
+    if signup == "True":
+        print("Sign Up Function envoked")
+        auth_result = sign_up_to_cognito(username, password, email)
+        if auth_result is None:
+            return response(400, "Cognito Sign Up failed")
+        if 'UserConfirmed' in auth_result and auth_result['UserConfirmed'] is not False:
+            return response(200, "Cognito Sign Up successful, please confirm your code")
         else:
-            success = True # Successfully tried getting existing user, might still be None (not found)
-        
-        # If no existing user, we are either linking to one or creating a new one
-        if user_id == None:
-            query_params = event['queryStringParameters']
+            return response(200, "Cognito Sign Up successful")
 
-            # OPTION 2: Check if client sent a backend auth_token and requested linking to an existing user
-            if 'auth_token' in query_params and 'link_to_existing_user' in query_params and query_params['link_to_existing_user'] == "Yes":
-                # Validate the auth_token
-                decoded_backend_token = decrypt(query_params['auth_token'])
-                if decoded_backend_token is None:
-                    record_failure_metric(f'Failed to authenticate with existing identity')
-                    return generate_error('Error: Failed to authenticate with existing identity')
-                # Set the user_id
-                user_id = decoded_backend_token['sub']
-                # Try to link the new user to an existing user
-                success = link_cognito_id_to_existing_user(user_id, cognito_user_id)
-                if success is False:
-                    record_failure_metric(f'Failed to link new user to existing user')
-                    return generate_error('Error: Failed to link new user to existing user')
-            
-            # OPTION 3: Else If no user yet and we didn't request linking to an existing user, create one and add to user table
+    if signup_confirmation_code is not None:
+        auth_result = confirm_sign_up(username, signup_confirmation_code)
+        if auth_result is None:
+            return response(400, "Cognito Confirmation failed")
+        else:
+            return response(200, "Cognito Confirmation successful")
+        
+    if forgot_password == "True":
+        auth_result = forgot_password_cognito(username)
+        if auth_result is None:
+            return response(400, "Cognito Forgot Password failed")
+        else:
+            return response(200, "Cognito Forgot Password successful")
+        
+    if reset_password == "True":
+        auth_result = confirm_forgot_password(username, reset_password_code, password)
+        if auth_result is None:
+            return response(400, "Cognito Reset Password failed")
+        else:
+            return response(200, "Cognito Reset Password successful")
+
+    if signout == "True" and access_token is not None:
+        auth_result = sign_out_from_cognito(access_token)
+        if auth_result is None:
+            return response(400, "Cognito Sign Out failed")
+        else:
+            return response(200, "Cognito Sign Out successful")
+
+    # Retrieve access token from Cognito auth
+    if signin == "True":
+        print("Sign In Function envoked")
+        auth_result = sign_in_to_cognito(username, password)
+        print("Auth result", auth_result)
+        cognito_access_token = auth_result.get('AuthenticationResult', {}).get('AccessToken')
+        print("Cognito Access Token", cognito_access_token)
+
+        if not cognito_access_token:
+            return response(400, "Cognito Access Token is missing from the auth response")
+
+        # Validate the Cognito auth token, and get Cognito user ID
+        cognito_user_id = None
+        try:
+            verified_claims = verify_jwt(cognito_access_token)
+            cognito_user_id = verified_claims['sub']
+            print('cognito user id', cognito_user_id)
+        except Exception as e:
+            logger.error(f"Token verification failed: {e}")
+            return response(401, "Invalid or expired access token")
+
+        if cognito_user_id is not None:
+
+            success = False # Indicates the whole process success (existing user or new)
+
+            # OPTION 1: Try to get an existing user. This overrides any requests to link accounts
+            print('Logging in existing user')
+            existing_user_request_success, user_id = get_existing_user(cognito_user_id)
+            print('User id:', user_id)
+            print('Existing user request success:', existing_user_request_success)
+            # If there was a problem getting existing user, abort as we don't want to create duplicate
+            if existing_user_request_success is False:
+                record_failure_metric(f'Failed the try getting existing user')
+                # return generate_error('Error: Failed the try getting existing user')
             else:
-                logger.info("No user yet, creating a new one")
-                tries = 0
-                while user_id is None and tries < 10:
-                    # Try to create a new user
-                    user_id = create_user(cognito_user_id)
-                    tries += 1
-                if user_id == None:
-                    record_failure_metric(f'Failed to create user')
-                    return generate_error('Error: Failed to create user')
+                success = True # Successfully tried getting existing user, might still be None (not found)
             
-            # Add user to Cognito Id User table in both cases (linking and new user)
-            user_creation_success = add_new_user_to_cognito_table(user_id, cognito_user_id)
+            # If no existing user, we are either linking to one or creating a new one
+            if user_id is None:
+                if 'queryStringParameters' in event:
+                    query_params = event['queryStringParameters']
+
+                    # OPTION 2: Check if client sent a backend auth_token and requested linking to an existing user
+                    if 'auth_token' in query_params and 'link_to_existing_user' in query_params and query_params['link_to_existing_user'] == "Yes":
+                        # Validate the auth_token
+                        decoded_backend_token = decrypt(query_params['auth_token'])
+                        if decoded_backend_token is None:
+                            record_failure_metric(f'Failed to authenticate with existing identity')
+                            return generate_error('Error: Failed to authenticate with existing identity')
+                        # Set the user_id
+                        user_id = decoded_backend_token['sub']
+                        # Try to link the new user to an existing user
+                        success = link_cognito_id_to_existing_user(user_id, cognito_user_id)
+                        if success is False:
+                            record_failure_metric(f'Failed to link new user to existing user')
+                            return generate_error('Error: Failed to link new user to existing user')
+                    
+                # OPTION 3: Else If no user yet and we didn't request linking to an existing user, create one and add to user table
+                else:
+                    logger.info("No user yet, creating a new one")
+                    tries = 0
+                    while user_id is None and tries < 10:
+                        # Try to create a new user
+                        user_id = create_user(cognito_user_id)
+                        tries += 1
+                    success = True
+                    if user_id is None:
+                        record_failure_metric(f'Failed to create user')
+                        return generate_error('Error: Failed to create user')
+                # Add user to Cognito Id User table in both cases (linking and new user)
+                user_creation_success = add_new_user_to_cognito_table(user_id, cognito_user_id)
 
         # Create a JWT payload and encrypt with authenticated scope
         if user_id is not None and success is True:
+            print("USER ID IS NOT NONE AND SUCCESS IS TRUE")
             payload = {
                 'sub': user_id,
             }
@@ -319,9 +476,3 @@ def lambda_handler(event, context):
     # Failed to return success, return final error
     record_failure_metric(f'Invalid request')
     return generate_error('Error: Failed to authenticate')
-
-
-
-
-
-
