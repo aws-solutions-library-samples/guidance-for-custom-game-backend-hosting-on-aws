@@ -10,6 +10,7 @@
     + [GET /login-with-apple-id](#get-login-with-apple-id)
     + [GET /login-with-google-play](#get-login-with-google-play)
     + [GET /login-with-facebook](#get-login-with-facebook)
+    + [GET /login-with-cognito](#get-login-with-cognito)
 
 The custom identity component is a serverless solution that manages a JSON Web Key Set (JWKS) with key rotation and publicly available configuration and public keys through an Amazon CloudFront endpoint. It supports integration with Steam, Sign in with Apple, Google Play, and Facebook, and can be extended with custom code to more providers such as console platforms.
 
@@ -37,6 +38,8 @@ Optionally, you can add integrations to identity providers by modifying `CustomI
   * Set `const googlePlayClientSecretArn` to the Arn of a Secrets Manager secret containing your Client Secret for the Web application client (see [Google Play developer docs](https://developers.google.com/games/services/console/enabling) for details). You can create a secret with the AWS CLI: `aws secretsmanager create-secret --name MyGooglePlayClientSecret --description "Google Play client secret" --secret-string "YOURCLIENTSECRET"`
 * __Facebook__
   * Set `const facebookAppId` to the App ID of your Facebook application in developer.facebook.com. You can find this under "Basic Settings" for the app.
+* __Cognito__
+  * Set `const cognito = "true"`
 
 When you set a non empty value for one of these App ID:s, the CDK stack will automatically deploy required endpoints and resources for that platform.
 
