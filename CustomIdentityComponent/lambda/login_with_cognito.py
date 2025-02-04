@@ -111,7 +111,7 @@ def get_existing_user(cognito_id):
             logger.info("Found existing user in Cognito ID table:", user_id=cognito_user_table_response['Item']['UserId'])
             return True, cognito_user_table_response['Item']['UserId']
         else:
-            return False, None
+            return True, None
     except Exception as e:
         logger.info("Exception reading from user table: ", exception=e)
     
