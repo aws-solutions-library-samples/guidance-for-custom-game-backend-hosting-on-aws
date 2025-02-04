@@ -393,6 +393,8 @@ def lambda_handler(event, context):
     if signin == "True":
         print("Sign In Function envoked")
         auth_result = sign_in_to_cognito(username, password)
+        if auth_result is None:
+            return response(400, "Cognito SignIn failed, no user found")
         print("Auth result", auth_result)
         cognito_access_token = auth_result.get('AuthenticationResult', {}).get('AccessToken')
         print("Cognito Access Token", cognito_access_token)
