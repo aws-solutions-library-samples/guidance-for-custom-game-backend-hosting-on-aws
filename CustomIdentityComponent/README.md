@@ -218,3 +218,28 @@ The API integrations are built into the SDK:s provided for Unreal, Unity, and Go
 > | `401`         | Multiple errors: could not create a validate user                |  
 
 
+`GET /login-with-cognito`
+
+**Parameters**
+
+> | name      |  required | description                                                                    |
+> |-----------|-----------|--------------------------------------------------------------------------------|
+> | `username`   |  Yes       | When logging in with Cognito, you always need to provide a valid username |
+> | `password`   |  Yes       | When logging in with Cognito, you always need to provide a valid password |
+> | `email`   |  No  | When signing up, you always need to provide a valid email address  |
+> | `link_to_existing_user`   |  No  | Set this to `Yes` for linking the Cognito identity to existing user. Requires also the `auth_token` field to be set.  |
+> | `access_token`   |  No  | Provide an existing access_token for a logged in user when linking Cognito identity to existing user. Requires also the `link_to_existing_user` to be set.  |
+> | `signin`   |  No  | Set this to `True` for signing in with Cognito  |
+> | `signup`   |  No  | Set this to `True` for signing up with Cognito  |
+> | `signup_confirmation_code`   |  No  | Set this to the signup confirmation code that will be emailed to a user after they sign up with Cognito for first time.  |
+> | `signout`   |  No  | Set this to `True` when signing out  |
+> | `forgot_password`   |  No  | Set this to `True` when initiating forgot password flow  |
+> | `reset_password`   |  No  | Set this to `True` for requesting a code to reset password that will be emailed to user  |
+> | `reset_password_code`   |  No  | Set this to the reset password code that will be emailed to the user when once they have initiated the forgot password flow.  |
+
+**Responses**
+
+> | http code     | response                                                            |
+> |---------------|---------------------------------------------------------------------|
+> | `200`         | `{'facebook_id': facebook_id,'user_id': user_id,'auth_token': auth_token,'refresh_token': refresh_token, 'auth_token_expires_in' :auth_token_expires_in,'refresh_token_expires_in' : refresh_token_expires_in}`                                |
+> | `401`         | Multiple errors: could not create a validate user                |  
