@@ -344,13 +344,6 @@ def lambda_handler(event, context):
     if 'access_token' in event['body']:    
         access_token = event['body']['access_token']
 
-    print("Event:", event)
-    print("Username:", username)
-    print("Password:", password)
-
-    print("Email:", email)
-    print("SignIn", signin)
-
     if signup == "True":
         print("Sign Up Function envoked")
         auth_result = sign_up_to_cognito(username, password, email)

@@ -794,7 +794,7 @@ export class CustomIdentityComponentStack extends Stack {
     // Map login-with-cognito function to the api_gateway GET request login-with-cognito
     api_gateway.root.addResource('login-with-cognito').addMethod('GET', new apigw.LambdaIntegration(loginWithCognitoFunction),{
       requestParameters: {
-        'method.request.querystring.access_token': true,
+        'method.request.querystring.access_token': false,
         'method.request.querystring.auth_token': false,
         'method.request.querystring.link_to_existing_user': false
       },
