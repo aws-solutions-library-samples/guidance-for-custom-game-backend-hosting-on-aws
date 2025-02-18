@@ -309,6 +309,8 @@ def confirm_forgot_password(username, confirmation_code, password):
 @tracer.capture_lambda_handler
 def lambda_handler(event, context):
 
+    event = json.loads(event['body'])
+    
     username = None
     password = None
     email = None
