@@ -791,8 +791,8 @@ export class CustomIdentityComponentStack extends Stack {
     { id: 'AwsSolutions-IAM5', reason: 'Using the standard Lambda execution role, all custom access resource restricted.' }
     ], true);
 
-    // Map login-with-cognito function to the api_gateway GET request login-with-cognito
-    api_gateway.root.addResource('login-with-cognito').addMethod('GET', new apigw.LambdaIntegration(loginWithCognitoFunction),{
+    // Map login-with-cognito function to the api_gateway POST request login-with-cognito
+    api_gateway.root.addResource('login-with-cognito').addMethod('POST', new apigw.LambdaIntegration(loginWithCognitoFunction),{
       requestParameters: {
         'method.request.querystring.access_token': false,
         'method.request.querystring.auth_token': false,
