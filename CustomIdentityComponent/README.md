@@ -217,6 +217,7 @@ The API integrations are built into the SDK:s provided for Unreal, Unity, and Go
 > | `200`         | `{'facebook_id': facebook_id,'user_id': user_id,'auth_token': auth_token,'refresh_token': refresh_token, 'auth_token_expires_in' :auth_token_expires_in,'refresh_token_expires_in' : refresh_token_expires_in}`                                |
 > | `401`         | Multiple errors: could not create a validate user                |  
 
+### GET /login-with-cognito
 
 `GET /login-with-cognito`
 
