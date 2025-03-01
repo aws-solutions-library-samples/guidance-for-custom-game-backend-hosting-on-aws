@@ -190,7 +190,6 @@ def verify_jwt(token):
     # Use the public key to verify the JWT
     try:
         public_key = RSAAlgorithm.from_jwk(json.dumps(rsa_key))
-        print("Public Key:", public_key)
         payload = jwt.decode(
             token,
             public_key,
@@ -199,7 +198,6 @@ def verify_jwt(token):
             # audience=app_client_id,
             issuer=CognitoIssuer
         )
-        print("Payload:", payload)
         return payload
     except jwt.ExpiredSignatureError:
         raise Exception("Token is expired")
@@ -268,12 +266,10 @@ def confirm_sign_up(username, confirmation_code):
     
 @tracer.capture_method
 def sign_out_from_cognito(access_token):
-    print("Sign Out Function Envoked")
     try:
         response = client.global_sign_out(
             AccessToken=access_token
         )
-        print("Sign Out Response:", response)
         return response 
     except Exception as e:
         logger.error(f"Error during sign out: {e}")
@@ -308,7 +304,8 @@ def confirm_forgot_password(username, confirmation_code, password):
 @metrics.log_metrics
 @tracer.capture_lambda_handler
 def lambda_handler(event, context):
-
+    
+    full_event = event
     event = json.loads(event['body'])
     
     username = None
@@ -347,7 +344,6 @@ def lambda_handler(event, context):
         access_token = event['body']['access_token']
 
     if signup == "True":
-        print("Sign Up Function envoked")
         auth_result = sign_up_to_cognito(username, password, email)
         if auth_result is None:
             return response(400, "Cognito Sign Up failed")
@@ -386,13 +382,10 @@ def lambda_handler(event, context):
 
     # Retrieve access token from Cognito auth
     if signin == "True":
-        print("Sign In Function envoked")
         auth_result = sign_in_to_cognito(username, password)
         if auth_result is None:
             return response(400, "Cognito SignIn failed, no user found")
-        print("Auth result", auth_result)
         cognito_access_token = auth_result.get('AuthenticationResult', {}).get('AccessToken')
-        print("Cognito Access Token", cognito_access_token)
 
         if not cognito_access_token:
             return response(400, "Cognito Access Token is missing from the auth response")
@@ -402,7 +395,6 @@ def lambda_handler(event, context):
         try:
             verified_claims = verify_jwt(cognito_access_token)
             cognito_user_id = verified_claims['sub']
-            print('cognito user id', cognito_user_id)
         except Exception as e:
             logger.error(f"Token verification failed: {e}")
             return response(401, "Invalid or expired access token")
@@ -412,10 +404,7 @@ def lambda_handler(event, context):
             success = False # Indicates the whole process success (existing user or new)
 
             # OPTION 1: Try to get an existing user. This overrides any requests to link accounts
-            print('Logging in existing user')
             existing_user_request_success, user_id = get_existing_user(cognito_user_id)
-            print('User id:', user_id)
-            print('Existing user request success:', existing_user_request_success)
             # If there was a problem getting existing user, abort as we don't want to create duplicate
             if existing_user_request_success is False:
                 record_failure_metric(f'Failed the try getting existing user')
@@ -425,8 +414,8 @@ def lambda_handler(event, context):
             
             # If no existing user, we are either linking to one or creating a new one
             if user_id is None:
-                if 'queryStringParameters' in event:
-                    query_params = event['queryStringParameters']
+                if 'queryStringParameters' in full_event:
+                    query_params = full_event['queryStringParameters']
 
                     # OPTION 2: Check if client sent a backend auth_token and requested linking to an existing user
                     if 'auth_token' in query_params and 'link_to_existing_user' in query_params and query_params['link_to_existing_user'] == "Yes":
@@ -460,7 +449,6 @@ def lambda_handler(event, context):
 
         # Create a JWT payload and encrypt with authenticated scope
         if user_id is not None and success is True:
-            print("USER ID IS NOT NONE AND SUCCESS IS TRUE")
             payload = {
                 'sub': user_id,
             }
