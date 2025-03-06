@@ -249,4 +249,43 @@ The API integrations are built into the SDK:s provided for Unreal, Unity, and Go
 > | http code     | response                                                            |
 > |---------------|---------------------------------------------------------------------|
 > | `200`         | `{'cognito__id': cognito_user_id,'user_id': user_id,'auth_token': auth_token,'refresh_token': refresh_token, 'auth_token_expires_in' :auth_token_expires_in,'refresh_token_expires_in' : refresh_token_expires_in}`                                |
-> | `401`         | Multiple errors: could not create a validate user                |  
+> | `401`         | Multiple errors: could not create a validate user                |
+
+**Example POST requests with curl**
+
+**Sign up as a new user**
+
+```bash
+curl -XPOST -d '{
+  "body": {
+    "username": "Username",
+    "password": "Password12345#",
+    "email": "email@domain.com",
+    "signup": "True"
+  }
+}' 'https://abcdefg.execute-api.us-west-2.amazonaws.com/prod/login-with-cognito'
+````
+
+**Confirm sign up with a confirmation code**
+
+```bash
+curl -XPOST -d '{
+  "body": {
+    "username": "Username",
+    "confirmation_code": "1234567",
+    "signup_confirmation_code": "True"
+  }
+}' 'https://abcdefg.execute-api.us-west-2.amazonaws.com/prod/login-with-cognito'
+```
+
+**Sign in with a confirmed user**
+
+```bash
+curl -XPOST -d '{
+  "body": {
+    "username": "Username",
+    "password": "Password12345#",
+    "signin": "True"
+  }
+}' 'https://abcdefg.execute-api.us-west-2.amazonaws.com/prod/login-with-cognito'
+```
