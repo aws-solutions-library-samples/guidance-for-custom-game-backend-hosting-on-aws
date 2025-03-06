@@ -414,11 +414,11 @@ def lambda_handler(event, context):
             
             # If no existing user, we are either linking to one or creating a new one
             if user_id is None:
+ 
+                # OPTION 2: Check if client sent a backend auth_token and requested linking to an existing user
                 if 'queryStringParameters' in full_event:
                     query_params = full_event['queryStringParameters']
-
-                    # OPTION 2: Check if client sent a backend auth_token and requested linking to an existing user
-                    if 'auth_token' in query_params and 'link_to_existing_user' in query_params and query_params['link_to_existing_user'] == "Yes":
+                    if query_params is not None and 'auth_token' in query_params and 'link_to_existing_user' in query_params and query_params['link_to_existing_user'] == "Yes":
                         # Validate the auth_token
                         decoded_backend_token = decrypt(query_params['auth_token'])
                         if decoded_backend_token is None:
@@ -432,20 +432,20 @@ def lambda_handler(event, context):
                             record_failure_metric(f'Failed to link new user to existing user')
                             return generate_error('Error: Failed to link new user to existing user')
                     
-                # OPTION 3: Else If no user yet and we didn't request linking to an existing user, create one and add to user table
-                else:
-                    logger.info("No user yet, creating a new one")
-                    tries = 0
-                    while user_id is None and tries < 10:
-                        # Try to create a new user
-                        user_id = create_user(cognito_user_id)
-                        tries += 1
-                    success = True
-                    if user_id is None:
-                        record_failure_metric(f'Failed to create user')
-                        return generate_error('Error: Failed to create user')
-                # Add user to Cognito Id User table in both cases (linking and new user)
-                user_creation_success = add_new_user_to_cognito_table(user_id, cognito_user_id)
+                    # OPTION 3: Else If no user yet and we didn't request linking to an existing user, create one and add to user table
+                    else:
+                        logger.info("No user yet, creating a new one")
+                        tries = 0
+                        while user_id is None and tries < 10:
+                            # Try to create a new user
+                            user_id = create_user(cognito_user_id)
+                            tries += 1
+                        success = True
+                        if user_id is None:
+                            record_failure_metric(f'Failed to create user')
+                            return generate_error('Error: Failed to create user')
+                    # Add user to Cognito Id User table in both cases (linking and new user)
+                    user_creation_success = add_new_user_to_cognito_table(user_id, cognito_user_id)
 
         # Create a JWT payload and encrypt with authenticated scope
         if user_id is not None and success is True:
