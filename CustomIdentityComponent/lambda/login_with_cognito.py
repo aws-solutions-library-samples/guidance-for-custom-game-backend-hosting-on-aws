@@ -24,7 +24,7 @@ user_table = dynamodb.Table(os.environ['USER_TABLE'])
 client = boto3.client('cognito-idp')
 
 # Cognito configuration
-CognitoIssuer = f"https://cognito-idp.eu-central-1.amazonaws.com/{os.environ['COGNITO_USER_POOL_ID']}"
+CognitoIssuer = f"https://cognito-idp.{os.environ['AWS_REGION']}.amazonaws.com/{os.environ['COGNITO_USER_POOL_ID']}"
 jwks_url = f"{CognitoIssuer}/.well-known/jwks.json"
 app_client_id = os.environ['COGNITO_APP_CLIENT_ID']
 
