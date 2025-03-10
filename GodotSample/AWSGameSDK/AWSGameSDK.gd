@@ -17,7 +17,7 @@ class UserInfo:
 	var refresh_token_expires_in = "";
 	
 	func _to_string():
-		print("user_id: " + user_id + "\nguest_secret: " + guest_secret + "\nauth_token: " + auth_token +
+		return("user_id: " + user_id + "\nguest_secret: " + guest_secret + "\nauth_token: " + auth_token +
 				"\napple_id: " + apple_id + "\nsteam_id: " + steam_id + "\ngoogle_play_id: " + google_play_id
 				+ "\nfacebook_id: " + facebook_id
 				+ "\nrefresh_token: " + refresh_token + "\nauth_token_expires_in: " + str(auth_token_expires_in)
