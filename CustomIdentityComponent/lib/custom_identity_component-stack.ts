@@ -5,6 +5,7 @@ import { Stack, StackProps, CfnOutput, Duration } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
+import * as cognito from 'aws-cdk-lib/aws-cognito';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
 import * as secretsmanager from  'aws-cdk-lib/aws-secretsmanager';
@@ -36,6 +37,8 @@ export interface CustomIdentityComponentStackProps extends StackProps {
   googlePlayClientSecretArn: string;
   // This is the app ID of the facebook app
   facebookAppId: string;
+  // This should be set to true if you want to use Cognito as your Identity Provider
+  cognito: string;
 }
 
 const POWERTOOLS_METRICS_NAMESPACE = "AWS for Games";
@@ -404,6 +407,11 @@ export class CustomIdentityComponentStack extends Stack {
     if(props.facebookAppId != "") {
         this.setupFacebookLogin(props.facebookAppId, secret, user_table, distribution, api_gateway, lambdaBasicPolicy, requestValidator, lambdaLoggingRole);
     }
+
+    // If Cognito is set to true, add DynamoDB table and Lambda function for Cognito login
+    if(props.cognito != "") {
+        this.setupCognitoLogin(secret, user_table, distribution, api_gateway, lambdaBasicPolicy, requestValidator, lambdaLoggingRole);
+    }
   }
 
   ///// *** IDENTITY PROVIDER SPECIFIC RESOURECE **** //////
@@ -625,7 +633,7 @@ export class CustomIdentityComponentStack extends Stack {
   }
 
    // Sets up Lambda endpoint and DynamoDB table for Facebook Login
-   setupFacebookLogin(appId : string, secret: secretsmanager.Secret, user_table: dynamodb.Table, distribution: cloudfront.Distribution,
+  setupFacebookLogin(appId : string, secret: secretsmanager.Secret, user_table: dynamodb.Table, distribution: cloudfront.Distribution,
                       api_gateway: apigw.RestApi, lambdaBasicPolicy: iam.PolicyStatement, requestValidator: apigw.RequestValidator,
                       lambdaLoggingRole: iam.Role) {
     
@@ -689,5 +697,108 @@ export class CustomIdentityComponentStack extends Stack {
       },
       requestValidator: requestValidator
     });
-}
+  }
+  
+  // Sets up Lambda endpoint and DynamoDB table for Cognito Login
+  setupCognitoLogin(secret: secretsmanager.Secret, user_table: dynamodb.Table, distribution: cloudfront.Distribution,
+    api_gateway: apigw.RestApi, lambdaBasicPolicy: iam.PolicyStatement, requestValidator: apigw.RequestValidator,
+    lambdaLoggingRole: iam.Role) {
+
+    // Create a User Pool
+    const userPool = new cognito.UserPool(this, 'gameBackendUserPool', {
+      userPoolName: 'gameBackendUserPool',
+      selfSignUpEnabled: true,
+      signInAliases: {
+        email: true,
+        username: true,
+      },
+      autoVerify: {
+        email: true,
+      },
+      passwordPolicy: {
+        minLength: 8,
+        requireLowercase: true,
+        requireUppercase: true,
+        requireDigits: true,
+        requireSymbols: true,
+      },
+      accountRecovery: cognito.AccountRecovery.EMAIL_ONLY,
+    });
+
+    // Create a User Pool Client that allows SRP authentication
+    const userPoolClient = new cognito.UserPoolClient(this, 'UserPoolClient', {
+      userPool,
+      generateSecret: false,
+      authFlows: {
+        userPassword: true,
+        userSrp: true,
+      },
+    });
+
+    // Reference User Pool ID and Client ID to pass to another resource
+    const userPoolId = userPool.userPoolId;
+    const userPoolClientId = userPoolClient.userPoolClientId;
+
+    // Define a DynamoDB table for Cognito Users
+    const cognitoUserTable = new dynamodb.Table(this, 'CognitoUserTable', {
+      partitionKey: {
+        name: 'CognitoId',
+        type: dynamodb.AttributeType.STRING
+      },
+        billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+        pointInTimeRecovery: true
+    });
+
+    // Lambda function for Cognito login
+    const loginWithCognitoFunctionRole = new iam.Role(this, 'LoginWithCognitoFunctionRole', {
+      assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
+    });
+    loginWithCognitoFunctionRole.addToPolicy(lambdaBasicPolicy);
+    const loginWithCognitoFunction = new lambda.Function(this, 'LoginWithCognito', {
+      role: loginWithCognitoFunctionRole,
+      code: lambda.Code.fromAsset("lambda", {
+      bundling: {
+        image: lambda.Runtime.PYTHON_3_12.bundlingImage,
+        command: [
+          'bash', '-c',
+          'pip install --platform manylinux2014_x86_64 --only-binary=:all: -r requirements.txt -t /asset-output && cp -ru . /asset-output'
+        ],
+      },}),
+      runtime: lambda.Runtime.PYTHON_3_12,
+      handler: 'login_with_cognito.lambda_handler',
+      timeout: Duration.seconds(15),
+      tracing: lambda.Tracing.ACTIVE,
+      memorySize: 2048,
+      logRetention: logs.RetentionDays.ONE_MONTH,
+      logRetentionRole: lambdaLoggingRole,
+      environment: {
+        "ISSUER_URL": "https://"+distribution.domainName,
+        "POWERTOOLS_METRICS_NAMESPACE": POWERTOOLS_METRICS_NAMESPACE,
+        "POWERTOOLS_SERVICE_NAME": POWERTOOLS_SERVICE_NAME,
+        "SECRET_KEY_ID": secret.secretName,
+        "USER_TABLE": user_table.tableName, // writing a timestamp as uuid
+        "COGNITO_USER_POOL_ID" : userPoolId,
+        "COGNITO_APP_CLIENT_ID": userPoolClientId,
+        "COGNITO_USER_TABLE": cognitoUserTable.tableName //need to write to this in the lambda
+      }
+    });
+    secret.grantRead(loginWithCognitoFunction);
+    user_table.grantReadWriteData(loginWithCognitoFunction);
+    cognitoUserTable.grantReadWriteData(loginWithCognitoFunction);
+    loginWithCognitoFunction.node.addDependency(userPool)
+
+    NagSuppressions.addResourceSuppressions(loginWithCognitoFunctionRole, [
+    { id: 'AwsSolutions-IAM5', reason: 'Using the standard Lambda execution role, all custom access resource restricted.' }
+    ], true);
+
+    // Map login-with-cognito function to the api_gateway POST request login-with-cognito
+    api_gateway.root.addResource('login-with-cognito').addMethod('POST', new apigw.LambdaIntegration(loginWithCognitoFunction),{
+      requestParameters: {
+        'method.request.querystring.access_token': false,
+        'method.request.querystring.auth_token': false,
+        'method.request.querystring.link_to_existing_user': false
+      },
+      requestValidator: requestValidator
+    });
+  }
 };
