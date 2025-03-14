@@ -1,6 +1,6 @@
 [gd_scene load_steps=2 format=3 uid="uid://d2rykx55ylfax"]
 
-[ext_resource type="Script" path="res://BackendFeatures/AmazonGameLiftIntegration/AmazonGameLiftIntegration.gd" id="1_f5d5y"]
+[ext_resource type="Script" uid="uid://bj1uupijq8a0p" path="res://BackendFeatures/AmazonGameLiftIntegration/AmazonGameLiftIntegration.gd" id="1_f5d5y"]
 
 [node name="Node2D" type="Node2D"]
 

@@ -1,8 +1,11 @@
-[gd_scene load_steps=2 format=3 uid="uid://b8blf3o26rhc3"]
+[gd_scene load_steps=3 format=3 uid="uid://b8blf3o26rhc3"]
 
-[ext_resource type="Script" path="res://Samples/SteamIdLogin/SteamIdLogin.gd" id="1_kitbl"]
+[ext_resource type="Script" uid="uid://ba368vjxpctom" path="res://Samples/SteamIdLogin/SteamIdLogin.gd" id="1_kitbl"]
+[ext_resource type="Script" uid="uid://dxp7lgvaxrjry" path="res://addons/AWSGameSDK/scripts/AWSAuthorization.gd" id="2_nmo6t"]
 
 [node name="Node2D" type="Node2D"]
-
-[node name="Test" type="Node" parent="."]
 script = ExtResource("1_kitbl")
+
+[node name="AWSGameSDKAuth" type="Node" parent="."]
+script = ExtResource("2_nmo6t")
+metadata/_custom_type_script = "uid://dxp7lgvaxrjry"
