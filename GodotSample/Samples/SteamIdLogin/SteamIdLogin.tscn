@@ -4,6 +4,7 @@
 [ext_resource type="Script" uid="uid://dxp7lgvaxrjry" path="res://addons/AWSGameSDK/scripts/AWSAuthorization.gd" id="2_nmo6t"]
 
 [node name="Node2D" type="Node2D"]
+visible = false
 script = ExtResource("1_kitbl")
 
 [node name="AWSGameSDKAuth" type="Node" parent="."]

@@ -52,10 +52,10 @@ func _save_login_data():
 func _load_login_data():
 	var file = FileAccess.open("user://save_game.dat", FileAccess.READ)
 	if file == null:
-		return
+		return null
 	if file.get_length() == 0:
 		file.close()
-		return null;
+		return null
 	user_info.user_id = file.get_pascal_string()
 	user_info.guest_secret = file.get_pascal_string()
 	file.close()
@@ -190,7 +190,7 @@ func login_with_refresh_token(refresh_token):
 		
 
 # Called to link an existing authenticated user to a Steam ID
-func link_steam_id_to_current_user(steam_token, login_callback_steam):
+func link_steam_id_to_current_user(steam_token):
 	if user_info == null:
 		aws_sdk_error.emit("No user info, can't link existing user to Steam ID")
 		return

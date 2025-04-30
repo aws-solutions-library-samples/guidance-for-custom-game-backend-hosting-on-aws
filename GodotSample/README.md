@@ -16,7 +16,7 @@ Next, go to Project -> Project Settings... from your menu and enable the AWS Gam
 
 ## Adding nodes for the AWS for Games SDK to your scenes
 
-The AWS Game SDK contains two components that can be added to your projects. These are `AWSGameSDKAuth` and `AWSGameSDKBackend`. The AWSGameSDKAuth component allows you to login as guest, refresh your access token, and link accounts to Facebook, Apple, Google Play, and Steam via an API endpoint. The AWSGameSDKBackend component allows you to make calls to a backend endpoint to save and retrieve player data. You can add the necessary nodes to an appropriate scene for your project. The AWSGameSDKBackend requires the AWSGameSDKAuth component, as access tokens are required to save and retrrieve data. These components can be added by adding child nodes to your scene. 
+The AWS Game SDK contains two components that can be added to your projects. These are `AWSGameSDKAuth` and `AWSGameSDKBackend`. The AWSGameSDKAuth component allows you to login as guest, refresh your access token, and link accounts to Facebook, Apple, Google Play, and Steam via an API endpoint. The AWSGameSDKBackend component allows you to make calls to a backend endpoint to save and retrieve player data. You can add the necessary nodes to an appropriate scene for your project. The AWSGameSDKBackend requires the AWSGameSDKAuth component, as access tokens are required to save and retrieve data. These components can be added by adding child nodes to your scene. 
 
 ![Adding AWSGameSDK nodes to your Godot scene](images_readme/add_aws_nodes_to_your_scene.png)
 
@@ -153,6 +153,20 @@ aws_backend_request_successful
 aws_sdk_error
 ```
 
+# Migrating from prior version
+
+This section describes the actions you will need to take if you had integrated the prior version of this sample with your Godot project. You should take these steps prior to integrating the new plugin. Before you make any changes, it is important to backup your project in case any errors are made.
+
+## Unregister the AWSGameSDK Autoload
+1. Open _Project Settings -> Autoload_ and select the "Globals" tab.
+2. Under the "Autoload" tab, uncheck the _AWSGameSDK_ and click "Close."
+
+## Remove the AWSGameSDK folder from your project
+This step assumes you have not added any folders, functionality, or code to the proir AWSGameSDK or the folder thereof. Highlight the folder in the File System viewer in your Godot project, right click, and choose "Delete."
+
+## Remove the code used to integrate the AWSGameSDK from your code
+This code should be highlighted in your project via the Godot IDE. The new plug-in code will operate very similar to the prior version, so it will be good to denote these areas with a comment, such as `#TODO: Add AWSGameSDK Plugin Code Here` while removing the code.
+
 # Godot 4 Integration Samples
 
 To test the integrations with Godot 4, open the Godot 4 sample project (`GodotSample`) with Godot 4.
@@ -203,3 +217,4 @@ func login_with_apple_id_token(apple_auth_token, login_callback)
 func link_google_play_id_to_current_user(google_play_auth_token, login_callback_google)
 func login_with_google_play_token(google_play_auth_token, login_callback)
 ```
+

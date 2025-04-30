@@ -1,8 +1,16 @@
-[gd_scene load_steps=2 format=3 uid="uid://d2rykx55ylfax"]
+[gd_scene load_steps=4 format=3 uid="uid://d2rykx55ylfax"]
 
 [ext_resource type="Script" uid="uid://bj1uupijq8a0p" path="res://BackendFeatures/AmazonGameLiftIntegration/AmazonGameLiftIntegration.gd" id="1_f5d5y"]
+[ext_resource type="Script" uid="uid://dxp7lgvaxrjry" path="res://addons/AWSGameSDK/scripts/AWSAuthorization.gd" id="2_6och4"]
+[ext_resource type="Script" uid="uid://c1iyo651ktydf" path="res://addons/AWSGameSDK/scripts/AWSBackend.gd" id="3_tqorc"]
 
 [node name="Node2D" type="Node2D"]
-
-[node name="Test" type="Node" parent="."]
 script = ExtResource("1_f5d5y")
+
+[node name="AWSGameSDKAuth" type="Node" parent="."]
+script = ExtResource("2_6och4")
+metadata/_custom_type_script = "uid://dxp7lgvaxrjry"
+
+[node name="AWSGameSDKBackend" type="Node" parent="."]
+script = ExtResource("3_tqorc")
+metadata/_custom_type_script = "uid://c1iyo651ktydf"

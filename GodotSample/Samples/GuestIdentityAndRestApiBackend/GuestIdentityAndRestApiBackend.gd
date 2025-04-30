@@ -35,7 +35,6 @@ func _on_login_success():
 	current_action = actions.pop_front()
 	#you can inspect the user_info with this line
 	#print(aws_games_sdk_auth.user_info.to_string())
-	# Try setting player data
 
 
 func _on_backend_request_success():

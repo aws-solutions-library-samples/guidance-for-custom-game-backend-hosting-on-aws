@@ -7,9 +7,12 @@ signal aws_backend_request_successful
 signal aws_sdk_error
 
 @export var backend_endpoint: String = "" #Endpoint for backend operations
+@export var gamelift_backend_endpoint: String = "" #Endpoint for GameLift Backend
 @export var get_player_data_uri: String = "/get-player-data"
 @export var set_player_data_uri: String = "/set-player-data"
-@export var post_player_data_uri: String = "/pots-to-uri"
+@export var post_player_data_uri: String = "/post-to-uri"
+@export var gamelift_request_match_uri: String = "/request-matchmaking"
+@export var gamelift_match_status_uri: String = "/get-match-status"
 
 var http_request: HTTPRequest
 var error_string: String
@@ -34,6 +37,11 @@ func backend_get_request(auth_token:String, query_parameters: Dictionary = {}):
 	return
 
 
+func backend_gamelift_request(auth_token: String, query_parameters: Dictionary = {}):
+	pass
+
+
+
 func _backend_get_request(resource: String, auth_token: String, query_parameters: Dictionary = {}):
 	var params: String = ""
 	if(auth_token == ""):
@@ -49,6 +57,25 @@ func _backend_get_request(resource: String, auth_token: String, query_parameters
 	_make_backend_http_request(params, HTTPClient.Method.METHOD_GET, auth_token)
 
 
+func gamelift_backend_post_request(auth_token, request_body: Dictionary = {}):
+	if auth_token == "":
+		aws_sdk_error.emit("No auth token set yet, login first")
+		return
+	# Create an HTTP request node and connect its completion signal.
+	var params = gamelift_backend_endpoint + gamelift_request_match_uri
+	# Perform a GET request to login as a new guest
+	_make_backend_http_request(params, HTTPClient.Method.METHOD_POST, auth_token, request_body)
+
+
+func gamelift_backend_get_request(auth_token, request_body: Dictionary = {}):
+	if auth_token == "":
+		aws_sdk_error.emit("No auth token set yet, login first")
+		return
+	# Create an HTTP request node and connect its completion signal.
+	var params = gamelift_backend_endpoint + gamelift_request_match_uri
+	# Perform a GET request to login as a new guest
+	_make_backend_http_request(params, HTTPClient.Method.METHOD_GET, auth_token, request_body)
+
 # Function to make an authenticated POST request to a backend API
 # Called by your custom code to access backend functionality
 func backend_post_request(auth_token, request_body: Dictionary = {}):
@@ -58,7 +85,7 @@ func backend_post_request(auth_token, request_body: Dictionary = {}):
 	# Create an HTTP request node and connect its completion signal.
 	var params = backend_endpoint + post_player_data_uri
 	# Perform a GET request to login as a new guest
-	_make_backend_http_request(params, HTTPClient.Method.METHOD_GET, auth_token, request_body)
+	_make_backend_http_request(params, HTTPClient.Method.METHOD_POST, auth_token, request_body)
 
 
 func _make_backend_http_request(url, method: HTTPClient.Method, auth_token: String, request_body: Dictionary = {}):
