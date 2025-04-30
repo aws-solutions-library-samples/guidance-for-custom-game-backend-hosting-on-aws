@@ -137,6 +137,12 @@ goog_link
 goog_login
 ````
 
+Parameters for the plugin are:
+
+```text
+login_endpoint # Endpoint for custom identity component
+```
+
 The public API for the AWSGameSDKBackend component includes the following methods.
 
 ```python
@@ -144,6 +150,8 @@ func backend_get_request(auth_token)
 func backend_set_request(auth_token, query_parameters)
 func backend_post_request(auth_token, request_body)
 func get_response_data() String
+func gamelift_backend_post_request(auth_token, request_body)
+func gamelift_backend_get_request(auth_token, request_body)
 ```
 
 Supported signals are:
@@ -151,6 +159,18 @@ Supported signals are:
 ```text
 aws_backend_request_successful
 aws_sdk_error
+```
+
+Parameters for the plugin are:
+
+```text
+backend_endpoint #Endpoint for backend operations
+gamelift_backend_endpoint #Endpoint for Amazon GameLift Backend
+get_player_data_uri #Backend URI to retrieve player data
+set_player_data_uri #Backend URI to set player data
+post_player_data_uri #Backend URI to POST data to - this is not yet used
+gamelift_request_match_uri #Amazon GameLift URI to request matchmaking
+gamelift_match_status_uri #Amazon GameLift URI to get matchmaking status
 ```
 
 # Migrating from prior version

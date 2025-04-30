@@ -7,12 +7,12 @@ signal aws_backend_request_successful
 signal aws_sdk_error
 
 @export var backend_endpoint: String = "" #Endpoint for backend operations
-@export var gamelift_backend_endpoint: String = "" #Endpoint for GameLift Backend
-@export var get_player_data_uri: String = "/get-player-data"
-@export var set_player_data_uri: String = "/set-player-data"
-@export var post_player_data_uri: String = "/post-to-uri"
-@export var gamelift_request_match_uri: String = "/request-matchmaking"
-@export var gamelift_match_status_uri: String = "/get-match-status"
+@export var gamelift_backend_endpoint: String = "" #Endpoint for Amazon GameLift Backend
+@export var get_player_data_uri: String = "/get-player-data" #Backend URI to retrieve player data
+@export var set_player_data_uri: String = "/set-player-data" #Backend URI to set player data
+@export var post_player_data_uri: String = "/post-to-uri" #Backend URI to POST data to - this is not yet used
+@export var gamelift_request_match_uri: String = "/request-matchmaking" #Amazon GameLift URI to request matchmaking
+@export var gamelift_match_status_uri: String = "/get-match-status" #Amazon GameLift URI to get matchmaking status
 
 var http_request: HTTPRequest
 var error_string: String
