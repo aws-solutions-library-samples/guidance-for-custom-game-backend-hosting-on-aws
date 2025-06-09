@@ -9,8 +9,8 @@ var steam_id = "";
 var google_play_id = "";
 var facebook_id = "";
 var refresh_token = "";
-var auth_token_expires_in = "";
-var refresh_token_expires_in = "";
+var auth_token_expires_in = 0;
+var refresh_token_expires_in = 0;
 	
 func to_string():
 	return("user_id: " + user_id + "\nguest_secret: " + guest_secret + "\nauth_token: " + auth_token +

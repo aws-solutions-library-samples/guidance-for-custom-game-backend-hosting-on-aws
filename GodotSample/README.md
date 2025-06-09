@@ -124,18 +124,17 @@ func login_with_facebook_access_token(facebook_access_token, facebook_user_id)
 Supported signals are:
 
 ```text
-aws_login_success
-aws_login_error
-aws_sdk_error
-steam_link
-steam_login
-fb_link
-fb_login
-apple_link
-apple_login
-goog_link
-goog_login
-````
+aws_login_success: Emitted when login is successful.
+aws_login_error(message: String): Emitted when login fails. Provides an error message.aws_sdk_error(message: String): Emitted when a general SDK error occurs. Provides an error message.
+steam_link: Emitted when Steam account linking is successful.
+steam_login: Emitted when Steam login is successful.
+fb_link: Emitted when Facebook account linking is successful.
+fb_login: Emitted when Facebook login is successful.
+apple_link: Emitted when Apple account linking is successful.
+apple_login: Emitted when Apple login is successful.
+goog_link: Emitted when Google Play account linking is successful.
+goog_login: Emitted when Google Play login is successful.
+```
 
 Parameters for the plugin are:
 
@@ -157,25 +156,51 @@ func gamelift_backend_get_request(auth_token, request_body)
 Supported signals are:
 
 ```text
-aws_backend_request_successful
-aws_sdk_error
+aws_backend_request_successful: Emitted when a backend request completes successfully.
+aws_sdk_error(message: String): Emitted when a backend request fails. Provides an error message.
 ```
 
 Parameters for the plugin are:
 
 ```text
-backend_endpoint #Endpoint for backend operations
-gamelift_backend_endpoint #Endpoint for Amazon GameLift Backend
-get_player_data_uri #Backend URI to retrieve player data
-set_player_data_uri #Backend URI to set player data
-post_player_data_uri #Backend URI to POST data to - this is not yet used
-gamelift_request_match_uri #Amazon GameLift URI to request matchmaking
-gamelift_match_status_uri #Amazon GameLift URI to get matchmaking status
+backend_endpoint: Endpoint for backend operations
+gamelift_backend_endpoint: Endpoint for Amazon GameLift Backend
+get_player_data_uri: Backend URI to retrieve player data
+set_player_data_uri: Backend URI to set player data
+post_player_data_uri: Backend URI to POST data to - this is not yet used
+gamelift_request_match_uri: Amazon GameLift URI to request matchmaking
+gamelift_match_status_uri: Amazon GameLift URI to get matchmaking status
 ```
 
 # Migrating from prior version
 
 This section describes the actions you will need to take if you had integrated the prior version of this sample with your Godot project. You should take these steps prior to integrating the new plugin. Before you make any changes, it is important to backup your project in case any errors are made.
+
+## Migrating from Callback-based to Signal-based Approach
+
+When migrating from the previous version's callback-based approach to the new signal-based approach, you'll need to replace callback function registrations with signal connections:
+
+### Old (Callback-based):
+```python
+self.aws_game_sdk.login_as_new_guest_user(self.login_callback)
+```
+
+### New (Signal-based)
+```python
+@onready var aws_games_sdk_auth = get_node("AWSGameSDKAuth")
+
+func _ready():
+    aws_games_sdk_auth.aws_login_success.connect(_on_login_success)
+    aws_games_sdk_auth.aws_login_error.connect(_on_login_error)
+    aws_games_sdk_auth.login()
+
+func _on_login_success():
+    print("Login successful!")
+    
+func _on_login_error(message):
+    print("Login failed: " + message)
+```
+
 
 ## Unregister the AWSGameSDK Autoload
 1. Open _Project Settings -> Autoload_ and select the "Globals" tab.

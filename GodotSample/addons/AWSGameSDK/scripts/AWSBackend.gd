@@ -93,7 +93,7 @@ func _make_backend_http_request(url, method: HTTPClient.Method, auth_token: Stri
 	#clear out prior data 
 	data_received = {}
 	http_request = HTTPRequest.new()
-	http_request.request_completed.connect(_backend_reqeust_completed)
+	http_request.request_completed.connect(_backend_request_completed)
 	add_child(http_request)
 	var headers = ["Authorization: " + auth_token]
 	if method == HTTPClient.Method.METHOD_POST:
@@ -108,7 +108,7 @@ func _make_backend_http_request(url, method: HTTPClient.Method, auth_token: Stri
 		aws_sdk_error.emit("Error making backend request")			
 	
 
-func _backend_reqeust_completed(result, response_code, headers, body):
+func _backend_request_completed(result, response_code, headers, body):
 	http_request.queue_free()
 	var json_string = body.get_string_from_utf8() # Retrieve data
 	var json = JSON.new()
@@ -117,6 +117,7 @@ func _backend_reqeust_completed(result, response_code, headers, body):
 	# trigger error if we didn't get a proper response code
 	if(response_code >= 400):
 		error_string = json_string
+		aws_sdk_error.emit("HTTP Error: " + str(response_code) + " - " + error_string)
 		return
 	# Check we got no error
 	if error == OK:

@@ -50,6 +50,8 @@ func _save_login_data():
 
 	
 func _load_login_data():
+	if user_info == null:
+		aws_sdk_error.emit("Please call init instead of _load_login_data()")
 	var file = FileAccess.open("user://save_game.dat", FileAccess.READ)
 	if file == null:
 		return null
@@ -68,6 +70,9 @@ func get_auth_token() -> String:
 
 
 func login():
+	if user_info == null:
+		aws_login_error.emit("user_info not initialized. Please call init() before login.")
+		return
 	if user_info.user_id == "" or user_info.guest_secret == "":
 		_login_as_new_guest()
 	else:
@@ -107,6 +112,7 @@ func _auth_request_completed(result, response_code, headers, body):
 	# trigger error if we didn't get a proper response code
 	if(response_code >= 400):
 		error_string = json_string
+		aws_login_error.emit("HTTP Error: " + str(response_code) + " - " + error_string)
 		return
 	
 	# Check we got no error
