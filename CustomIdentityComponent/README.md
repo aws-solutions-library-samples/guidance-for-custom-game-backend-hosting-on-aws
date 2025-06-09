@@ -10,6 +10,7 @@
     + [GET /login-with-apple-id](#get-login-with-apple-id)
     + [GET /login-with-google-play](#get-login-with-google-play)
     + [GET /login-with-facebook](#get-login-with-facebook)
+    + [GET /login-with-cognito](#get-login-with-cognito)
 
 The custom identity component is a serverless solution that manages a JSON Web Key Set (JWKS) with key rotation and publicly available configuration and public keys through an Amazon CloudFront endpoint. It supports integration with Steam, Sign in with Apple, Google Play, and Facebook, and can be extended with custom code to more providers such as console platforms.
 
@@ -37,6 +38,8 @@ Optionally, you can add integrations to identity providers by modifying `CustomI
   * Set `const googlePlayClientSecretArn` to the Arn of a Secrets Manager secret containing your Client Secret for the Web application client (see [Google Play developer docs](https://developers.google.com/games/services/console/enabling) for details). You can create a secret with the AWS CLI: `aws secretsmanager create-secret --name MyGooglePlayClientSecret --description "Google Play client secret" --secret-string "YOURCLIENTSECRET"`
 * __Facebook__
   * Set `const facebookAppId` to the App ID of your Facebook application in developer.facebook.com. You can find this under "Basic Settings" for the app.
+* __Cognito__
+  * Set `const cognito = "true"`
 
 When you set a non empty value for one of these App ID:s, the CDK stack will automatically deploy required endpoints and resources for that platform.
 
@@ -214,4 +217,75 @@ The API integrations are built into the SDK:s provided for Unreal, Unity, and Go
 > | `200`         | `{'facebook_id': facebook_id,'user_id': user_id,'auth_token': auth_token,'refresh_token': refresh_token, 'auth_token_expires_in' :auth_token_expires_in,'refresh_token_expires_in' : refresh_token_expires_in}`                                |
 > | `401`         | Multiple errors: could not create a validate user                |  
 
+### GET /login-with-cognito
 
+`GET /login-with-cognito`
+
+**Parameters**
+
+> | name      |  required | description                                                                    |
+> |-----------|-----------|--------------------------------------------------------------------------------|
+> | `link_to_existing_user`   |  No  | Set this to `Yes` for linking the Cognito identity to existing user. Requires also the `auth_token` field to be set.  |
+> | `access_token`   |  No  | Provide an existing access_token for a logged in user when linking Cognito identity to existing user. Requires also the `link_to_existing_user` to be set.  |
+> | `auth_code`   |  No  | The auth code returned to the clien after the guest auth flow complete.    |
+
+
+**Body**
+> | name      |  required | description                                                                    |
+> |-----------|-----------|--------------------------------------------------------------------------------|
+> | `username`   |  No       | When logging in with Cognito, you always need to provide a valid username |
+> | `password`   |  No       | When logging in with Cognito, you always need to provide a valid password |
+> | `email`   |  No  | When signing up, you always need to provide a valid email address  |
+> | `signin`   |  No  | Set this to `True` for signing in with Cognito  |
+> | `signup`   |  No  | Set this to `True` for signing up with Cognito  |
+> | `signup_confirmation_code`   |  No  | Set this to the signup confirmation code that will be emailed to a user after they sign up with Cognito for first time.  |
+> | `signout`   |  No  | Set this to `True` when signing out  |
+> | `forgot_password`   |  No  | Set this to `True` when initiating forgot password flow  |
+> | `reset_password`   |  No  | Set this to `True` for requesting a code to reset password that will be emailed to user  |
+> | `reset_password_code`   |  No  | Set this to the reset password code that will be emailed to the user when once they have initiated the forgot password flow.  |
+
+**Responses**
+
+> | http code     | response                                                            |
+> |---------------|---------------------------------------------------------------------|
+> | `200`         | `{'cognito__id': cognito_user_id,'user_id': user_id,'auth_token': auth_token,'refresh_token': refresh_token, 'auth_token_expires_in' :auth_token_expires_in,'refresh_token_expires_in' : refresh_token_expires_in}`                                |
+> | `401`         | Multiple errors: could not create a validate user                |
+
+**Example POST requests with curl**
+
+**Sign up as a new user**
+
+```bash
+curl -XPOST -d '{
+  "body": {
+    "username": "Username",
+    "password": "Password12345#",
+    "email": "email@domain.com",
+    "signup": "True"
+  }
+}' 'https://abcdefg.execute-api.us-west-2.amazonaws.com/prod/login-with-cognito'
+````
+
+**Confirm sign up with a confirmation code**
+
+```bash
+curl -XPOST -d '{
+  "body": {
+    "username": "Username",
+    "confirmation_code": "1234567",
+    "signup_confirmation_code": "True"
+  }
+}' 'https://abcdefg.execute-api.us-west-2.amazonaws.com/prod/login-with-cognito'
+```
+
+**Sign in with a confirmed user**
+
+```bash
+curl -XPOST -d '{
+  "body": {
+    "username": "Username",
+    "password": "Password12345#",
+    "signin": "True"
+  }
+}' 'https://abcdefg.execute-api.us-west-2.amazonaws.com/prod/login-with-cognito'
+```
