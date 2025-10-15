@@ -4,6 +4,7 @@
   * [Solution components](#solution-components)
   * [Quick Start](#quick-start)
   * [How does it work?](#how-does-it-work)
+- [Roadmap](#roadmap)
 - [Deploying the solution](#deploying-the-solution)
   * [1. Deploy the Custom Identity Component](#1-deploy-the-custom-identity-component)
   * [2. Deploy one of the sample backend components](#2-deploy-one-of-the-sample-backend-components)
@@ -110,6 +111,13 @@ AWSGameSDKClient.Instance.BackendGetRequest(this.backendEndpointUrl, "get-player
 ```
 
 Then in the backend code you'll have an authenticated user ID that you can use to access their data. The solution comes with two sample backend components, a serverless API Gateway HTTP API (Python) and a AWS Fargate service (Node.js) to demonstrate the player access authorization and simple backend functionality to store and retrieve player data.
+
+# Roadmap
+
+We're actively working on expanding the AWS Game Backend Framework. Upcoming features in the coming months include:
+
+- **Leaderboards** - Scalable leaderboard system with global and friends rankings, high score tracking, and real-time updates
+- **Godot 4 Plugin** - Introducing a Godot plugin to simplify development with modular architecture and enhanced editor integration
 
 # Deploying the solution
 
