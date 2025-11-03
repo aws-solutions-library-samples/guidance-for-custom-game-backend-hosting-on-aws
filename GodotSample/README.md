@@ -2,48 +2,215 @@
 
 The AWS Game Backend Framework Godot 4 SDK provides integrations to the custom identity component, managed refreshing of access tokens, helper methods for calling custom backend features, and samples for integrating with different game platforms.
 
-# SDK Overview
+# SDK Overview - Now a Godot Plugin
 
-## Initializing the SDK
+The AWS Game SDK has been updated to now be installed and used as a plugin in Godot 4.x.
 
-The AWS Game SDK has to be configured in your Godot 4 project in _Project Settings -> Autoload_ with the name _AwsGameSdk_.
+To begin using the plugin, copy the ./addons/AWSGameSDK directory to your projects ./addons directory. It should appear as it does in the picture below.
 
-The Initializing and accessing the AWS Game SDK within Godot 4 (see the Godot 4 Integration Samples for sample code):
+![Godot4 Folder Structure with AWS Games SDK Plugin](images_readme/folder_structure.png)
+
+Next, go to Project -> Project Settings... from your menu and enable the AWS Games SDK plugin by checking the checkbox.
+
+![AWS for Games SDK Plugin enabled for a Godot project](images_readme/project_settings.png)
+
+## Adding nodes for the AWS for Games SDK to your scenes
+
+The AWS Game SDK contains two components that can be added to your projects. These are `AWSGameSDKAuth` and `AWSGameSDKBackend`. The AWSGameSDKAuth component allows you to login as guest, refresh your access token, and link accounts to Facebook, Apple, Google Play, and Steam via an API endpoint. The AWSGameSDKBackend component allows you to make calls to a backend endpoint to save and retrieve player data. You can add the necessary nodes to an appropriate scene for your project. The AWSGameSDKBackend requires the AWSGameSDKAuth component, as access tokens are required to save and retrieve data. These components can be added by adding child nodes to your scene. 
+
+![Adding AWSGameSDK nodes to your Godot scene](images_readme/add_aws_nodes_to_your_scene.png)
+
+Once added, your scene tree should look similar to this.
+
+![A Godot scene with nodes added for AWSGameSDKAuth and AWSGameSDKBackend](images_readme/scene_tree_with_plugins.png)
+
+The plugin also uses signals. This removes the need to register callbacks and you can setup appropriate listeners to features enabled via the plugin.
+
+## Initializing the SDK and Login
+
+Initialization of the SDKs has been moved to property sheets to make it easier for developers to make calls.
+
+To complete setup of the AWSGameSDKAuth component, highlight the component in your scene tree and view the properties in the Inspector window. Update the `Login Endpoint` value with your API Gateway Login Endpoint, as shown below.
+
+![Setting your authentication endpoint property for the AWSGameSDKAuth component](images_readme/setting_auth_endpoint.png)
+
+To complete setup of the AWSGameSDKBackend component, highlight the component in your scene tree and view the properties in the Inspector window. Update the `Backend Endpoint` value with your API Gateway Backend Endpoint, as shown below. You can leave the URIs as default.
+
+![Setting your backend endpoint property for the AWSGameSDKAuth component](images_readme/setting_backend_endpoint.png)
+
+In your scene's code, you will need to set a variable for each of the SDK components you enable
 
 ```python
-# Get the SDK and Init
-self.aws_game_sdk = get_node("/root/AwsGameSdk")
-self.aws_game_sdk.init(self.login_endpoint, self.on_login_error)
+@onready var aws_games_sdk_auth = get_node("AWSGameSDKAuth")
+@onready var aws_games_sdk_backend = get_node("AWSGameSDKBackend")
+```
+
+Within the `_ready` function, connect your local functions to the signals from the SDK:
+	
+```python
+func _ready():
+	# Get the SDK and Init
+	aws_games_sdk_auth.init()																	#initialize the Auth SDK
+	aws_games_sdk_auth.aws_login_success.connect(_on_login_success)								#handle successful logins
+	aws_games_sdk_auth.aws_login_error.connect(_on_login_error)									#handle login errors
+	aws_games_sdk_auth.aws_sdk_error.connect(_on_aws_sdk_error)									#handle general SDK errors
+	aws_games_sdk_backend.aws_backend_request_successful.connect(_on_backend_request_success)	#handle successful backend requests
+	aws_games_sdk_backend.aws_sdk_error.connect(_on_aws_sdk_error)								#handle errors from backend requests
+```
+
+To begin the login process, call login on the AWSGameSDKAuth component, as such:
+	
+```python
+	aws_games_sdk_auth.login()	
+```
+
+Errors for login can be managed with similar functions to those below:
+	
+```
+func _on_login_error(message):
+	print("Login error: " + message)
+
+
+# Receives a UserInfo object after successful login
+func _on_login_success():
+	print("Received login success")
+```
+
+## Set and Get Data from your custom backend
+
+Setting and getting data to and from your backend uses the AWSGameSDKBackend with the `backend_set_request` and `backend_get_request` functions. Both of these functions use HTTP GET requests. To set data, use the following syntax:
+	
+```python
+	aws_games_sdk_backend.backend_set_request(aws_games_sdk_auth.get_auth_token(), {"player_name" : "John Doe"})
+```	
+
+In this case, the auth_token to make the call is retrieved from the aws_games_sdk_auth component and the `player_name` is set to `John Doe`. Multiple values can be set in a single dictionary request.
+
+To retrieve data, use the following syntax:
+	
+```python
+	aws_games_sdk_backend.backend_get_request(aws_games_sdk_auth.get_auth_token())
+```
+
+This call only requires the auth_token from the aws_games_sdk_auth component.
+
+Success and errors of both calls are handled through signal connections that were added to the `_ready` function above. A sample success function is as follows:
+	
+```python
+func _on_backend_request_success():
+	print("Backend request successful")
+	print("Data returned from action: ", aws_games_sdk_backend.get_response_data())
 ```
 
 ## SDK Public API
 
-The public API for the SDK includes the following methods. Most of them will require you to provide a callback for results (see the Godot 4 Integration Samples for sample code):
+The public API for the AWSGameSDKAuth component includes the following methods. Most of them will require you to provide a callback for results (see the Godot 4 Integration Samples for sample code):
 
 ```text
-func init(login_endpoint, login_error_callback)
-func login_as_new_guest_user(login_callback)
-func login_as_guest(user_id, guest_secret, login_callback)
-func login_with_refresh_token(refresh_token, login_callback = null)
-func link_steam_id_to_current_user(steam_token, login_callback_steam)
-func login_with_steam_token(steam_token, login_callback)
-func link_apple_id_to_current_user(apple_auth_token, login_callback_apple)
-func login_with_apple_id_token(apple_auth_token, login_callback)
-func link_google_play_id_to_current_user(google_play_auth_token, login_callback_google)
-func login_with_google_play_token(google_play_auth_token, login_callback)
-func link_facebook_id_to_current_user(facebook_access_token, facebook_user_id, login_callback_facebook)
-func login_with_facebook_access_token(facebook_access_token, facebook_user_id, login_callback)
-func backend_get_request(url, resource, query_parameters, callback)
-func backend_post_request(url, resource, request_body, callback):
+func init()
+func login()
+func login_with_refresh_token()
+func get_auth_token() String
+func link_steam_id_to_current_user(steam_token)
+func login_with_steam_token(steam_token)
+func link_apple_id_to_current_user(apple_auth_token)
+func login_with_apple_id_token(apple_auth_token)
+func link_google_play_id_to_current_user(google_play_auth_token)
+func login_with_google_play_token(google_play_auth_token)
+func link_facebook_id_to_current_user(facebook_access_token, facebook_user_id)
+func login_with_facebook_access_token(facebook_access_token, facebook_user_id)
 ```
 
-## Adding the SDK to an existing project
+Supported signals are:
 
-To add the SDK to an existing project:
+```text
+aws_login_success: Emitted when login is successful.
+aws_login_error(message: String): Emitted when login fails. Provides an error message.aws_sdk_error(message: String): Emitted when a general SDK error occurs. Provides an error message.
+steam_link: Emitted when Steam account linking is successful.
+steam_login: Emitted when Steam login is successful.
+fb_link: Emitted when Facebook account linking is successful.
+fb_login: Emitted when Facebook login is successful.
+apple_link: Emitted when Apple account linking is successful.
+apple_login: Emitted when Apple login is successful.
+goog_link: Emitted when Google Play account linking is successful.
+goog_login: Emitted when Google Play login is successful.
+```
 
-1. Drag and drop the folder `AWSGameSDK` to your Godot 4 project
-2. Open _Project Settings -> Autoload_, select the script `AWSGameSDK.gd` with the directory search and select _Open_. Make sure the name is _AwsGameSdk_ and select _Add_.
-3. Integrate with the SDK from your custom code (see Godot 4 Integration Samples for example integrations)
+Parameters for the plugin are:
+
+```text
+login_endpoint # Endpoint for custom identity component
+```
+
+The public API for the AWSGameSDKBackend component includes the following methods.
+
+```python
+func backend_get_request(auth_token)
+func backend_set_request(auth_token, query_parameters)
+func backend_post_request(auth_token, request_body)
+func get_response_data() String
+func gamelift_backend_post_request(auth_token, request_body)
+func gamelift_backend_get_request(auth_token, request_body)
+```
+
+Supported signals are:
+
+```text
+aws_backend_request_successful: Emitted when a backend request completes successfully.
+aws_sdk_error(message: String): Emitted when a backend request fails. Provides an error message.
+```
+
+Parameters for the plugin are:
+
+```text
+backend_endpoint: Endpoint for backend operations
+gamelift_backend_endpoint: Endpoint for Amazon GameLift Backend
+get_player_data_uri: Backend URI to retrieve player data
+set_player_data_uri: Backend URI to set player data
+post_player_data_uri: Backend URI to POST data to - this is not yet used
+gamelift_request_match_uri: Amazon GameLift URI to request matchmaking
+gamelift_match_status_uri: Amazon GameLift URI to get matchmaking status
+```
+
+# Migrating from prior version
+
+This section describes the actions you will need to take if you had integrated the prior version of this sample with your Godot project. You should take these steps prior to integrating the new plugin. Before you make any changes, it is important to backup your project in case any errors are made.
+
+## Migrating from Callback-based to Signal-based Approach
+
+When migrating from the previous version's callback-based approach to the new signal-based approach, you'll need to replace callback function registrations with signal connections:
+
+### Old (Callback-based):
+```python
+self.aws_game_sdk.login_as_new_guest_user(self.login_callback)
+```
+
+### New (Signal-based)
+```python
+@onready var aws_games_sdk_auth = get_node("AWSGameSDKAuth")
+
+func _ready():
+    aws_games_sdk_auth.aws_login_success.connect(_on_login_success)
+    aws_games_sdk_auth.aws_login_error.connect(_on_login_error)
+    aws_games_sdk_auth.login()
+
+func _on_login_success():
+    print("Login successful!")
+    
+func _on_login_error(message):
+    print("Login failed: " + message)
+```
+
+
+## Unregister the AWSGameSDK Autoload
+1. Open _Project Settings -> Autoload_ and select the "Globals" tab.
+2. Under the "Autoload" tab, uncheck the _AWSGameSDK_ and click "Close."
+
+## Remove the AWSGameSDK folder from your project
+This step assumes you have not added any folders, functionality, or code to the proir AWSGameSDK or the folder thereof. Highlight the folder in the File System viewer in your Godot project, right click, and choose "Delete."
+
+## Remove the code used to integrate the AWSGameSDK from your code
+This code should be highlighted in your project via the Godot IDE. The new plug-in code will operate very similar to the prior version, so it will be good to denote these areas with a comment, such as `#TODO: Add AWSGameSDK Plugin Code Here` while removing the code.
 
 # Godot 4 Integration Samples
 
@@ -95,7 +262,4 @@ func login_with_apple_id_token(apple_auth_token, login_callback)
 func link_google_play_id_to_current_user(google_play_auth_token, login_callback_google)
 func login_with_google_play_token(google_play_auth_token, login_callback)
 ```
-
-
-
 
