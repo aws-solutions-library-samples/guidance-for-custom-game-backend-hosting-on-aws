@@ -1,0 +1,21 @@
+# Lambda Layer Dependencies for Game Stats & Leaderboards System
+# These dependencies will be shared across all Lambda functions
+
+# Core Valkey-GLIDE dependency
+valkey-glide>=2.0.1
+
+# AWS Lambda Powertools for logging, tracing, and metrics
+aws-lambda-powertools[all]==3.0.0
+
+# Data validation and serialization
+pydantic>=2.5.0
+
+# Async utilities
+asyncio-throttle>=1.0.2
+nest-asyncio>=1.5.8
+
+# Date/time utilities
+python-dateutil>=2.8.2
+
+# Note: boto3 and botocore are provided by AWS Lambda runtime
+# Note: Standard library modules don't need to be included
