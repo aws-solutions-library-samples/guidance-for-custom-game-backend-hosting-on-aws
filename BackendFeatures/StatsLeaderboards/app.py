@@ -6413,11 +6413,21 @@ def handler(event, context):
             ]
         )
         
+        # Create an explicit log group for the provider framework Lambda. Passing
+        # log_retention= is deprecated (it provisions a hidden log-retention Lambda
+        # + custom resource); an explicit LogGroup with a retention is the supported
+        # replacement and is removed cleanly with the stack.
+        ssm_config_provider_log_group = logs.LogGroup(
+            self, f"{resource_prefix}-ssm-config-provider-logs",
+            retention=logs.RetentionDays.ONE_WEEK,
+            removal_policy=RemovalPolicy.DESTROY
+        )
+
         # Create custom resource provider
         ssm_config_provider = cr.Provider(
             self, f"{resource_prefix}-ssm-config-provider",
             on_event_handler=ssm_config_lambda,
-            log_retention=logs.RetentionDays.ONE_WEEK
+            log_group=ssm_config_provider_log_group
         )
         
         # Create custom resource to trigger the configuration
