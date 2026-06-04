@@ -2196,6 +2196,15 @@ class GameStatsLeaderboardsStack(Stack):
         if environment not in valid_environments:
             raise ValueError(f"Environment '{environment}' must be one of: {valid_environments}")
 
+        # Full request/response body logging (API Gateway "data trace"). Default:
+        # off in prod, on in dev/staging. Operators can override per deploy with CDK
+        # context: `-c data_trace_enabled=true` (or false). Accepts bool or string.
+        data_trace_override = self.node.try_get_context("data_trace_enabled")
+        if data_trace_override is None:
+            data_trace_enabled = environment != "prod"
+        else:
+            data_trace_enabled = str(data_trace_override).lower() in ("true", "1", "yes")
+
         # Create backend Lambda authorizer (StudioAPI Key via SSM Parameter Store)
         authorizer = apigw.RequestAuthorizer(
             self, f"{resource_prefix}-authorizer",
@@ -2275,7 +2284,11 @@ class GameStatsLeaderboardsStack(Stack):
             method_options={
                 "/*/*": apigw.MethodDeploymentOptions(
                     logging_level=apigw.MethodLoggingLevel.INFO,
-                    data_trace_enabled=True,
+                    # data_trace logs full request/response bodies to CloudWatch. Off by
+                    # default in prod (avoids logging player payloads and reduces log cost);
+                    # on in dev/staging for debugging. Override with CDK context
+                    # -c data_trace_enabled=true|false.
+                    data_trace_enabled=data_trace_enabled,
                     metrics_enabled=True,
                     caching_enabled=environment in ["prod", "staging"]
                 )
@@ -2543,6 +2556,149 @@ class GameStatsLeaderboardsStack(Stack):
             )
         )
 
+        # ----------------------------------------------------------------------
+        # Request models for the mutating /leaderboards endpoints. These validate
+        # the wrapper key and required fields at the edge (defense-in-depth +
+        # avoids invoking Lambda on malformed payloads). The handlers still do the
+        # detailed value validation (bounds, patterns, config matching). Optional
+        # fields are intentionally not enumerated so the model does not reject
+        # valid requests as the API evolves; playerScore has no declared type
+        # because it accepts both numbers and time strings.
+        # ----------------------------------------------------------------------
+        STR = apigw.JsonSchemaType.STRING
+        OBJ = apigw.JsonSchemaType.OBJECT
+        ARR = apigw.JsonSchemaType.ARRAY
+
+        leaderboard_config_request_model = api.add_model(
+            "LeaderboardConfigRequest",
+            content_type="application/json",
+            model_name="LeaderboardConfigRequest",
+            schema=apigw.JsonSchema(
+                schema=apigw.JsonSchemaVersion.DRAFT4,
+                title="Leaderboard Config Request",
+                type=OBJ,
+                properties={
+                    "gameLeaderboardConfigRequest": apigw.JsonSchema(
+                        type=OBJ,
+                        properties={
+                            "gameID": apigw.JsonSchema(type=STR, min_length=1),
+                            "gameMode": apigw.JsonSchema(type=STR, min_length=1),
+                            "leaderboardName": apigw.JsonSchema(type=STR, min_length=1),
+                            "statAttributeForLeaderboard": apigw.JsonSchema(type=STR, min_length=1),
+                            "leaderboardType": apigw.JsonSchema(type=STR, min_length=1),
+                            "scoreStrategy": apigw.JsonSchema(type=STR, min_length=1),
+                        },
+                        required=["gameID", "gameMode", "leaderboardName",
+                                  "statAttributeForLeaderboard", "leaderboardType", "scoreStrategy"],
+                    )
+                },
+                required=["gameLeaderboardConfigRequest"],
+            ),
+        )
+
+        store_stats_request_model = api.add_model(
+            "StoreStatsRequest",
+            content_type="application/json",
+            model_name="StoreStatsRequest",
+            schema=apigw.JsonSchema(
+                schema=apigw.JsonSchemaVersion.DRAFT4,
+                title="Store Stats Request",
+                type=OBJ,
+                properties={
+                    "gameReportBody": apigw.JsonSchema(
+                        type=OBJ,
+                        properties={
+                            "playerID": apigw.JsonSchema(type=STR, min_length=1),
+                            "gameID": apigw.JsonSchema(type=STR, min_length=1),
+                            "gameMode": apigw.JsonSchema(type=STR, min_length=1),
+                            "leaderboardName": apigw.JsonSchema(type=STR, min_length=1),
+                            "fullRawGameReport": apigw.JsonSchema(type=OBJ),
+                        },
+                        required=["playerID", "gameID", "gameMode", "playerScore",
+                                  "leaderboardName", "fullRawGameReport"],
+                    )
+                },
+                required=["gameReportBody"],
+            ),
+        )
+
+        batch_store_stats_request_model = api.add_model(
+            "BatchStoreStatsRequest",
+            content_type="application/json",
+            model_name="BatchStoreStatsRequest",
+            schema=apigw.JsonSchema(
+                schema=apigw.JsonSchemaVersion.DRAFT4,
+                title="Batch Store Stats Request",
+                type=OBJ,
+                properties={
+                    "batchGameReportBody": apigw.JsonSchema(
+                        type=OBJ,
+                        properties={
+                            "gameReports": apigw.JsonSchema(
+                                type=ARR,
+                                min_items=1,
+                                items=apigw.JsonSchema(
+                                    type=OBJ,
+                                    properties={
+                                        "playerID": apigw.JsonSchema(type=STR, min_length=1),
+                                        "gameID": apigw.JsonSchema(type=STR, min_length=1),
+                                        "gameMode": apigw.JsonSchema(type=STR, min_length=1),
+                                        "leaderboardName": apigw.JsonSchema(type=STR, min_length=1),
+                                    },
+                                    required=["playerID", "gameID", "gameMode",
+                                              "playerScore", "leaderboardName"],
+                                ),
+                            )
+                        },
+                        required=["gameReports"],
+                    )
+                },
+                required=["batchGameReportBody"],
+            ),
+        )
+
+        reset_leaderboard_request_model = api.add_model(
+            "ResetLeaderboardRequest",
+            content_type="application/json",
+            model_name="ResetLeaderboardRequest",
+            schema=apigw.JsonSchema(
+                schema=apigw.JsonSchemaVersion.DRAFT4,
+                title="Reset Leaderboard Request",
+                type=OBJ,
+                properties={
+                    "resetLeaderboardRequest": apigw.JsonSchema(
+                        type=OBJ,
+                        properties={
+                            "leaderboardName": apigw.JsonSchema(type=STR, min_length=1),
+                        },
+                        required=["leaderboardName"],
+                    )
+                },
+                required=["resetLeaderboardRequest"],
+            ),
+        )
+
+        rebuild_leaderboard_request_model = api.add_model(
+            "RebuildLeaderboardRequest",
+            content_type="application/json",
+            model_name="RebuildLeaderboardRequest",
+            schema=apigw.JsonSchema(
+                schema=apigw.JsonSchemaVersion.DRAFT4,
+                title="Rebuild Leaderboard Request",
+                type=OBJ,
+                properties={
+                    "rebuildLeaderboardRequest": apigw.JsonSchema(
+                        type=OBJ,
+                        properties={
+                            "leaderboardName": apigw.JsonSchema(type=STR, min_length=1),
+                        },
+                        required=["leaderboardName"],
+                    )
+                },
+                required=["rebuildLeaderboardRequest"],
+            ),
+        )
+
         # Update API structure with proper request/response models
         api_structure = {
             "developer": {
@@ -2611,15 +2767,21 @@ class GameStatsLeaderboardsStack(Stack):
                 "resources": {
                     "config": {
                         "methods": {
-                            "POST": ("leaderboards_config", True, "create", {}),
+                            "POST": ("leaderboards_config", True, "create", {
+                                "request_models": {"application/json": leaderboard_config_request_model}
+                            }),
                             "GET": ("leaderboards_config", True, "get", {}),
-                            "PUT": ("leaderboards_config", True, "update", {}),
+                            "PUT": ("leaderboards_config", True, "update", {
+                                "request_models": {"application/json": leaderboard_config_request_model}
+                            }),
                             "DELETE": ("leaderboards_config", True, "delete", {})
                         },
                         "resources": {
                             "create": {
                                 "methods": {
-                                    "POST": ("leaderboards_config", True, "create", {})
+                                    "POST": ("leaderboards_config", True, "create", {
+                                        "request_models": {"application/json": leaderboard_config_request_model}
+                                    })
                                 }
                             },
                             "get": {
@@ -2634,8 +2796,12 @@ class GameStatsLeaderboardsStack(Stack):
                             },
                             "update": {
                                 "methods": {
-                                    "PUT": ("leaderboards_config", True, "update", {}),
-                                    "POST": ("leaderboards_config", True, "update", {})
+                                    "PUT": ("leaderboards_config", True, "update", {
+                                        "request_models": {"application/json": leaderboard_config_request_model}
+                                    }),
+                                    "POST": ("leaderboards_config", True, "update", {
+                                        "request_models": {"application/json": leaderboard_config_request_model}
+                                    })
                                 }
                             },
                             "delete": {
@@ -2654,12 +2820,16 @@ class GameStatsLeaderboardsStack(Stack):
                     },
                     "stats": {
                         "methods": {
-                            "POST": ("store_stats", "player", "store", {})
+                            "POST": ("player_store_stats", "player", "store", {
+                                "request_models": {"application/json": store_stats_request_model}
+                            })
                         },
                         "resources": {
                             "batch": {
                                 "methods": {
-                                    "POST": ("batch_store_stats", True, "batch-store", {})
+                                    "POST": ("batch_store_stats", True, "batch-store", {
+                                        "request_models": {"application/json": batch_store_stats_request_model}
+                                    })
                                 }
                             }
                         }
@@ -2687,12 +2857,16 @@ class GameStatsLeaderboardsStack(Stack):
                         "resources": {
                             "reset": {
                                 "methods": {
-                                    "POST": ("reset_leaderboard", True, "reset", {})
+                                    "POST": ("reset_leaderboard", True, "reset", {
+                                        "request_models": {"application/json": reset_leaderboard_request_model}
+                                    })
                                 }
                             },
                             "rebuild": {
                                 "methods": {
-                                    "POST": ("rebuild_leaderboard", True, "rebuild", {})
+                                    "POST": ("rebuild_leaderboard", True, "rebuild", {
+                                        "request_models": {"application/json": rebuild_leaderboard_request_model}
+                                    })
                                 }
                             }
                         }
@@ -5489,6 +5663,14 @@ class GameStatsLeaderboardsStack(Stack):
             effect=iam.Effect.ALLOW,
             actions=["lambda:GetFunctionConfiguration", "lambda:UpdateFunctionConfiguration"],
             resources=[fn_arn("backend-authorizer")]))
+        # Flush the authorizer cache on key revoke/regenerate so invalidated API keys
+        # are not honored for up to the authorizer's 5-minute results_cache_ttl. Roles are
+        # built before the REST API exists, so the API id is not yet known; scope to this
+        # account's REST API stages in-region.
+        r.add_to_policy(iam.PolicyStatement(
+            effect=iam.Effect.ALLOW,
+            actions=["apigateway:FlushStageAuthorizersCache"],
+            resources=[f"arn:aws:apigateway:{region}::/restapis/*/stages/*"]))
         roles["developer_registration"] = r
 
         # 4. read-only player queries (config R + stats R + MemoryDB + VPC)

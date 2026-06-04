@@ -10091,7 +10091,7 @@ class ReportGenerator:
                 'game-statsleaderboards-dev-leaderboards-config',
                 'game-statsleaderboards-dev-rebuild-leaderboard',
                 'game-statsleaderboards-dev-reset-leaderboard',
-                'game-statsleaderboards-dev-store-stats'
+                'game-statsleaderboards-dev-player-store-stats'
             ]
             
             for func_name in lambda_functions:

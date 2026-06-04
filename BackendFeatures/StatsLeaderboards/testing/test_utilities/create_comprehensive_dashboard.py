@@ -36,7 +36,7 @@ class ComprehensiveDashboardCreator:
         "developer-registration",
         "leaderboards-config",
         "batch-store-stats",
-        "store-stats",
+        "player-store-stats",
         "get-leaderboard-scores",
         "get-player-stats",
         "get-player-lb-standing",

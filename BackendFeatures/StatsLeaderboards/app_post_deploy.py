@@ -223,7 +223,7 @@ class EnhancedPostDeployResourceDiscovery:
             f"{resource_prefix}-developer-registration",
             f"{resource_prefix}-leaderboards-config",
             f"{resource_prefix}-reset-leaderboard",
-            f"{resource_prefix}-store-stats",
+            f"{resource_prefix}-player-store-stats",
             f"{resource_prefix}-get-player-stats",
             f"{resource_prefix}-get-leaderboard-scores",
             f"{resource_prefix}-get-player-lb-standing",
@@ -331,7 +331,7 @@ class EnhancedPostDeployResourceDiscovery:
         print("-"*80)
         
         critical_functions = [
-            f"{resource_prefix}-store-stats",
+            f"{resource_prefix}-player-store-stats",
             f"{resource_prefix}-get-leaderboard-scores", 
             f"{resource_prefix}-get-player-lb-standing"
         ]
@@ -783,7 +783,7 @@ class GameStatsLeaderboardsMonitoringStack(Stack):
             f"{resource_prefix}-reset-leaderboard": {
                 "retry_attempts": 2
             },
-            f"{resource_prefix}-store-stats": {
+            f"{resource_prefix}-player-store-stats": {
                 "retry_attempts": 2
             },
             f"{resource_prefix}-get-player-stats": {
@@ -948,7 +948,7 @@ class GameStatsLeaderboardsMonitoringStack(Stack):
         """Create provisioned concurrency for critical functions - fixed alias issue"""
         
         critical_functions = [
-            f"{resource_prefix}-store-stats",
+            f"{resource_prefix}-player-store-stats",
             f"{resource_prefix}-get-leaderboard-scores", 
             f"{resource_prefix}-get-player-lb-standing"
         ]
@@ -1243,7 +1243,7 @@ class GameStatsLeaderboardsMonitoringStack(Stack):
                         cloudwatch.Metric(
                             namespace="AWS/Lambda",
                             metric_name="Duration",
-                            dimensions_map={"FunctionName": f"{resource_prefix}-store-stats"},
+                            dimensions_map={"FunctionName": f"{resource_prefix}-player-store-stats"},
                             statistic="Average",
                             label="Store Stats Duration"
                         ),
@@ -1259,7 +1259,7 @@ class GameStatsLeaderboardsMonitoringStack(Stack):
                         cloudwatch.Metric(
                             namespace="AWS/Lambda",
                             metric_name="Errors",
-                            dimensions_map={"FunctionName": f"{resource_prefix}-store-stats"},
+                            dimensions_map={"FunctionName": f"{resource_prefix}-player-store-stats"},
                             statistic="Sum",
                             label="Store Stats Errors"
                         ),

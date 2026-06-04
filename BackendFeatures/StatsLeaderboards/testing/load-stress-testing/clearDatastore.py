@@ -81,7 +81,7 @@ LAMBDA_LOG_GROUPS = [
     '/aws/lambda/game-statsleaderboards-dev-rebuild-leaderboard',
     '/aws/lambda/game-statsleaderboards-dev-registration-lambda',
     '/aws/lambda/game-statsleaderboards-dev-reset-leaderboard',
-    '/aws/lambda/game-statsleaderboards-dev-store-stats',
+    '/aws/lambda/game-statsleaderboards-dev-player-store-stats',
     '/loadtest/stats-leaderboards'
 ]
 
