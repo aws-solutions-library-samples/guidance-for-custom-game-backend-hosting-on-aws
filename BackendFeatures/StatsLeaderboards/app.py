@@ -874,14 +874,28 @@ class EnhancedResourceDiscovery:
             issues.append("No Internet Gateway - required for public subnet access")
             score -= 20
         
-        # Check NAT Gateway for private subnet internet access
+        # Check subnet/AZ symmetry. ec2.Vpc.from_vpc_attributes() requires the number
+        # of subnet IDs in each group to be a multiple of the number of availability
+        # zones; otherwise synth fails hard with MustBeNumberMultipleAvailability.
+        # Treat a mismatch as a BLOCKING issue so such a VPC is not selected for reuse
+        # (it cannot be imported at all). This commonly happens with a VPC left behind
+        # after partial teardown (e.g. subnets removed but AZs still spanning 3).
+        if az_count > 0:
+            if public_count > 0 and public_count % az_count != 0:
+                issues.append(
+                    f"Public subnet count ({public_count}) is not a multiple of AZ count "
+                    f"({az_count}) - cannot be imported via from_vpc_attributes")
+            if private_count > 0 and private_count % az_count != 0:
+                issues.append(
+                    f"Private subnet count ({private_count}) is not a multiple of AZ count "
+                    f"({az_count}) - cannot be imported via from_vpc_attributes")
+
+        # Check NAT Gateway for private subnet internet access. Without it, Lambdas
+        # placed in the private subnets have no egress to AWS service / external
+        # endpoints, so the deploy would "succeed" but be non-functional at runtime.
+        # Treat as a BLOCKING issue for reuse (the import path does not create a NAT).
         if private_count > 0 and not vpc_details['has_private_internet_access']:
-            if environment in ["prod", "staging"]:
-                warnings.append("No NAT Gateway - private subnets won't have internet access (required for production/staging)")
-                score -= 15
-            else:
-                warnings.append("No NAT Gateway - private subnets won't have internet access")
-                score -= 10
+            issues.append("No NAT Gateway - private subnets have no internet egress for Lambda functions")
             recommendations.append("Add NAT Gateway for Lambda function internet access")
         
         # Check VPC endpoints (cost optimization)
