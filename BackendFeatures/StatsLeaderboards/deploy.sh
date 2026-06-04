@@ -1123,12 +1123,32 @@ fi
 
 # Install CDK dependencies
 print_status "Installing CDK dependencies..."
+# This is a Python CDK app. Always install the Python requirements (which include
+# aws-cdk-lib and constructs) into $PYTHON_CMD -- the SAME interpreter CDK will use
+# to run app.py (see CDK_APP below). A prior version gated this behind
+# "if package.json ... elif requirements.txt", which skipped the Python deps
+# whenever a package.json was present and left aws_cdk unimportable.
 if [ -f "package.json" ]; then
-    print_status "Installing Node.js dependencies..."
+    print_status "Installing Node.js dependencies (package.json present)..."
     npm install
-elif [ -f "requirements.txt" ]; then
-    print_status "Installing Python dependencies..."
+fi
+if [ -f "requirements.txt" ]; then
+    print_status "Installing Python dependencies into $PYTHON_CMD..."
     $PYTHON_CMD -m pip install -r requirements.txt --user
+fi
+
+# Pin the interpreter CDK uses to run the app to the one we just installed into.
+# cdk.json hardcodes "python3 app.py"; on hosts where "python3" resolves to a
+# different interpreter than $PYTHON_CMD, aws_cdk would be missing
+# (ModuleNotFoundError: No module named 'aws_cdk'). Overriding --app makes the
+# resolver and the dependency target the same interpreter.
+CDK_APP="$PYTHON_CMD app.py"
+print_status "CDK app command: $CDK_APP"
+# Sanity check: confirm aws_cdk is importable by this interpreter before bootstrap.
+if ! $PYTHON_CMD -c "import aws_cdk" 2>/dev/null; then
+    print_error "aws_cdk is not importable by $PYTHON_CMD after installing requirements."
+    print_error "Check that 'aws-cdk-lib' installed correctly: $PYTHON_CMD -m pip show aws-cdk-lib"
+    exit 1
 fi
 
 # Create CDK logs directory
@@ -1153,7 +1173,7 @@ print_status "Deployment environment: $DEPLOY_ENVIRONMENT"
 
 # Bootstrap CDK if needed
 print_status "Checking CDK bootstrap status..."
-if ! cdk bootstrap --version-reporting=false > cdk_logs/bootstrap.log 2>&1; then
+if ! cdk bootstrap --app "$CDK_APP" --version-reporting=false > cdk_logs/bootstrap.log 2>&1; then
     print_error "CDK bootstrap failed. Check cdk_logs/bootstrap.log for details"
     cat cdk_logs/bootstrap.log
     exit 1
@@ -1162,7 +1182,7 @@ print_success "CDK bootstrap completed (details in cdk_logs/bootstrap.log)"
 
 # Synthesize CDK template
 print_status "Synthesizing CDK template..."
-if ! cdk synth GameStatsLeaderboardsStack > cdk_logs/synthesis.log 2>&1; then
+if ! cdk synth GameStatsLeaderboardsStack --app "$CDK_APP" > cdk_logs/synthesis.log 2>&1; then
     print_error "CDK synthesis failed. Check cdk_logs/synthesis.log for details"
     cat cdk_logs/synthesis.log
     exit 1
@@ -1186,6 +1206,7 @@ echo ""
 
 # Deploy main stack
 if ! cdk deploy GameStatsLeaderboardsStack \
+    --app "$CDK_APP" \
     --context environment=$DEPLOY_ENVIRONMENT \
     --context enable_resource_reuse=true \
     --context force_create_new=false \
