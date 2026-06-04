@@ -5536,45 +5536,17 @@ class GameStatsLeaderboardsStack(Stack):
             raise ValueError(f"Unknown table type: {table_type}")
 
     def _create_shared_layer(self, resource_prefix: str) -> lambda_.LayerVersion:
-        """Create shared Lambda Layer with automatic versioning or reuse existing"""
-        
-        # Check if we should reuse existing layer
-        resource_decisions = getattr(self, 'resource_decisions', {})
-        lambda_decision = resource_decisions.get('lambda_decision', 'create_new')
-        
-        if lambda_decision == 'reuse':
-            print(f"🔄 Attempting to reuse existing Lambda Layer")
+        """Create the shared Lambda Layer as a stack-owned, content-versioned construct.
 
-            try:
-                lambda_client = boto3.client('lambda', region_name=self.region)
-
-                # List layers with our prefix
-                response = lambda_client.list_layers()
-                
-                for layer in response.get('Layers', []):
-                    layer_name = layer.get('LayerName', '')
-                    if resource_prefix in layer_name and 'valkey-glide' in layer_name:
-                        # Get the latest version
-                        versions_response = lambda_client.list_layer_versions(LayerName=layer_name)
-                        if versions_response.get('LayerVersions'):
-                            latest_version = versions_response['LayerVersions'][0]
-                            layer_arn = latest_version['LayerVersionArn']
-                            
-                            print(f"🔄 Reusing existing Lambda Layer: {layer_name}")
-                            print(f"   Layer ARN: {layer_arn}")
-                            
-                            # Import existing layer
-                            return lambda_.LayerVersion.from_layer_version_arn(
-                                self, f"{resource_prefix}-existing-valkey-glide-layer",
-                                layer_arn
-                            )
-                
-                print(f"🔍 No existing layer found - creating new one")
-                
-            except Exception as e:
-                print(f"⚠️ Error checking for existing layer: {e}")
-                print(f"🆕 Creating new Lambda Layer")
-        
+        The layer is always defined from the local asset (layers/valkey-glide-layer),
+        never imported by ARN. CloudFormation hashes the asset contents, so it
+        publishes a new LayerVersion and repoints the functions ONLY when the layer
+        content actually changes (e.g. a valkey-glide upgrade), and is a no-op
+        otherwise. The previous behaviour imported the latest existing layer version
+        by ARN whenever lambda_decision == 'reuse', which froze the layer at stale
+        content and silently dropped dependency/code changes (e.g. the
+        glide -> glide_shared protobuf move) from redeploys.
+        """
         # Generate a hash of the layer content for versioning
         layer_hash = hashlib.md5(f"{resource_prefix}-{datetime.now().strftime('%Y%m%d')}".encode()).hexdigest()[:8]
         
@@ -6003,13 +5975,20 @@ class GameStatsLeaderboardsStack(Stack):
             timeout = Duration.seconds(timeout_seconds)
             function_key = func_name.replace('_', '-')
             
-            # Check if we should reuse this function
-            should_reuse = (
-                lambda_decision == 'reuse' and 
-                lambda_functions_info.get('functions_found') and 
-                function_key in lambda_functions_info.get('functions', {}) and
-                replacement_strategy != 'force_replacement'
-            )
+            # Always define each Lambda as a stack-owned construct (never import an
+            # existing one by name). These functions belong to THIS stack with stable
+            # logical IDs, so CloudFormation diffs their code/env/layer and updates
+            # in-place only when something actually changed — and is a no-op otherwise.
+            #
+            # The previous behaviour set should_reuse=True whenever the functions
+            # already existed (lambda_decision == 'reuse'), then imported them via
+            # lambda_.Function.from_function_name() and `continue`d. That froze the
+            # functions at their deployed code/layer and silently dropped redeploys of
+            # code or dependency fixes (e.g. the glide -> glide_shared protobuf move),
+            # so updates appeared to succeed without taking effect. Forcing managed
+            # creation makes redeploys reliable; genuine external-resource reuse (VPC,
+            # MemoryDB, DynamoDB) is unaffected.
+            should_reuse = False
             
             # Create function-specific environment by copying base and adding function-specific vars
             func_env = base_environment_vars.copy()
