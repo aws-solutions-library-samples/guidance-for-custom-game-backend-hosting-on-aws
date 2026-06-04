@@ -588,34 +588,75 @@ node -e "console.log('Node.js version: ' + process.version)"
 node -e "console.log('V8 version: ' + process.versions.v8)"
 node -e "console.log('npm version: ' + process.versions.npm)"
 
-# Check if AWS CDK is already installed and at the latest version
-print_status "Checking AWS CDK installation..."
+# Check / install the AWS CDK CLI, enforcing a minimum version.
+#
+# The CDK CLI must be NEW ENOUGH to read the cloud-assembly manifest produced by
+# the Python aws-cdk-lib in requirements.txt. A too-old CLI fails with:
+#   "Cloud assembly schema version mismatch: Maximum schema version supported is
+#    48.x.x, but found 53.0.0. You need at least CLI version 2.1125.0..."
+# So we don't just check "is cdk present" or rely on `npm outdated`; we enforce a
+# floor and upgrade if below it. Bump MIN_CDK_CLI_VERSION when aws-cdk-lib is
+# upgraded to a release that emits a newer schema.
+MIN_CDK_CLI_VERSION="2.1125.0"
+
+print_status "Checking AWS CDK CLI installation (minimum v${MIN_CDK_CLI_VERSION})..."
+
+# A stale aws-cdk installed under a DIFFERENT (system) Node can shadow the NVM
+# one on PATH and report an old version. If the resolved cdk does not live under
+# the active NVM Node, remove that global so the NVM-managed npm owns it.
 if command -v cdk &> /dev/null; then
-    CDK_VERSION=$(cdk --version)
-    print_success "AWS CDK is already installed: $CDK_VERSION"
-    
-    # Check for CDK updates
-    print_status "Checking for CDK updates..."
-    if npm outdated -g aws-cdk 2>/dev/null | grep -q aws-cdk; then
-        print_status "Updating AWS CDK to the latest version..."
-        npm update -g aws-cdk
-        CDK_VERSION=$(cdk --version)
-        print_success "AWS CDK updated to: $CDK_VERSION"
+    CDK_PATH="$(command -v cdk)"
+    if [ -n "${NVM_DIR:-}" ] && [ -n "${NVM_BIN:-}" ] && [ "$(dirname "$CDK_PATH")" != "$NVM_BIN" ]; then
+        print_warning "Found cdk at $CDK_PATH (outside active Node $(node -v) at $NVM_BIN)"
+        print_status "Removing the shadowing global aws-cdk so the active Node owns the CLI..."
+        npm uninstall -g aws-cdk &> /dev/null || true
+        # Best-effort removal of a system-node copy that would still shadow PATH.
+        if [ -w "$CDK_PATH" ] || sudo -n true 2>/dev/null; then
+            sudo rm -f "$CDK_PATH" 2>/dev/null || rm -f "$CDK_PATH" 2>/dev/null || true
+        fi
+        hash -r 2>/dev/null || true
+    fi
+fi
+
+# Returns success if $1 (found) >= $2 (required), using version sort.
+cdk_version_ge() {
+    [ "$(printf '%s\n' "$2" "$1" | sort -V | head -n1)" = "$2" ]
+}
+
+CDK_NEEDS_INSTALL=true
+if command -v cdk &> /dev/null; then
+    CDK_VERSION="$(cdk --version 2>/dev/null | awk '{print $1}')"
+    if [ -n "$CDK_VERSION" ] && cdk_version_ge "$CDK_VERSION" "$MIN_CDK_CLI_VERSION"; then
+        print_success "AWS CDK CLI $CDK_VERSION meets the minimum (>= $MIN_CDK_CLI_VERSION)"
+        CDK_NEEDS_INSTALL=false
     else
-        print_success "AWS CDK is already at the latest version"
+        print_warning "AWS CDK CLI ${CDK_VERSION:-unknown} is below required v${MIN_CDK_CLI_VERSION} - upgrading..."
     fi
 else
-    print_status "Installing AWS CDK globally..."
-    npm install -g aws-cdk
-    
-    # Verify CDK installation
-    if command -v cdk &> /dev/null; then
-        CDK_VERSION=$(cdk --version)
-        print_success "AWS CDK installed successfully: $CDK_VERSION"
-    else
-        print_error "AWS CDK installation failed"
+    print_status "AWS CDK CLI not found - installing..."
+fi
+
+if [ "$CDK_NEEDS_INSTALL" = "true" ]; then
+    # Install the latest CLI (which is >= the floor). npm here is the NVM-managed
+    # one running under Node >= 20, so the current CLI installs cleanly.
+    print_status "Installing aws-cdk@latest via npm..."
+    if ! npm install -g aws-cdk@latest; then
+        print_error "Failed to install aws-cdk CLI via npm"
         exit 1
     fi
+    hash -r 2>/dev/null || true
+
+    if ! command -v cdk &> /dev/null; then
+        print_error "AWS CDK CLI installation failed (cdk not on PATH)"
+        exit 1
+    fi
+    CDK_VERSION="$(cdk --version 2>/dev/null | awk '{print $1}')"
+    if ! cdk_version_ge "$CDK_VERSION" "$MIN_CDK_CLI_VERSION"; then
+        print_error "Installed AWS CDK CLI $CDK_VERSION is still below required v${MIN_CDK_CLI_VERSION}"
+        print_error "Ensure Node $(node -v) is >= 20 and that no older global aws-cdk shadows PATH."
+        exit 1
+    fi
+    print_success "AWS CDK CLI $CDK_VERSION installed (>= $MIN_CDK_CLI_VERSION)"
 fi
 
 # Check for Python installation
