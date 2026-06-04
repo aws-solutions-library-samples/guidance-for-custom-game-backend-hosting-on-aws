@@ -517,33 +517,48 @@ fi
 
 # Check if Node.js LTS is already installed
 print_status "Checking Node.js installation..."
-NODE_INSTALLED=false
+# Minimum Node.js major version. AWS CDK and current npm (npm@11 requires
+# Node >=20.17) need an actively-supported runtime; Node 18 is end-of-life
+# (since 2025-04) and is rejected here so the deploy uses an LTS line.
+MIN_NODE_MAJOR=20
+NODE_OK=false
 
 if command -v node &> /dev/null; then
     NODE_VERSION=$(node -v)
     NPM_VERSION=$(npm -v)
-    
-    # Check if current Node.js is managed by NVM
-    if command -v nvm &> /dev/null && nvm list 2>/dev/null | grep -q "$(node -v)"; then
+    # Parse major version from "vXX.YY.ZZ"
+    NODE_MAJOR=$(printf '%s' "$NODE_VERSION" | sed -E 's/^v?([0-9]+).*/\1/')
+
+    if command -v nvm &> /dev/null \
+       && nvm list 2>/dev/null | grep -q "$(node -v)" \
+       && [ "${NODE_MAJOR:-0}" -ge "$MIN_NODE_MAJOR" ] 2>/dev/null; then
         print_success "Node.js $NODE_VERSION with npm $NPM_VERSION is already installed via NVM"
-        NODE_INSTALLED=true
+        NODE_OK=true
+    elif [ "${NODE_MAJOR:-0}" -lt "$MIN_NODE_MAJOR" ] 2>/dev/null; then
+        print_warning "Node.js $NODE_VERSION is older than required v${MIN_NODE_MAJOR}.x (and may be end-of-life)"
+        print_status "Installing Node.js LTS via NVM..."
     else
         print_warning "Node.js $NODE_VERSION is installed but not managed by NVM"
         print_status "Installing Node.js LTS via NVM for consistency..."
     fi
 fi
 
-# Install Node.js LTS if not already installed via NVM
-if [ "$NODE_INSTALLED" != "true" ]; then
+# Install Node.js LTS if the current runtime is missing, unmanaged, or too old
+if [ "$NODE_OK" != "true" ]; then
     print_status "Installing latest Node.js LTS version..."
     nvm install --lts
     nvm use --lts
-    nvm alias default lts/*
-    
-    # Verify Node.js installation
+    nvm alias default 'lts/*'
+
+    # Verify Node.js installation and that it now meets the minimum
     if command -v node &> /dev/null; then
         NODE_VERSION=$(node -v)
         NPM_VERSION=$(npm -v)
+        NODE_MAJOR=$(printf '%s' "$NODE_VERSION" | sed -E 's/^v?([0-9]+).*/\1/')
+        if [ "${NODE_MAJOR:-0}" -lt "$MIN_NODE_MAJOR" ] 2>/dev/null; then
+            print_error "Installed Node.js $NODE_VERSION is still below required v${MIN_NODE_MAJOR}.x"
+            exit 1
+        fi
         print_success "Node.js $NODE_VERSION with npm $NPM_VERSION installed successfully"
     else
         print_error "Node.js installation failed"
@@ -551,11 +566,19 @@ if [ "$NODE_INSTALLED" != "true" ]; then
     fi
 fi
 
-# Upgrade npm to latest version
-print_status "Upgrading npm to latest version..."
-npm install -g npm@latest
+# Upgrade npm to the latest version COMPATIBLE with the active Node.js.
+# Using "npm@latest" can pull a release whose engines field excludes the
+# current Node (e.g. npm@11 needs Node >=20.17), which fails with EBADENGINE.
+# Let npm pick a satisfying version itself; treat a failed upgrade as
+# non-fatal since the bundled npm is sufficient for the rest of the deploy.
+print_status "Upgrading npm to the latest version compatible with $(node -v)..."
+if npm install -g npm@latest 2>/dev/null; then
+    print_success "npm upgraded to version $(npm -v)"
+else
+    print_warning "Could not install npm@latest for $(node -v); keeping npm $(npm -v)"
+    print_status "(This is non-fatal — the bundled npm works for this deploy.)"
+fi
 NPM_VERSION=$(npm -v)
-print_success "npm upgraded to version $NPM_VERSION"
 
 # Show Node.js version information
 print_status "Node.js version information:"
