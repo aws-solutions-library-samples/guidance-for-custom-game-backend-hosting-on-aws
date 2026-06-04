@@ -75,7 +75,13 @@ try:
         ExpirySet,
         ExpiryType
     )
-    from glide.protobuf.connection_request_pb2 import TlsMode
+    # valkey-glide moved the protobuf module from `glide.protobuf` (<=2.0.x) to
+    # `glide_shared.protobuf` (>=2.1.0). Prefer the current location, fall back to
+    # the legacy one so the import works regardless of the layer's pinned version.
+    try:
+        from glide_shared.protobuf.connection_request_pb2 import TlsMode
+    except ImportError:
+        from glide.protobuf.connection_request_pb2 import TlsMode
     VALKEY_AVAILABLE = True
 except ImportError as e:
     print(f"WARNING: valkey_glide not available: {e}")

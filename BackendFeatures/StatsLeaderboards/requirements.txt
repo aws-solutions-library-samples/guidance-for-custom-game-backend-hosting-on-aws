@@ -8,7 +8,10 @@ constructs>=10.0.0
 # Python dependencies for Lambda functions
 boto3>=1.35.0
 botocore>=1.35.0
-valkey-glide>=2.0.1
+# Pinned: valkey-glide reorganized its package at 2.1.0
+# (glide.protobuf -> glide_shared.protobuf); pin exactly to keep the layer
+# reproducible and imports in sync. Bump deliberately and re-verify imports.
+valkey-glide==2.4.1
 aws-lambda-powertools[all]==3.0.0
 pydantic>=2.5.0
 asyncio-throttle>=1.0.2
