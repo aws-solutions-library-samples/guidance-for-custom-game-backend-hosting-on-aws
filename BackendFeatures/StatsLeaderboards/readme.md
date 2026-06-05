@@ -513,13 +513,14 @@ For complete request/response schemas, all query types, and additional examples,
 
 **Typical integration flow:**
 
-1. **Deploy** — Run `./deploy.sh` on an EC2 instance or local machine. Note the API endpoint and StudioAPI Key from the output.
-2. **Configure leaderboards** — Call `POST /leaderboards/config/create` from your game backend for each leaderboard your game needs (e.g., "level-1-highscore", "weekly-kills", "fastest-lap-trackA").
-3. **Integrate player authentication** — Edit `auth/playerAuthorizer.py` to validate your game's player tokens (JWT, OAuth, session ID, platform token, etc.). Deploy the update via `cdk deploy`.
-4. **Wire score submission** — For multiplayer: call `/leaderboards/stats/batch` from your game server after each match. For single-player: call `/leaderboards/stats` from the game client after each session.
-5. **Wire leaderboard UI** — Call `/leaderboards/scores` (top players, nearby, ranges) and `/leaderboards/player/standing` (current player's rank) from your game client to display leaderboard screens.
-6. **Wire player stats UI** — Call `/leaderboards/player/stats` to show the player's match history on their profile screen.
-7. **Test end-to-end** — Run the comprehensive integration + smoke test suite against your deployment to verify all score types, strategies, and query patterns work correctly. It auto-discovers this stack's endpoint and API key from CloudFormation outputs, exercises every endpoint, and cleans up after itself:
+1. **Deploy** — Run `./deploy.sh` on an EC2 instance or local machine. Note the API endpoint and StudioAPI Key from the output. Your studio and first game are registered automatically during deploy from `studio_parameters.json`.
+2. **Verify your registration** — The auto-registration uses whatever is in `studio_parameters.json`; if you didn't edit that file before deploying, those are stand-in placeholders. Confirm with `GET /developer/info`, and correct your studio/game details with `POST /developer/register` if needed (the API key, Studio ID, and Game ID stay the same).
+3. **Configure leaderboards** — Call `POST /leaderboards/config/create` from your game backend for each leaderboard your game needs (e.g., "level-1-highscore", "weekly-kills", "fastest-lap-trackA").
+4. **Integrate player authentication** — Edit `auth/playerAuthorizer.py` to validate your game's player tokens (JWT, OAuth, session ID, platform token, etc.). Deploy the update via `cdk deploy`.
+5. **Wire score submission** — For multiplayer: call `/leaderboards/stats/batch` from your game server after each match. For single-player: call `/leaderboards/stats` from the game client after each session.
+6. **Wire leaderboard UI** — Call `/leaderboards/scores` (top players, nearby, ranges) and `/leaderboards/player/standing` (current player's rank) from your game client to display leaderboard screens.
+7. **Wire player stats UI** — Call `/leaderboards/player/stats` to show the player's match history on their profile screen.
+8. **Test end-to-end** — Run the comprehensive integration + smoke test suite against your deployment to verify all score types, strategies, and query patterns work correctly. It auto-discovers this stack's endpoint and API key from CloudFormation outputs, exercises every endpoint, and cleans up after itself:
 
    ```bash
    cd testing
@@ -527,7 +528,7 @@ For complete request/response schemas, all query types, and additional examples,
    # add --retain to keep the created leaderboards for manual inspection
    ```
 
-   > **Integrate player authentication (step 3) first.** The suite exercises player-facing endpoints; until your player auth is in place those phases fail with HTTP 401 by design. Backend (developer) phases work immediately after deployment.
+   > **Integrate player authentication (step 4) first.** The suite exercises player-facing endpoints; until your player auth is in place those phases fail with HTTP 401 by design. Backend (developer) phases work immediately after deployment.
 
 ### Before You Go to Production — Integration Points
 
