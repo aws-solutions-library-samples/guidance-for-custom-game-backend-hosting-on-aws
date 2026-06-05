@@ -4207,25 +4207,96 @@ class GameStatsLeaderboardsStack(Stack):
             user_decisions['waf_decision'] = 'create_new'
             print("🆕 No existing WAF found or reuse disabled - will create new")
 
-        # Override MemoryDB decision if we found existing resources in CloudFormation
-        if cfn_memorydb_resources['cluster_found'] and user_decisions['memorydb_decision'] != 'reuse':
-            print("⚠️ Found existing MemoryDB resources in CloudFormation but discovery suggests creating new")
-            print("   Overriding decision to 'reuse' to prevent resource conflicts")
-            user_decisions['memorydb_decision'] = 'reuse'
+        # ------------------------------------------------------------------
+        # OWNERSHIP GUARD (must run last).
+        #
+        # A resource that is already a MANAGED member of THIS CloudFormation
+        # stack must stay managed -- i.e. decision 'create_new', which keeps the
+        # stable logical ID so CloudFormation updates it in place. If we instead
+        # flip it to 'reuse', the stack IMPORTS it by ARN as an external
+        # reference; CloudFormation then sees the previously-managed resource as
+        # removed from the template and DELETES it on update. That is exactly
+        # what destroyed the MemoryDB cluster (and tried to delete the VPC) on a
+        # redeploy: discovery found the existing stack-owned resources and the
+        # logic below forced them to 'reuse'.
+        #
+        # The reliable ownership signal is the AWS-managed tag
+        # 'aws:cloudformation:stack-name' == self.stack_name. Only resources NOT
+        # owned by this stack (genuinely pre-existing/external) may be reused.
+        owned_vpc = self._resource_owned_by_this_stack(
+            discovery_results.get('vpc_analysis', {}).get('suitable_vpcs', []),
+            key='tags')
+        if owned_vpc and user_decisions.get('vpc_decision') in ('reuse', 'reuse_existing'):
+            print(f"🔒 VPC is owned by this stack ({self.stack_name}) - keeping it MANAGED "
+                  f"(create_new) instead of importing, to avoid deletion on update")
+            user_decisions['vpc_decision'] = 'create_new'
 
-        # Override VPC decision if we found existing resources in CloudFormation
-        if cfn_vpc_resources['vpc_found'] and user_decisions['vpc_decision'] != 'reuse_existing':
-            print("⚠️ Found existing VPC resources in CloudFormation but discovery suggests creating new")
-            print("   Overriding decision to 'reuse_existing' to prevent resource conflicts")
-            user_decisions['vpc_decision'] = 'reuse_existing'
+        if (user_decisions.get('memorydb_decision') == 'reuse'
+                and self._memorydb_owned_by_this_stack(resource_prefix)):
+            print(f"🔒 MemoryDB cluster is owned by this stack ({self.stack_name}) - keeping it "
+                  f"MANAGED (create_new) instead of importing, to avoid deletion on update")
+            user_decisions['memorydb_decision'] = 'create_new'
 
-        # Override API Gateway decision if we found existing resources in CloudFormation
-        if cfn_api_gateway['api_found'] and user_decisions['api_gateway_decision'] != 'reuse':
-            print("⚠️ Found existing API Gateway resources in CloudFormation but discovery suggests creating new")
-            print("   Overriding decision to 'reuse' to prevent resource conflicts")
-            user_decisions['api_gateway_decision'] = 'reuse'
+        for table_type in list(user_decisions.get('dynamodb_decisions', {}).keys()):
+            if (user_decisions['dynamodb_decisions'][table_type] == 'reuse'
+                    and self._dynamodb_table_owned_by_this_stack(resource_prefix, table_type)):
+                print(f"🔒 DynamoDB {table_type} table is owned by this stack ({self.stack_name}) - "
+                      f"keeping it MANAGED (create_new) instead of importing")
+                user_decisions['dynamodb_decisions'][table_type] = 'create_new'
+
+        # NOTE: API Gateway, KMS, IAM, Secrets, Lambda Application and the Lambda
+        # functions/layer are handled elsewhere (the functions/layer are always
+        # managed as of the reliable-redeploy fix). We intentionally no longer
+        # force VPC/MemoryDB/DynamoDB to 'reuse' here.
 
         return user_decisions
+
+    def _resource_owned_by_this_stack(self, candidates: list, key: str = 'tags') -> bool:
+        """Return True if any discovered candidate carries the
+        aws:cloudformation:stack-name tag equal to this stack's name.
+
+        `candidates` is a list of discovery dicts each holding a `tags` dict
+        (e.g. vpc_analysis['suitable_vpcs']). Tags are stored as {key: value}.
+        """
+        for item in candidates or []:
+            tags = item.get(key, {}) or {}
+            # tags may be a dict {k: v} (VPC discovery) -- normalize
+            if isinstance(tags, list):
+                tags = {t.get('Key'): t.get('Value') for t in tags}
+            if tags.get('aws:cloudformation:stack-name') == self.stack_name:
+                return True
+        return False
+
+    def _memorydb_owned_by_this_stack(self, resource_prefix: str) -> bool:
+        """Return True if the MemoryDB cluster <prefix>-cluster carries the
+        aws:cloudformation:stack-name tag equal to this stack. The cluster name
+        is deterministic per stack, so we look its tags up live."""
+        cluster_name = f"{resource_prefix}-cluster"
+        try:
+            mdb = boto3.client('memorydb', region_name=self.region)
+            arn = f"arn:aws:memorydb:{self.region}:{self.account}:cluster/{cluster_name}"
+            tag_resp = mdb.list_tags(ResourceArn=arn)
+            live_tags = {t['Key']: t['Value'] for t in tag_resp.get('TagList', [])}
+            return live_tags.get('aws:cloudformation:stack-name') == self.stack_name
+        except Exception as e:
+            # If we cannot determine ownership, be SAFE: assume owned so we keep
+            # it managed rather than risk importing-then-deleting it.
+            print(f"   ⚠️ Could not verify MemoryDB ownership ({e}); assuming stack-owned (keep managed)")
+            return True
+
+    def _dynamodb_table_owned_by_this_stack(self, resource_prefix: str, table_type: str) -> bool:
+        """Return True if the DynamoDB table <prefix>-<type> carries the
+        aws:cloudformation:stack-name tag equal to this stack (live lookup)."""
+        table_name = f"{resource_prefix}-{table_type}"
+        try:
+            ddb = boto3.client('dynamodb', region_name=self.region)
+            arn = f"arn:aws:dynamodb:{self.region}:{self.account}:table/{table_name}"
+            tag_resp = ddb.list_tags_of_resource(ResourceArn=arn)
+            live_tags = {t['Key']: t['Value'] for t in tag_resp.get('Tags', [])}
+            return live_tags.get('aws:cloudformation:stack-name') == self.stack_name
+        except Exception as e:
+            print(f"   ⚠️ Could not verify DynamoDB {table_type} ownership ({e}); assuming stack-owned (keep managed)")
+            return True
 
     def _check_existing_ssm_parameters_in_cfn(self, resource_prefix: str) -> bool:
         """Check for existing SSM parameters in CloudFormation"""
