@@ -519,7 +519,15 @@ For complete request/response schemas, all query types, and additional examples,
 4. **Wire score submission** — For multiplayer: call `/leaderboards/stats/batch` from your game server after each match. For single-player: call `/leaderboards/stats` from the game client after each session.
 5. **Wire leaderboard UI** — Call `/leaderboards/scores` (top players, nearby, ranges) and `/leaderboards/player/standing` (current player's rank) from your game client to display leaderboard screens.
 6. **Wire player stats UI** — Call `/leaderboards/player/stats` to show the player's match history on their profile screen.
-7. **Test end-to-end** — Run the integration test suite (`testing/test_StatsAndLeaderboards.py`) against your deployment to verify all score types, strategies, and query patterns work correctly.
+7. **Test end-to-end** — Run the comprehensive integration + smoke test suite against your deployment to verify all score types, strategies, and query patterns work correctly. It auto-discovers this stack's endpoint and API key from CloudFormation outputs, exercises every endpoint, and cleans up after itself:
+
+   ```bash
+   cd testing
+   python3 test_StatsAndLeaderboards.py --region <your-region> --stack-name GameStatsLeaderboardsStack
+   # add --retain to keep the created leaderboards for manual inspection
+   ```
+
+   > **Integrate player authentication (step 3) first.** The suite exercises player-facing endpoints; until your player auth is in place those phases fail with HTTP 401 by design. Backend (developer) phases work immediately after deployment.
 
 ### Before You Go to Production — Integration Points
 
