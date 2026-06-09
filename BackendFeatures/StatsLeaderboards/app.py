@@ -3007,22 +3007,27 @@ class GameStatsLeaderboardsStack(Stack):
             if "resources" in resource_config:
                 self._create_resources_recursive(api, resource, resource_config["resources"], authorizer, player_authorizer, lambda_functions)
 
-    def _update_lambda_api_endpoints(self, lambda_functions: Dict[str, lambda_.Function], 
+    def _update_lambda_api_endpoints(self, lambda_functions: Dict[str, lambda_.Function],
                                 api: apigw.RestApi, environment: str):
-        """Update Lambda functions with the actual API endpoint after API creation - only if needed"""
-        
-        # Check if Lambda functions were reused
-        resource_decisions = getattr(self, 'resource_decisions', {})
-        lambda_decision = resource_decisions.get('lambda_decision', 'create_new')
-        
-        if lambda_decision == 'reuse':
-            print(f"🔄 Lambda functions were reused - skipping API endpoint updaters")
-            return
-        
+        """Patch the resolved API endpoint into the Lambda functions' environment.
+
+        The API_ENDPOINT env var is seeded with a literal "{api_id}" placeholder at
+        synth time (the real api id is not known until the REST API exists, which in
+        turn depends on the functions — a cycle). A small custom resource per
+        function resolves it post-deploy.
+
+        These updater custom resources have STABLE construct IDs
+        (ApiEndpointUpdater<func>), so defining them on every deploy keeps them as
+        managed, in-place resources. The previous code skipped this whole step
+        whenever lambda_decision == 'reuse' (i.e. on every redeploy), which removed
+        the updaters from the template and made CloudFormation DELETE them each
+        redeploy — and left API_ENDPOINT unresolved. The Lambda functions are now
+        always stack-managed, so we always (re)define the updaters."""
+
         api_endpoint = f"https://{api.rest_api_id}.execute-api.{self.region}.amazonaws.com/{environment}/"
-        
-        print(f"🆕 Creating API endpoint updaters for new Lambda functions")
-        
+
+        print(f"🔗 Wiring resolved API endpoint into Lambda functions (idempotent updaters)")
+
         for func_name, function in lambda_functions.items():
             try:
                 self._create_api_endpoint_updater(function, api_endpoint, func_name)
@@ -3959,13 +3964,12 @@ class GameStatsLeaderboardsStack(Stack):
         if not hasattr(registration_provider, 'service_token'):
             raise Exception("Registration provider does not have service_token attribute")
         
-        # Create unique construct ID to prevent conflicts
-        import time
-        unique_timestamp = str(int(time.time()))[-6:]
-        construct_id = f"{resource_prefix}-developer-registration-{unique_timestamp}"
-        
-        print(f"🔍 DEBUG: Creating CustomResource with construct_id = {construct_id}")
-        
+        # Stable construct ID so the registration custom resource is updated in
+        # place across redeploys. A per-deploy timestamp here previously gave it a
+        # new logical ID every run, which made CloudFormation delete and recreate
+        # the registration (and re-run it) on every single deploy.
+        construct_id = f"{resource_prefix}-developer-registration"
+
         # Create the custom resource with proper error handling
         registration_resource = CustomResource(
             self, construct_id,
@@ -4244,10 +4248,42 @@ class GameStatsLeaderboardsStack(Stack):
                       f"keeping it MANAGED (create_new) instead of importing")
                 user_decisions['dynamodb_decisions'][table_type] = 'create_new'
 
-        # NOTE: API Gateway, KMS, IAM, Secrets, Lambda Application and the Lambda
-        # functions/layer are handled elsewhere (the functions/layer are always
-        # managed as of the reliable-redeploy fix). We intentionally no longer
-        # force VPC/MemoryDB/DynamoDB to 'reuse' here.
+        # Extend the same ownership guard to the remaining resource types that have
+        # a reuse->import path: IAM roles, API Gateway, KMS key, Secrets Manager
+        # secret, and the Lambda Application (Resource Group + App Insights). Each of
+        # these is created with a deterministic, stack-scoped name, so if it carries
+        # this stack's aws:cloudformation:stack-name tag it is OUR managed resource
+        # and must stay managed (create_new). Flipping it to 'reuse' would import it
+        # by ARN/name and make CloudFormation delete the managed copy on update —
+        # the exact churn reported for IAM roles and the API Gateway.
+
+        if (user_decisions.get('iam_decision') == 'reuse'
+                and self._iam_roles_owned_by_this_stack(resource_prefix)):
+            print(f"🔒 IAM role(s) owned by this stack ({self.stack_name}) - keeping MANAGED (create_new)")
+            user_decisions['iam_decision'] = 'create_new'
+
+        if (user_decisions.get('api_gateway_decision') == 'reuse'
+                and self._api_gateway_owned_by_this_stack(resource_prefix)):
+            print(f"🔒 REST API owned by this stack ({self.stack_name}) - keeping MANAGED (create_new)")
+            user_decisions['api_gateway_decision'] = 'create_new'
+
+        if (user_decisions.get('kms_decision') == 'reuse'
+                and self._kms_key_owned_by_this_stack(resource_prefix)):
+            print(f"🔒 KMS key owned by this stack ({self.stack_name}) - keeping MANAGED (create_new)")
+            user_decisions['kms_decision'] = 'create_new'
+
+        if (user_decisions.get('secrets_manager_decision') == 'reuse'
+                and self._secret_owned_by_this_stack(resource_prefix)):
+            print(f"🔒 Secrets Manager secret owned by this stack ({self.stack_name}) - keeping MANAGED (create_new)")
+            user_decisions['secrets_manager_decision'] = 'create_new'
+
+        if (user_decisions.get('lambda_application_decision') == 'reuse'
+                and self._lambda_application_owned_by_this_stack(resource_prefix)):
+            print(f"🔒 Lambda Application owned by this stack ({self.stack_name}) - keeping MANAGED (create_new)")
+            user_decisions['lambda_application_decision'] = 'create_new'
+
+        # NOTE: the Lambda functions and the shared layer are ALWAYS managed
+        # (never imported) as of the reliable-redeploy fix, so they need no guard.
 
         return user_decisions
 
@@ -4297,6 +4333,65 @@ class GameStatsLeaderboardsStack(Stack):
         except Exception as e:
             print(f"   ⚠️ Could not verify DynamoDB {table_type} ownership ({e}); assuming stack-owned (keep managed)")
             return True
+
+    def _stack_contains_resource_type(self, resource_type: str) -> bool:
+        """Return True if THIS stack already manages a resource of the given
+        CloudFormation type (e.g. 'AWS::IAM::Role', 'AWS::ApiGateway::RestApi').
+
+        Used by the ownership guard for resources that are always stack-internal
+        (IAM roles, REST API, KMS key, secret, Lambda Application): if the current
+        stack already manages one, the resource must stay MANAGED (create_new)
+        rather than be re-imported. Result is cached for the duration of synth.
+
+        On any error we return True (safe default: keep managed, never risk an
+        import-then-delete)."""
+        cache = getattr(self, '_stack_resource_types_cache', None)
+        if cache is None:
+            cache = {}
+            if not self.cf_client:
+                # Cannot determine ownership without CloudFormation access. Fail
+                # SAFE: assume stack-owned so resources stay MANAGED rather than
+                # risk an import-then-delete. (Matches the MemoryDB/DynamoDB guards.)
+                print("   ⚠️ CloudFormation client unavailable for ownership check; "
+                      "assuming stack-owned (keep managed)")
+                cache = {'*': True}
+            else:
+                try:
+                    cf_helper = CloudFormationHelper()
+                    exists, _status, resources = cf_helper.get_stack_resources(
+                        self.stack_name, self.cf_client)
+                    if exists:
+                        for r in resources:
+                            cache[r.get('ResourceType', '')] = True
+                    # If the stack does not exist yet (first deploy), cache stays
+                    # empty -> nothing is "owned" -> reuse decisions for genuinely
+                    # pre-existing external resources are honored. Correct.
+                except Exception as e:
+                    print(f"   ⚠️ Could not read stack resources for ownership check ({e}); "
+                          f"assuming stack-owned (keep managed)")
+                    # Sentinel so we don't retry every call; treat as "owns everything".
+                    cache = {'*': True}
+            self._stack_resource_types_cache = cache
+        if cache.get('*'):
+            return True
+        return cache.get(resource_type, False)
+
+    def _iam_roles_owned_by_this_stack(self, resource_prefix: str) -> bool:
+        return self._stack_contains_resource_type('AWS::IAM::Role')
+
+    def _api_gateway_owned_by_this_stack(self, resource_prefix: str) -> bool:
+        return self._stack_contains_resource_type('AWS::ApiGateway::RestApi')
+
+    def _kms_key_owned_by_this_stack(self, resource_prefix: str) -> bool:
+        return self._stack_contains_resource_type('AWS::KMS::Key')
+
+    def _secret_owned_by_this_stack(self, resource_prefix: str) -> bool:
+        return self._stack_contains_resource_type('AWS::SecretsManager::Secret')
+
+    def _lambda_application_owned_by_this_stack(self, resource_prefix: str) -> bool:
+        # The "Lambda Application" is a Resource Group + App Insights application.
+        return (self._stack_contains_resource_type('AWS::ResourceGroups::Group')
+                or self._stack_contains_resource_type('AWS::ApplicationInsights::Application'))
 
     def _check_existing_ssm_parameters_in_cfn(self, resource_prefix: str) -> bool:
         """Check for existing SSM parameters in CloudFormation"""
@@ -4472,7 +4567,12 @@ class GameStatsLeaderboardsStack(Stack):
             
             memorydb_cluster = ExistingMemoryDBCluster(cluster_name, cluster_details['endpoint'])
             
-            # Try to find existing secret or create new one
+            # CONSISTENCY: a reused (live) cluster already has a password set on its
+            # user/ACL. The credential secret is the source of truth the Lambdas read
+            # to connect, so it MUST be the existing secret that matches the live
+            # cluster. We import it by name; we must NOT fabricate a brand-new secret
+            # here — a freshly generated random password would not match the running
+            # cluster and every connection would fail with WRONGPASS.
             secret_name = f"{resource_prefix}-memorydb-password"
             try:
                 memorydb_password = secretsmanager.Secret.from_secret_name_v2(
@@ -4481,10 +4581,18 @@ class GameStatsLeaderboardsStack(Stack):
                 )
                 print(f"✅ Found existing MemoryDB password secret: {secret_name}")
             except Exception as e:
-                print(f"⚠️ Could not find existing password secret: {e}")
-                print("🆕 Creating new password secret for existing MemoryDB cluster")
-                memorydb_password = self._create_memorydb_password(resource_prefix)
-            
+                # Reusing a cluster but its credential secret is missing/unreadable is
+                # an inconsistent, unsafe state. Fail loudly rather than silently
+                # creating a mismatched credential that breaks all cluster connections.
+                raise RuntimeError(
+                    f"MemoryDB cluster '{cluster_name}' is being reused but its credential "
+                    f"secret '{secret_name}' could not be resolved ({e}). Refusing to "
+                    f"generate a new password (it would not match the live cluster and all "
+                    f"connections would fail with WRONGPASS). Restore/inspect the secret, or "
+                    f"redeploy with -c force_create_new=true to rebuild the cluster + secret "
+                    f"together as a consistent pair."
+                )
+
             print(f"✅ Successfully imported existing MemoryDB cluster and related resources")
             return memorydb_cluster, memorydb_password, True
             
@@ -6003,8 +6111,12 @@ class GameStatsLeaderboardsStack(Stack):
             
             # Service Discovery
             "SERVICE_VERSION": "1.0.0",
-            "DEPLOYMENT_TIMESTAMP": datetime.now(timezone.utc).isoformat(),
-            
+            # NOTE: Do NOT add a per-deploy timestamp here. base_environment_vars is
+            # copied into every Lambda's environment, so a value that changes each
+            # deploy (e.g. datetime.now()) forces CloudFormation to update ALL
+            # functions on every deploy — defeating selective, content-based updates
+            # where only functions whose code actually changed are redeployed.
+
             # Validation Configuration - Enable comprehensive validation for testing
             "VALIDATE_VALKEY": "true",
             "INCLUDE_LEADERBOARD_DATA": "true"
