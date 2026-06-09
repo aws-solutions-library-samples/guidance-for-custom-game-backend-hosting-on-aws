@@ -3968,7 +3968,11 @@ class GameStatsLeaderboardsStack(Stack):
         # place across redeploys. A per-deploy timestamp here previously gave it a
         # new logical ID every run, which made CloudFormation delete and recreate
         # the registration (and re-run it) on every single deploy.
-        construct_id = f"{resource_prefix}-developer-registration"
+        # NOTE: must NOT be "{resource_prefix}-developer-registration" — that exact
+        # id is already used by the developer-registration LAMBDA function construct
+        # ({resource_prefix}-{function_key}); reusing it raises "already a Construct
+        # with name ...". Use a distinct, stable suffix.
+        construct_id = f"{resource_prefix}-developer-registration-resource"
 
         # Create the custom resource with proper error handling
         registration_resource = CustomResource(
@@ -4227,9 +4231,14 @@ class GameStatsLeaderboardsStack(Stack):
         # The reliable ownership signal is the AWS-managed tag
         # 'aws:cloudformation:stack-name' == self.stack_name. Only resources NOT
         # owned by this stack (genuinely pre-existing/external) may be reused.
-        owned_vpc = self._resource_owned_by_this_stack(
-            discovery_results.get('vpc_analysis', {}).get('suitable_vpcs', []),
-            key='tags')
+        # VPC: primary signal is the stack-name tag on the SELECTED suitable VPC
+        # (VPC discovery reliably surfaces CloudFormation tags). Fall back to stack
+        # resource-membership so we never import-then-delete our own VPC even if the
+        # tag is somehow absent.
+        owned_vpc = (self._resource_owned_by_this_stack(
+                        discovery_results.get('vpc_analysis', {}).get('suitable_vpcs', []),
+                        key='tags')
+                     or self._stack_contains_resource_type('AWS::EC2::VPC'))
         if owned_vpc and user_decisions.get('vpc_decision') in ('reuse', 'reuse_existing'):
             print(f"🔒 VPC is owned by this stack ({self.stack_name}) - keeping it MANAGED "
                   f"(create_new) instead of importing, to avoid deletion on update")
@@ -4304,35 +4313,24 @@ class GameStatsLeaderboardsStack(Stack):
         return False
 
     def _memorydb_owned_by_this_stack(self, resource_prefix: str) -> bool:
-        """Return True if the MemoryDB cluster <prefix>-cluster carries the
-        aws:cloudformation:stack-name tag equal to this stack. The cluster name
-        is deterministic per stack, so we look its tags up live."""
-        cluster_name = f"{resource_prefix}-cluster"
-        try:
-            mdb = boto3.client('memorydb', region_name=self.region)
-            arn = f"arn:aws:memorydb:{self.region}:{self.account}:cluster/{cluster_name}"
-            tag_resp = mdb.list_tags(ResourceArn=arn)
-            live_tags = {t['Key']: t['Value'] for t in tag_resp.get('TagList', [])}
-            return live_tags.get('aws:cloudformation:stack-name') == self.stack_name
-        except Exception as e:
-            # If we cannot determine ownership, be SAFE: assume owned so we keep
-            # it managed rather than risk importing-then-deleting it.
-            print(f"   ⚠️ Could not verify MemoryDB ownership ({e}); assuming stack-owned (keep managed)")
-            return True
+        """Return True if this stack already manages a MemoryDB cluster.
+
+        Uses CloudFormation stack-resource membership rather than resource tags:
+        CloudFormation does NOT propagate the aws:cloudformation:stack-name tag to
+        MemoryDB clusters (verified against the live cluster), so a tag-based check
+        gave a false negative and let the cluster be imported-then-deleted on
+        redeploy. Stack membership is the authoritative ownership signal."""
+        return self._stack_contains_resource_type('AWS::MemoryDB::Cluster')
 
     def _dynamodb_table_owned_by_this_stack(self, resource_prefix: str, table_type: str) -> bool:
-        """Return True if the DynamoDB table <prefix>-<type> carries the
-        aws:cloudformation:stack-name tag equal to this stack (live lookup)."""
-        table_name = f"{resource_prefix}-{table_type}"
-        try:
-            ddb = boto3.client('dynamodb', region_name=self.region)
-            arn = f"arn:aws:dynamodb:{self.region}:{self.account}:table/{table_name}"
-            tag_resp = ddb.list_tags_of_resource(ResourceArn=arn)
-            live_tags = {t['Key']: t['Value'] for t in tag_resp.get('Tags', [])}
-            return live_tags.get('aws:cloudformation:stack-name') == self.stack_name
-        except Exception as e:
-            print(f"   ⚠️ Could not verify DynamoDB {table_type} ownership ({e}); assuming stack-owned (keep managed)")
-            return True
+        """Return True if this stack already manages the DynamoDB table(s).
+
+        Tables are created as AWS::DynamoDB::GlobalTable. Like MemoryDB, DynamoDB
+        tables do NOT carry the aws:cloudformation:stack-name tag, so we use stack
+        membership instead of tags. (Both config and stats tables are created
+        together, so a single membership check is sufficient and correct.)"""
+        return (self._stack_contains_resource_type('AWS::DynamoDB::GlobalTable')
+                or self._stack_contains_resource_type('AWS::DynamoDB::Table'))
 
     def _stack_contains_resource_type(self, resource_type: str) -> bool:
         """Return True if THIS stack already manages a resource of the given
@@ -4351,25 +4349,42 @@ class GameStatsLeaderboardsStack(Stack):
             if not self.cf_client:
                 # Cannot determine ownership without CloudFormation access. Fail
                 # SAFE: assume stack-owned so resources stay MANAGED rather than
-                # risk an import-then-delete. (Matches the MemoryDB/DynamoDB guards.)
+                # risk an import-then-delete.
                 print("   ⚠️ CloudFormation client unavailable for ownership check; "
                       "assuming stack-owned (keep managed)")
                 cache = {'*': True}
             else:
                 try:
-                    cf_helper = CloudFormationHelper()
-                    exists, _status, resources = cf_helper.get_stack_resources(
-                        self.stack_name, self.cf_client)
-                    if exists:
-                        for r in resources:
-                            cache[r.get('ResourceType', '')] = True
-                    # If the stack does not exist yet (first deploy), cache stays
-                    # empty -> nothing is "owned" -> reuse decisions for genuinely
-                    # pre-existing external resources are honored. Correct.
+                    # Use the PAGINATED list_stack_resources API. describe_stack_resources
+                    # is NOT paginated and silently caps at 100 resources, so on a large
+                    # stack (this one has >100) it would omit resource types and the guard
+                    # would wrongly think they are not stack-owned -> import -> delete.
+                    paginator = self.cf_client.get_paginator('list_stack_resources')
+                    found_any = False
+                    for page in paginator.paginate(StackName=self.stack_name):
+                        for r in page.get('StackResourceSummaries', []):
+                            found_any = True
+                            rt = r.get('ResourceType', '')
+                            if rt:
+                                cache[rt] = True
+                    # If the stack genuinely does not exist yet (first deploy), the
+                    # paginator raises ValidationError (handled below) — we never reach
+                    # here with an empty cache for a non-existent stack. An existing but
+                    # empty result (found_any False) is treated as "first deploy": cache
+                    # stays empty -> nothing owned -> external reuse honored.
+                    _ = found_any
+                except ClientError as e:
+                    if 'does not exist' in str(e):
+                        # First deploy: stack not created yet. Nothing is owned;
+                        # genuine external-resource reuse is honored. Correct.
+                        pass
+                    else:
+                        print(f"   ⚠️ Could not read stack resources for ownership check ({e}); "
+                              f"assuming stack-owned (keep managed)")
+                        cache = {'*': True}
                 except Exception as e:
                     print(f"   ⚠️ Could not read stack resources for ownership check ({e}); "
                           f"assuming stack-owned (keep managed)")
-                    # Sentinel so we don't retry every call; treat as "owns everything".
                     cache = {'*': True}
             self._stack_resource_types_cache = cache
         if cache.get('*'):
