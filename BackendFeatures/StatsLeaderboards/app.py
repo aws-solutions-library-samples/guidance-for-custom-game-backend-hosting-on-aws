@@ -4953,27 +4953,20 @@ class GameStatsLeaderboardsStack(Stack):
         except Exception as e:
             print(f"⚠️ Error initializing MemoryDB client: {e}")
         
-        # Create or reference subnet group - Proper CDK v2 approach
-        if existing_subnet_group and replacement_strategy != 'force_replacement':
-            print(f"🔄 Reusing existing subnet group: {subnet_group_name}")
-            # For existing subnet groups, we need to create a new CfnSubnetGroup resource
-            # that references the existing one by using the same name
-            subnet_group = memorydb.CfnSubnetGroup(
-                self, f"{resource_prefix}-memorydb-subnet-group-ref{suffix}",
-                subnet_ids=[subnet.subnet_id for subnet in vpc.private_subnets],
-                subnet_group_name=subnet_group_name,  # Use existing name
-                description="Subnet group for MemoryDB Valkey cluster with GLIDE optimization (reusing existing)"
-            )
-        else:
-            # Create new subnet group
-            new_subnet_group_name = f"{resource_prefix}-subnet-group{suffix}"
-            subnet_group = memorydb.CfnSubnetGroup(
-                self, f"{resource_prefix}-memorydb-subnet-group{suffix}",
-                subnet_ids=[subnet.subnet_id for subnet in vpc.private_subnets],
-                subnet_group_name=new_subnet_group_name,
-                description="Subnet group for MemoryDB Valkey cluster with GLIDE optimization"
-            )
-            print(f"🆕 Created new subnet group: {new_subnet_group_name}")
+        # Subnet group — STABLE construct id + name regardless of whether one
+        # already exists. Previously, finding an existing subnet group switched the
+        # construct id to "-subnet-group-ref", changing the CloudFormation logical
+        # id between deploys and making CFN DELETE the live subnet group (in use by
+        # the cluster) then create a new one. The name is already deterministic
+        # ({resource_prefix}-subnet-group), so a single managed CfnSubnetGroup with
+        # a fixed construct id simply updates in place.
+        print(f"{'🔄 Managing existing' if existing_subnet_group else '🆕 Creating'} subnet group: {subnet_group_name}")
+        subnet_group = memorydb.CfnSubnetGroup(
+            self, f"{resource_prefix}-memorydb-subnet-group{suffix}",
+            subnet_ids=[subnet.subnet_id for subnet in vpc.private_subnets],
+            subnet_group_name=subnet_group_name,
+            description="Subnet group for MemoryDB Valkey cluster with GLIDE optimization"
+        )
         
         # Check for existing parameter group
         existing_param_group = None
@@ -4992,64 +4985,36 @@ class GameStatsLeaderboardsStack(Stack):
         except Exception as e:
             print(f"⚠️ Error checking parameter group: {e}")
         
-        # Create or reference parameter group - Proper CDK v2 approach
-        if existing_param_group and replacement_strategy != 'force_replacement':
-            print(f"🔄 Reusing existing parameter group: {param_group_name}")
-            # Create a new CfnParameterGroup that references the existing one
-            parameter_group = memorydb.CfnParameterGroup(
-                self, f"{resource_prefix}-memorydb-params-ref{suffix}",
-                parameter_group_name=param_group_name,  # Use existing name
-                family="memorydb_valkey7",
-                description="Parameter group optimized for Valkey GLIDE 2.0.1+ client (reusing existing)",
-                parameters={
-                    "maxmemory-policy": "allkeys-lru",
-                    "timeout": "300",
-                    "tcp-keepalive": "300",
-                    "tcp-backlog": "511",
-                    "maxclients": "65000",
-                    "client-output-buffer-limit-replica-soft-limit": "256mb",
-                    "client-output-buffer-limit-replica-hard-limit": "512mb",
-                    "client-output-buffer-limit-replica-soft-seconds": "60",
-                    "hz": "10",
-                    "dynamic-hz": "yes",
-                    "rdbcompression": "yes",
-                    "rdbchecksum": "yes",
-                    "repl-backlog-size": "16mb",
-                    "repl-backlog-ttl": "3600",
-                    "replica-read-only": "yes",
-                    "loglevel": "notice",
-                    "syslog-enabled": "no"
-                }
-            )
-        else:
-            # Create new parameter group
-            new_param_group_name = f"{resource_prefix}-glide-params{suffix}"
-            parameter_group = memorydb.CfnParameterGroup(
-                self, f"{resource_prefix}-memorydb-params{suffix}",
-                parameter_group_name=new_param_group_name,
-                family="memorydb_valkey7",
-                description="Parameter group optimized for Valkey GLIDE 2.0.1+ client",
-                parameters={
-                    "maxmemory-policy": "allkeys-lru",
-                    "timeout": "300",
-                    "tcp-keepalive": "300",
-                    "tcp-backlog": "511",
-                    "maxclients": "65000",
-                    "client-output-buffer-limit-replica-soft-limit": "256mb",
-                    "client-output-buffer-limit-replica-hard-limit": "512mb",
-                    "client-output-buffer-limit-replica-soft-seconds": "60",
-                    "hz": "10",
-                    "dynamic-hz": "yes",
-                    "rdbcompression": "yes",
-                    "rdbchecksum": "yes",
-                    "repl-backlog-size": "16mb",
-                    "repl-backlog-ttl": "3600",
-                    "replica-read-only": "yes",
-                    "loglevel": "notice",
-                    "syslog-enabled": "no"
-                }
-            )
-            print(f"🆕 Created new parameter group: {new_param_group_name}")
+        # Parameter group — STABLE construct id + name (same rationale as the
+        # subnet group above). Finding an existing one previously switched to a
+        # "-params-ref" construct id, deleting the live parameter group on redeploy.
+        # The name is deterministic, so one managed CfnParameterGroup updates in place.
+        print(f"{'🔄 Managing existing' if existing_param_group else '🆕 Creating'} parameter group: {param_group_name}")
+        parameter_group = memorydb.CfnParameterGroup(
+            self, f"{resource_prefix}-memorydb-params{suffix}",
+            parameter_group_name=param_group_name,
+            family="memorydb_valkey7",
+            description="Parameter group optimized for Valkey GLIDE 2.0.1+ client",
+            parameters={
+                "maxmemory-policy": "allkeys-lru",
+                "timeout": "300",
+                "tcp-keepalive": "300",
+                "tcp-backlog": "511",
+                "maxclients": "65000",
+                "client-output-buffer-limit-replica-soft-limit": "256mb",
+                "client-output-buffer-limit-replica-hard-limit": "512mb",
+                "client-output-buffer-limit-replica-soft-seconds": "60",
+                "hz": "10",
+                "dynamic-hz": "yes",
+                "rdbcompression": "yes",
+                "rdbchecksum": "yes",
+                "repl-backlog-size": "16mb",
+                "repl-backlog-ttl": "3600",
+                "replica-read-only": "yes",
+                "loglevel": "notice",
+                "syslog-enabled": "no"
+            }
+        )
         
         # Enhanced password with GLIDE-compatible characters
         memorydb_password = self._create_memorydb_password(resource_prefix, suffix)
@@ -5071,31 +5036,20 @@ class GameStatsLeaderboardsStack(Stack):
         except Exception as e:
             print(f"⚠️ Error checking user: {e}")
         
-        # Create or reference user - Proper CDK v2 approach
-        if existing_user and replacement_strategy != 'force_replacement':
-            print(f"🔄 Updating existing user: {user_name}")
-            # Update existing user with new password
-            memorydb_user = memorydb.CfnUser(
-                self, f"{resource_prefix}-memorydb-user-update{suffix}",
-                user_name=user_name,
-                authentication_mode={
-                    "Type": "password",
-                    "Passwords": [memorydb_password.secret_value_from_json("password").unsafe_unwrap()]
-                },
-                access_string="on ~* &* +@all -@dangerous +client +info +config|get"
-            )
-        else:
-            # Create new user
-            memorydb_user = memorydb.CfnUser(
-                self, f"{resource_prefix}-memorydb-user{suffix}",
-                user_name="glide-user",
-                authentication_mode={
-                    "Type": "password",
-                    "Passwords": [memorydb_password.secret_value_from_json("password").unsafe_unwrap()]
-                },
-                access_string="on ~* &* +@all -@dangerous +client +info +config|get"
-            )
-            print(f"🆕 Created new user: {memorydb_user.user_name}")
+        # User — STABLE construct id + name. The previous code used a different
+        # construct id ("-memorydb-user-update") when the user already existed,
+        # which deleted the live user the cluster's ACL depends on. One managed
+        # CfnUser with a fixed construct id updates the password/access in place.
+        print(f"{'🔄 Managing existing' if existing_user else '🆕 Creating'} user: {user_name}")
+        memorydb_user = memorydb.CfnUser(
+            self, f"{resource_prefix}-memorydb-user{suffix}",
+            user_name=user_name,
+            authentication_mode={
+                "Type": "password",
+                "Passwords": [memorydb_password.secret_value_from_json("password").unsafe_unwrap()]
+            },
+            access_string="on ~* &* +@all -@dangerous +client +info +config|get"
+        )
         
         # Check for existing ACL
         existing_acl = None
@@ -5114,23 +5068,16 @@ class GameStatsLeaderboardsStack(Stack):
         except Exception as e:
             print(f"⚠️ Error checking ACL: {e}")
         
-        # Create or reference ACL - Proper CDK v2 approach
-        if existing_acl and replacement_strategy != 'force_replacement':
-            print(f"🔄 Updating existing ACL: {acl_name}")
-            memorydb_acl = memorydb.CfnACL(
-                self, f"{resource_prefix}-memorydb-acl-update{suffix}",
-                acl_name=acl_name,
-                user_names=[memorydb_user.user_name]
-            )
-        else:
-            # Create new ACL
-            new_acl_name = f"{resource_prefix}-glide-acl{suffix}"
-            memorydb_acl = memorydb.CfnACL(
-                self, f"{resource_prefix}-memorydb-acl{suffix}",
-                acl_name=new_acl_name,
-                user_names=[memorydb_user.user_name]
-            )
-            print(f"🆕 Created new ACL: {new_acl_name}")
+        # ACL — STABLE construct id + name. Previously switched to a
+        # "-memorydb-acl-update" construct id when one existed, deleting the live
+        # ACL the cluster references. One managed CfnACL updates its user list in
+        # place.
+        print(f"{'🔄 Managing existing' if existing_acl else '🆕 Creating'} ACL: {acl_name}")
+        memorydb_acl = memorydb.CfnACL(
+            self, f"{resource_prefix}-memorydb-acl{suffix}",
+            acl_name=acl_name,
+            user_names=[memorydb_user.user_name]
+        )
         
         # Cluster with GLIDE-optimized settings
         node_type = config.get("memorydb_node_type", "db.r7g.large")
