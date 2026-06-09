@@ -1978,7 +1978,7 @@ class GameStatsLeaderboardsStack(Stack):
         Tags.of(self).add("Environment", environment)
         Tags.of(self).add("Service", service_name)
         Tags.of(self).add("ManagedBy", "CDK")
-        Tags.of(self).add("ValkeyGlideVersion", "2.0.1+")
+        Tags.of(self).add("ValkeyGlideVersion", "2.4.1")
         Tags.of(self).add("StackType", "Core")
         Tags.of(self).add("Application", "GameStatsLeaderboards")
 
@@ -2292,7 +2292,7 @@ class GameStatsLeaderboardsStack(Stack):
             cache_cluster_size="0.5" if environment in ["prod", "staging"] else None,
             variables={
                 "environment": environment,
-                "glideVersion": "2.0.1",
+                "glideVersion": "2.4.1",
                 "lambdaRuntime": "python3.13"
             },
             method_options={
@@ -4994,7 +4994,7 @@ class GameStatsLeaderboardsStack(Stack):
             self, f"{resource_prefix}-memorydb-params{suffix}",
             parameter_group_name=param_group_name,
             family="memorydb_valkey7",
-            description="Parameter group optimized for Valkey GLIDE 2.0.1+ client",
+            description="Parameter group optimized for Valkey GLIDE 2.4.1 client",
             parameters={
                 "maxmemory-policy": "allkeys-lru",
                 "timeout": "300",
@@ -5697,7 +5697,7 @@ class GameStatsLeaderboardsStack(Stack):
             code=lambda_.Code.from_asset("layers/valkey-glide-layer"),
             compatible_runtimes=[lambda_.Runtime.PYTHON_3_13],
             compatible_architectures=[lambda_.Architecture.X86_64],
-            description=f"Valkey-GLIDE 2.0.1+ and shared dependencies for game stats & leaderboards system (v{layer_hash})",
+            description=f"Valkey-GLIDE 2.4.1 and shared dependencies for game stats & leaderboards system (v{layer_hash})",
             removal_policy=RemovalPolicy.RETAIN
         )
 
@@ -6037,7 +6037,7 @@ class GameStatsLeaderboardsStack(Stack):
             "VALKEY_USE_TLS": "true",
             "VALKEY_CLUSTER_MODE": "true",
             "GLIDE_CLIENT_NAME": f"game-statsleaderboards-{environment}-glide",
-            "GLIDE_VERSION": "2.0.1",
+            "GLIDE_VERSION": "2.4.1",
             "GLIDE_CONNECTION_TIMEOUT_MS": "3000",  # Optimized: 60% faster connection establishment
             "GLIDE_REQUEST_TIMEOUT_MS": "5000",     # Increased for failover resilience (was 2500ms)
             "GLIDE_SOCKET_TIMEOUT_MS": "3000",
@@ -6284,7 +6284,7 @@ class GameStatsLeaderboardsStack(Stack):
                 "resource_prefix": resource_prefix,
                 "deployment_timestamp": datetime.now(timezone.utc).isoformat(),
                 "service_version": "1.0.0",
-                "glide_version": "2.0.1"
+                "glide_version": "2.4.1"
             },
             
             # API Gateway
@@ -6314,7 +6314,7 @@ class GameStatsLeaderboardsStack(Stack):
             
             # GLIDE Configuration (consolidated)
             "glide": {
-                "version": "2.0.1",
+                "version": "2.4.1",
                 "tls_enabled": "true",
                 "client_name": f"game-statsleaderboards-{environment}-glide",
                 "connection_timeout_ms": "5000",
@@ -7669,7 +7669,7 @@ def handler(event, context):
         
         CfnOutput(
             self, "GLIDEVersion",
-            value="2.0.1",
+            value="2.4.1",
             description="Valkey GLIDE client version used",
             export_name=f"{self.stack_name}-GLIDEVersion"
         )
