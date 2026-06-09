@@ -5,6 +5,8 @@
 1. [System Overview](#1-system-overview)
 2. [Architecture](#2-architecture)
 3. [Deployment Guide](#3-deployment-guide)
+    - [Deployment](#32-deployment-from-ec2-instance-recommended)
+    - [Teardown / Decommissioning](#37-teardown--decommissioning)
 4. [Integration](#4-integration)
     - [Integration Guide — Who Calls What](#integration-guide--who-calls-what)
     - [Before You Go to Production — Integration Points](#before-you-go-to-production--integration-points)
@@ -398,6 +400,97 @@ At high traffic volumes, you will hit AWS account-level defaults that require fo
 - Quota increase approvals are not guaranteed — AWS evaluates requests based on your account's usage history, payment history, and the specific limit being requested. Provide clear justification (expected player count, peak RPS, launch date) when submitting requests.
 - Request increases **before** launch day. Approvals can take 1-3 business days for standard limits and up to 2 weeks for large increases. For major launches or events, submit requests at least 2-4 weeks in advance.
 - Lambda concurrency is the most common bottleneck at scale. If 8 functions each handle 125 concurrent requests, you hit the 1,000 default. Request an increase to at least 3-5x your expected peak concurrent request count.
+
+### 3.7 Teardown / Decommissioning
+
+To decommission a deployment, use the included **`teardown.sh`** script rather than `cdk destroy` on its own.
+
+> **Why a dedicated script?** `cdk destroy` alone cannot fully tear this system down and can leave billable or orphaned resources behind:
+> 1. **RETAIN-by-design resources** — the DynamoDB tables, the KMS key, and the Lambda layer are deliberately marked `RETAIN` so an accidental stack delete never destroys your data. `cdk destroy` leaves them in place.
+> 2. **Asynchronous MemoryDB delete** — the MemoryDB for Valkey cluster takes ~15–20 minutes to delete. CloudFormation frequently times out waiting, leaving the cluster's subnet group, parameter group, ACL, and user orphaned in a `DELETE_FAILED` stack.
+> 3. **Post-deploy boto3 side-effects** — the monitoring stack's post-deploy step creates provisioned-concurrency and application-autoscaling targets imperatively via boto3. These are invisible to CloudFormation, so `cdk destroy` never removes them, and provisioned concurrency keeps billing after the stack is gone.
+>
+> `teardown.sh` orchestrates around all three, gives you per-resource control over your **data**, and starts the slow MemoryDB delete **first** so it drains while the rest of the teardown proceeds.
+
+#### Quick start
+
+```bash
+cd StatsLeaderboards
+
+# 1. SAFE PREVIEW (default). Shows exactly what would happen, changes NOTHING.
+./teardown.sh
+
+# 2. Perform the teardown (interactive — prompts for confirmations and per-resource choices)
+./teardown.sh --execute
+```
+
+The script **defaults to a dry-run**. You must pass `--execute` for it to delete anything. Run the dry-run first, read the resolved plan it prints, then re-run with `--execute`.
+
+#### Command-line parameters
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `--execute` | *(off)* | Actually perform deletions. **Omit this for a dry-run** (the default), which previews every action and changes nothing. |
+| `--dry-run` | *(on)* | Explicitly request the preview-only mode (this is already the default). |
+| `--profile <name>` | current credential chain | AWS CLI profile to use for all calls. |
+| `--region <region>` | `$AWS_DEFAULT_REGION` or `us-west-2` | AWS region the deployment lives in. |
+| `--environment <env>` | `dev` | Environment suffix (`dev` / `staging` / `prod`). Must match what you deployed — it drives every resource name (e.g. `game-statsleaderboards-<env>-cluster`). |
+| `--stack-name <name>` | `GameStatsLeaderboardsStack` | The base (main) stack name. The monitoring stack name is derived from it. |
+| `--yes-i-understand` | *(off)* | Pre-answers the top-level typed gate for **non-interactive** runs (CI, automation). The per-resource data choices still fall back to their **safe defaults** (backup/retain) — this flag does not auto-confirm data deletion. |
+| `-h`, `--help` | — | Print usage and exit. |
+
+Examples:
+
+```bash
+# Preview a staging teardown in a specific account/region
+./teardown.sh --profile my-staging-profile --region us-east-1 --environment staging
+
+# Execute a production teardown (will prompt for the typed gate + per-resource choices)
+./teardown.sh --execute --profile prod-profile --region us-west-2 --environment prod
+
+# Non-interactive execute (top gate pre-answered; data resources keep SAFE defaults)
+./teardown.sh --execute --yes-i-understand
+```
+
+#### Confirmations and choices, stage by stage
+
+When you run with `--execute`, the script gates destruction at multiple points — nothing is deleted silently:
+
+1. **Top-level typed gate.** After printing the account, region, discovered resources, and what is protected, the script asks you to **type the exact stack name** to proceed. Anything else aborts with no changes. (`--yes-i-understand` pre-answers only *this* gate.)
+
+2. **Per-resource data choice.** For each resource that holds data or state, you choose one of three actions (the safe option is the default if you just press Enter):
+
+   | Resource | Choices | Default | What each choice does |
+   |----------|---------|---------|-----------------------|
+   | **MemoryDB cluster** | `retain` / `backup` / `delete` | `backup` | `backup` takes a **final manual snapshot** (no expiry, billed) before deleting; `delete` discards the cached leaderboard data; `retain` keeps the cluster running. |
+   | **DynamoDB tables** (config + stats) | `retain` / `backup` / `delete` | `backup` | `backup` creates **on-demand backups** (which persist after the table is deleted) before deleting; `retain` leaves the tables in place; `delete` removes them outright. |
+   | **Lambda layer** | `retain` / `delete` | `delete` | Holds no data and is rebuildable from `layers/build_layer.sh`. `delete` removes all versions. |
+   | **Monitoring stack** | `delete` / `retain` | `delete` | CloudWatch alarms + dashboard; no data. |
+
+3. **Derived (dependency-locked) resources — not asked as free choices.** The **KMS key** and the **MemoryDB secret** are *never* offered as independent picks. Their fate is **derived from, and locked to**, the data they protect, so you cannot create a data-loss combination:
+
+   - The **secret** (MemoryDB password) is force-**retained** whenever the MemoryDB cluster is retained — a redeploy needs it to authenticate (deleting it would cause `WRONGPASS`). It is only deleted when the cluster itself is being deleted.
+   - The **KMS key** is force-**retained** whenever *anything kept still needs it*: retained DynamoDB tables, a DynamoDB backup being created (a restore requires the original key), any pre-existing DynamoDB backup, a retained/snapshotted MemoryDB cluster, or a retained secret encrypted with it. It is only scheduled for deletion when nothing kept depends on it.
+
+   The script discovers these dependencies from **live AWS state** (not assumptions, since encryption config can differ per deployment) and prints a **"Protected by dependency"** notice listing every retained item and the exact reason it was kept — so you can remove them yourself, manually, once you no longer need the associated data or backups.
+
+#### What the script does (in order)
+
+1. **Pre-flight** — validates AWS credentials, discovers the live stacks, finds the stack's VPC, and detects any **bastion EC2 instance** in that VPC (it is reported as *protected* and **never touched**, along with the VPC).
+2. **Inventory + plan** — prints all discovered resources, takes your choices, runs the dependency resolver, and shows the **resolved teardown plan** plus the dependency-protection notice.
+3. **STEP 1 — MemoryDB delete (async, first).** Kicks off the cluster delete (with a final snapshot if you chose `backup`) so its ~15–20 min drain overlaps with the rest of the work.
+4. **STEP 2 — Concurrent cleanup.** Removes the boto3 provisioned-concurrency / autoscaling side-effects, creates and **verifies** any DynamoDB backups (aborts before deleting anything if a backup fails to confirm), and deletes the monitoring stack.
+5. **STEP 3 — Rejoin.** Waits for the MemoryDB cluster to finish deleting (and confirms the final snapshot reached `available`, if requested).
+6. **STEP 4 — Main stack delete.** Runs `cdk destroy` (or falls back to CloudFormation `delete-stack` if the `cdk` CLI is not on the host). If you retained the MemoryDB cluster, it deletes the stack while **retaining the MemoryDB sub-tree**.
+7. **STEP 5 — Sweep.** Honoring each choice, deletes/retains the DynamoDB tables, schedules the KMS key for deletion (7-day recovery window — KMS cannot be deleted instantly) and frees its alias, deletes/retains the secret, removes the layer versions, and cleans up any orphaned MemoryDB subnet group / parameter group / ACL / user.
+8. **STEP 6 — Verify + report.** Prints the final status of every resource, lists any DynamoDB backup ARNs and the MemoryDB snapshot name created, and flags anything that needs a manual follow-up.
+
+#### Notes
+
+- **The `cdk` CLI is required for a managed stack delete.** If it is not installed on the host (e.g. you are running from a workstation that only has the AWS CLI), the script automatically falls back to CloudFormation `delete-stack`; the orphan sweep still runs either way.
+- **KMS keys can only be *scheduled* for deletion** (a 7–30 day recovery window; the script uses the 7-day minimum). Until then the key is recoverable with `aws kms cancel-key-deletion`.
+- **Retained data is reused on redeploy.** If you retain the DynamoDB tables and/or the MemoryDB cluster, a subsequent `./deploy.sh` correctly identifies and **reuses** them rather than recreating — the secret/key pairings remain consistent.
+- Run the script from the `StatsLeaderboards/` directory (it resolves `app.py` relative to its own location).
 
 ---
 
