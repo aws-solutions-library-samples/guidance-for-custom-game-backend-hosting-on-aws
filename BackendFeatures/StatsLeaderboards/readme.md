@@ -6,7 +6,7 @@
 2. [Architecture](#2-architecture)
 3. [Deployment Guide](#3-deployment-guide)
     - [Deployment](#32-deployment-from-ec2-instance-recommended)
-    - [Teardown / Decommissioning](#37-teardown--decommissioning)
+    - [Teardown / Decommissioning](#38-teardown--decommissioning)
 4. [Integration](#4-integration)
     - [Integration Guide — Who Calls What](#integration-guide--who-calls-what)
     - [Before You Go to Production — Integration Points](#before-you-go-to-production--integration-points)
@@ -40,8 +40,8 @@ The Game Stats and Leaderboards system is a backend built on AWS managed service
 
 | Component | Technology |
 |-----------|-----------|
-| Compute | AWS Lambda (Python 3.13+) |
-| Leaderboard Store | Amazon MemoryDB for Valkey (Valkey-GLIDE 2.0.1) |
+| Compute | AWS Lambda (Python 3.13) |
+| Leaderboard Store | Amazon MemoryDB for Valkey (Valkey-GLIDE 2.4.1) |
 | Stats Store | Amazon DynamoDB (on-demand) |
 | API Layer | Amazon API Gateway (REST) |
 | Auth | Lambda Authorizers (backend + player) + SSM Parameter Store |
@@ -214,31 +214,97 @@ chmod +x deploy.sh
 
 ### 3.3 What the Deploy Script Does (In Order)
 
-1. **Detects operating system** (Amazon Linux, Ubuntu/Debian, macOS)
-2. **Installs Python 3.13+** (searches for 3.15 down to 3.13, installs from source if missing)
-3. **Bootstraps and upgrades pip** (installs pip via ensurepip or get-pip.py if missing, then upgrades to latest)
-4. **Installs AWS CLI v2** if not present
-5. **Installs NVM and Node.js** (for AWS CDK)
-6. **Installs AWS CDK** globally via npm
-7. **Installs Python packages**: boto3, aws-cdk-lib, constructs, aws-lambda-powertools
-8. **Persists environment** (PATH, aliases, NVM config) to shell rc files
-9. **Validates `studio_parameters.json`** (required fields, character validation, email format)
-10. **Builds Lambda Layer** (`layers/build_layer.sh`) with platform-specific wheels:
-    - valkey-glide>=2.0.1
+The deploy script is **self-bootstrapping** — it installs and version-checks its own toolchain before deploying, so a fresh EC2 instance needs nothing but the project files and AWS credentials.
+
+1. **Detects operating system** (Amazon Linux/RHEL/Fedora, Ubuntu/Debian, macOS) and installs the system build packages it needs.
+2. **Installs AWS CLI v2** if not present (x86_64 and aarch64 supported).
+3. **Installs NVM + Node.js LTS** and enforces a **minimum Node.js major version of 20** (Node 18 is end-of-life and rejected). An existing Node that is too old or not NVM-managed is replaced with the LTS line.
+4. **Installs / upgrades the AWS CDK CLI** and enforces a **minimum CLI version of `2.1125.0`** — older CLIs cannot read the cloud-assembly schema emitted by the pinned `aws-cdk-lib`. A shadowing global CDK installed under a different Node is removed first.
+5. **Installs Python 3.13+** (searches for 3.15 → 3.14 → 3.13; compiles from source only as a last resort) and **bootstraps/upgrades pip** (via `ensurepip` or `get-pip.py`).
+6. **Installs Python packages**: boto3, aws-cdk-lib, constructs, aws-lambda-powertools.
+7. **Persists environment** (PATH, aliases, NVM config) to your shell rc files.
+8. **Validates `studio_parameters.json`** (required fields present, allowed-character check, email format) — aborts with guidance if invalid or still using template values.
+9. **Runs `validate_system.py`** (if present) as a pre-deployment sanity check.
+10. **Builds the Lambda Layer** (`layers/build_layer.sh`) by downloading prebuilt Linux wheels for the Lambda runtime (it never compiles on the host, so the build host's OS/CPU don't affect the output). Targets Python 3.13 / x86_64 by default (override with `LAMBDA_PY_VERSION`, `LAMBDA_ARCH`, `PYTHON_BIN`). Contents (from `layers/valkey-glide-layer/requirements.txt`):
+    - valkey-glide==2.4.1 *(pinned — the package reorganized at 2.1.0, so the version is fixed for reproducible imports)*
     - aws-lambda-powertools[all]==3.0.0
     - pydantic>=2.5.0
     - asyncio-throttle>=1.0.2
     - nest-asyncio>=1.5.8
     - python-dateutil>=2.8.2
-11. **Installs CDK dependencies** from `requirements.txt`
-12. **Bootstraps CDK** (`cdk bootstrap`)
-13. **Synthesizes CDK template** (`cdk synth GameStatsLeaderboardsStack`)
-14. **Deploys main stack** (`GameStatsLeaderboardsStack`) with studio parameters
-15. **Deploys monitoring stack** (`GameStatsLeaderboardsMonitoringStack`)
-16. **Retrieves and displays deployment outputs**: API Endpoint, Studio API Key, Studio ID, Game ID, Layer ARN
-17. **Creates convenience scripts** (`deployment_info.sh`)
+11. **Installs CDK dependencies** from `requirements.txt` (into the same interpreter CDK runs `app.py` with) and verifies `aws_cdk` is importable.
+12. **Bootstraps CDK** (`cdk bootstrap`; logs to `cdk_logs/bootstrap.log`).
+13. **Synthesizes** the main stack (`cdk synth GameStatsLeaderboardsStack`; logs to `cdk_logs/synthesis.log`).
+14. **Deploys the main stack** `GameStatsLeaderboardsStack` (`app.py`) with the studio details passed as CloudFormation **parameters** and resource-reuse **context** enabled (see [3.4](#34-configuration--command-line-behaviour)). Outputs are written to `cdk_logs/stack_outputs.json`.
+15. **Deploys the monitoring stack** `GameStatsLeaderboardsMonitoringStack` (`app_post_deploy.py`). Outputs are written to `cdk_logs/monitoring_outputs.json`.
+16. **Retrieves and displays deployment outputs**: API Endpoint, Studio API Key, Studio ID, Game ID, Layer ARN.
+17. **Creates the `deployment_info.sh`** convenience script and prints next-steps guidance (verify registration, integrate player auth, run the test suite).
 
-### 3.4 Deployment Outputs
+> The deploy is **idempotent and reuse-aware**: re-running `./deploy.sh` against an existing deployment updates the stacks in place. It reuses (does not recreate) the stateful resources, isolates and updates only changed Lambda functions, and keeps the MemoryDB secret / DynamoDB KMS-key pairings consistent. To fully remove a deployment, use [`teardown.sh`](#38-teardown--decommissioning).
+
+### 3.4 Configuration & Command-Line Behaviour
+
+**`deploy.sh` takes no command-line flags.** It is configured entirely through (a) two environment variables and (b) the `studio_parameters.json` file:
+
+| Input | How | Default | Effect |
+|-------|-----|---------|--------|
+| **Deployment environment** | `export ENVIRONMENT=<dev\|staging\|prod>` | `dev` | Validated against `dev`/`staging`/`prod`; becomes the CDK `environment` context and the suffix in every resource name. Invalid values abort the deploy. |
+| **AWS region** | `export AWS_DEFAULT_REGION=<region>` | `us-west-2` | Region for bootstrap and deploy (also exported as `CDK_DEFAULT_REGION`). |
+| **Studio / game identity** | edit `studio_parameters.json` | — | `StudioName`, `ContactEmail`, `GameTitle`, `GameGenre` are passed to the main stack as CloudFormation parameters and used to auto-register your studio + first game. |
+| **AWS credentials** | standard AWS CLI credential chain | — | Profile / env vars / EC2 instance role; the script verifies `aws sts get-caller-identity` before deploying. |
+
+```bash
+# Typical invocation
+export ENVIRONMENT=prod
+export AWS_DEFAULT_REGION=us-east-1
+./deploy.sh
+```
+
+**CDK context and parameters the script passes** (useful if you ever run `cdk` directly instead of through `deploy.sh`):
+
+*Main stack (`app.py`):*
+```bash
+cdk deploy GameStatsLeaderboardsStack --app "<python> app.py" \
+  --context environment=$ENVIRONMENT \
+  --context enable_resource_reuse=true \
+  --context force_create_new=false \
+  --parameters StudioName="..." --parameters ContactEmail="..." \
+  --parameters GameTitle="..." --parameters GameGenre="..." \
+  --require-approval never
+```
+
+*Monitoring stack (`app_post_deploy.py`):*
+```bash
+cdk deploy GameStatsLeaderboardsMonitoringStack --app "<python> app_post_deploy.py" \
+  --context environment=$ENVIRONMENT \
+  --context base_stack_name=GameStatsLeaderboardsStack \
+  --context enable_debug_mode=true \
+  --require-approval never
+```
+
+**Supported CDK context keys** (all optional; set with `--context key=value` when running `cdk` directly):
+
+| Context key | Used by | Purpose |
+|-------------|---------|---------|
+| `environment` | both | Deployment environment (`dev`/`staging`/`prod`); drives resource naming. Defaults to `dev`. |
+| `enable_resource_reuse` | `app.py` | Reuse compatible pre-existing resources rather than failing. `deploy.sh` sets `true`. |
+| `force_create_new` | both | Force creation of new resources instead of reusing/importing. `deploy.sh` sets `false`. |
+| `skip_resource_discovery` | both | Skip the scan for reusable existing resources. |
+| `disable_developer_registration` | `app.py` | Skip the automatic studio/first-game registration custom resource. |
+| `data_trace_enabled` | `app.py` | Toggle API Gateway data-trace logging. |
+| `base_stack_name` | `app_post_deploy.py` | Name of the main stack the monitoring stack reads from (default `GameStatsLeaderboardsStack`). |
+| `skip_monitoring` | `app_post_deploy.py` | Skip CloudWatch dashboard/alarm creation. |
+| `skip_provisioned_concurrency` | `app_post_deploy.py` | Skip applying provisioned concurrency to the critical functions. |
+| `skip_lambda_insights` | `app_post_deploy.py` | Skip enabling Lambda Insights. |
+| `skip_advanced_features` | `app_post_deploy.py` | Skip all post-deploy enhancements at once. |
+| `enable_debug_mode` | `app_post_deploy.py` | Verbose post-deploy logging. `deploy.sh` sets `true`. |
+| `account` / `region` | both | Override the target account/region (otherwise from the AWS environment). |
+
+> **Note on the monitoring stack:** several post-deploy enhancements — **provisioned concurrency** and its **application-autoscaling** targets — are applied imperatively via boto3 (`put_provisioned_concurrency_config`, `register_scalable_target`), not as CloudFormation resources. This is why `teardown.sh` cleans them up explicitly (see [3.8](#38-teardown--decommissioning)); a plain `cdk destroy` would leave them behind.
+
+> **Resources retained on stack deletion:** the **two DynamoDB tables**, the **KMS key**, and the **Lambda layer** are created with a `RETAIN` deletion policy so they are never destroyed by an accidental stack delete. The MemoryDB cluster, API Gateway, Lambda functions, IAM roles, and VPC are destroyed with the stack. Plan removals accordingly, or use [`teardown.sh`](#38-teardown--decommissioning) for a controlled teardown.
+
+### 3.5 Deployment Outputs
 
 After successful deployment, you receive:
 
@@ -252,7 +318,7 @@ After successful deployment, you receive:
 
 These are also stored in CloudFormation outputs and SSM Parameter Store, and here onwards the system only refers to the SSM Parameter Store for this metadata.
 
-### 3.5 Post-Deployment Verification
+### 3.6 Post-Deployment Verification
 
 ```bash
 # Check deployment info — this convenience script is auto-generated by deploy.sh
@@ -267,7 +333,7 @@ curl -X GET "$API_ENDPOINT/developer/info?studioId=$STUDIO_ID&gameId=$GAME_ID" \
 
 > **Note:** There is no dedicated `/health` endpoint. The `GET /developer/info` call serves as the recommended health check, as it exercises the authentication flow and returns registration metadata.
 
-### 3.6 Production Infrastructure Sizing
+### 3.7 Production Infrastructure Sizing
 
 The system deploys with conservative defaults suitable for development and testing. Before going to production, review and adjust the resource sizing to match your expected workload. Incorrect sizing leads to either throttling (under-provisioned) or unnecessary cost (over-provisioned).
 
@@ -401,7 +467,7 @@ At high traffic volumes, you will hit AWS account-level defaults that require fo
 - Request increases **before** launch day. Approvals can take 1-3 business days for standard limits and up to 2 weeks for large increases. For major launches or events, submit requests at least 2-4 weeks in advance.
 - Lambda concurrency is the most common bottleneck at scale. If 8 functions each handle 125 concurrent requests, you hit the 1,000 default. Request an increase to at least 3-5x your expected peak concurrent request count.
 
-### 3.7 Teardown / Decommissioning
+### 3.8 Teardown / Decommissioning
 
 To decommission a deployment, use the included **`teardown.sh`** script rather than `cdk destroy` on its own.
 
@@ -785,7 +851,7 @@ The following results were captured during a ~108-minute sustained load test aga
 
 > **Scaling Tip:** For production deployments expecting sustained traffic above 5,000 RPS, consider placing a CloudFront distribution in front of the read-heavy player query endpoints (`/leaderboards/scores`, `/leaderboards/player/standing`) with a short TTL (5-10 seconds). This can absorb repeated leaderboard page views while keeping data fresh within the TTL window, reducing Lambda invocations and MemoryDB load proportionally to the cache hit rate.
 
-> **Note:** These results reflect the default development sizing. Production deployments should adjust infrastructure per the [Production Infrastructure Sizing](#36-production-infrastructure-sizing) section and run their own load tests with representative data patterns. Use `testing/load-stress-testing/test_LoadAndStressTests.py` to execute your own load tests and generate comparable reports.
+> **Note:** These results reflect the default development sizing. Production deployments should adjust infrastructure per the [Production Infrastructure Sizing](#37-production-infrastructure-sizing) section and run their own load tests with representative data patterns. Use `testing/load-stress-testing/test_LoadAndStressTests.py` to execute your own load tests and generate comparable reports.
 
 ---
 
