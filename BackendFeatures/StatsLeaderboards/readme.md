@@ -133,20 +133,26 @@ The CDK deployment creates:
 
 The deploy script bootstraps its own toolchain and synthesizes a large CloudFormation stack, which is memory-intensive. Under-sizing the host is the most common cause of a broken deploy: a process gets OOM-killed mid-run, leaving a partial or failed deployment.
 
-| Instance class | RAM | Suitable? |
-|----------------|-----|-----------|
-| `t2.micro`, `t3.micro` | 1 GB | ❌ No — will OOM during Python build / CDK synth |
-| `t3.small` | 2 GB | ❌ Not recommended — risks OOM on the heavier steps |
-| **`t3.medium`** | **4 GB** | ✅ **Recommended minimum** (2 vCPU, 4 GB) |
-| `t3.large` / `m5.large` | 8 GB | ✅ Comfortable; faster builds |
+**Recommended minimum: `t3.medium` — 4 GB RAM, 2 vCPU.** 8 GB is *not* required; 4 GB has been verified sufficient for the full deploy. Smaller burstable instances (`t2/t3.micro`, `t3.small`) are not.
 
-**Why 4 GB:**
+| Instance class | RAM / vCPU | Suitable? |
+|----------------|-----------|-----------|
+| `t2.micro`, `t3.micro` | 1 GB / 2 | ❌ No — OOMs during the Python build / CDK synth |
+| `t3.small` | 2 GB / 2 | ❌ Not recommended — risks OOM on the heavier steps |
+| **`t3.medium`** | **4 GB / 2** | ✅ **Recommended minimum** |
+| `t3.large` / `m5.large` | 8 GB / 2 | ✅ Comfortable; more headroom |
 
-- **Python source compilation** — if Python 3.13+ isn't already installed, the script compiles CPython with `--enable-optimizations` (PGO/LTO) using a parallel `make`, spawning several compiler processes at once. This is the single biggest memory consumer. *Pre-installing Python 3.13+ avoids this step entirely* and is the best way to reduce the host's memory pressure.
-- **CDK synthesis** — synthesizing this stack (~360 resources) runs Node with `aws-cdk-lib` and can use well over 1 GB of heap.
-- **Toolchain install** — installing the AWS CDK CLI (npm) and `aws-cdk-lib` (pip) adds further transient memory use.
+**Why 4 GB is enough (measured against this project):**
 
-On 1–2 GB instances these steps trigger the Linux OOM killer, which terminates the compiler, `npm`, or `cdk` mid-operation — surfacing as a hung build, a "Killed" message, or a half-finished stack. If you are constrained to a smaller instance, add swap (e.g. a 4 GB swapfile) and pre-install Python 3.13+, but a host with ≥ 4 GB RAM is strongly preferred.
+- **CDK synthesis (runs on every deploy).** Synthesizing the stack (**358 resources**) peaks at roughly **0.5 GB** for the Python app, and around **1–1.3 GB** once the Node `cdk` CLI that wraps it is included. Comfortable within 4 GB.
+- **Toolchain install.** Installing `aws-cdk-lib` via pip peaks at roughly **0.75 GB**; the CDK CLI (npm) adds transient use. Sequential, so they don't stack.
+- **Python source compilation (only if Python 3.13+ is absent).** This is the heaviest step: the script builds CPython with `--enable-optimizations` (PGO + LTO) using `make -j $(nproc)`, so it runs **one compiler process per vCPU** and the LTO link loads the whole program into memory. On a **2-vCPU** host (like `t3.medium`) that's 2 parallel jobs, which fits in 4 GB.
+
+> **Caveat — RAM scales with vCPU here.** Because the compile uses `make -j $(nproc)`, its memory need grows with core count, not just total RAM. 4 GB is safe at **~2 vCPU**. If you pick a higher-core instance with a low RAM-to-vCPU ratio (e.g. a 4-vCPU box with only 4 GB, such as some `c`-family types), the parallel compile can still OOM — prefer **≥ 2 GB RAM per vCPU**, or pre-install Python.
+
+**Best mitigation:** **pre-install Python 3.13+** on the host (Amazon Linux 2023 ships 3.9, so the script otherwise compiles 3.13 from source). That removes the single largest memory consumer entirely, after which even the compile-free path stays around ~1.3 GB.
+
+On 1–2 GB instances the heavy steps trigger the Linux OOM killer, which terminates the compiler, `npm`, or `cdk` mid-operation — surfacing as a hung build, a "Killed" message, or a half-finished stack. If you are genuinely constrained to a smaller instance, pre-install Python 3.13+ and add swap (e.g. a 4 GB swapfile), but a host with ≥ 4 GB RAM (and ~2 GB/vCPU) is strongly preferred.
 
 ### 3.2 Deployment from EC2 Instance (Recommended)
 
