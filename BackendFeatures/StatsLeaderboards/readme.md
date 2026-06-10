@@ -387,8 +387,8 @@ The system deploys with conservative defaults suitable for development and testi
 | **Lambda (player store)** | 512 MB, 30s timeout | storePlayerStatsAndScores |
 | **Lambda (long-running ops)** | 512 MB, 60s timeout | batchStoreStatsAndScores, resetLeaderboard,<br>rebuildLeaderboard |
 | **Lambda Provisioned Concurrency** | 5 min / 50 max (70% target) | Applied to store-stats,<br>get-scores, get-standing |
-| **API Gateway** | 100 req/sec rate, 200 burst | Daily quota: 10,000 requests<br>(usage plan) |
-| **VPC** | 1 NAT Gateway, 2 AZs | Single NAT Gateway is a<br>single point of failure |
+| **API Gateway** | Inherits account-level throttle<br>(AWS default ~10,000 rps / 5,000 burst) | No usage plan or daily quota is created;<br>the stage uses account defaults so the<br>deploy works without a quota increase |
+| **VPC** | 1 NAT Gateway, up to 3 AZs | Single NAT Gateway is a<br>single point of failure |
 
 #### Scaling Strategy
 
@@ -443,22 +443,22 @@ If you're launching to a known player base and expect high Day 1 traffic (e.g., 
 
 **API Gateway**
 
-| Setting | Development | Prod (Low) | Prod (High) |
-|---------|-------------|------------|-------------|
-| Rate Limit | 100 req/sec | 1,000 req/sec | 10,000 req/sec |
-| Burst Limit | 200 | 2,000 | 5,000 |
-| Daily Quota | 10,000 | 1,000,000 | Remove or set<br>to 50,000,000 |
+| Setting | Default (as deployed) | Prod (Low) | Prod (High) |
+|---------|----------------------|------------|-------------|
+| Rate Limit | Account default (~10,000 req/sec) | 1,000 req/sec | 10,000 req/sec |
+| Burst Limit | Account default (~5,000) | 2,000 | 5,000 |
+| Daily Quota | None (no usage plan created) | 1,000,000 | Remove or set<br>to 50,000,000 |
 
-- The default daily quota of 10,000 requests is suitable only for development. A production game will exceed this within minutes.
-- Rate and burst limits protect backend resources. Set them based on your expected peak concurrent users.
+- **As deployed, the stage sets no explicit throttle and no usage plan/daily quota** — it inherits your account-level API Gateway limits (AWS default ~10,000 rps / 5,000 burst), so the deploy works without a Service Quotas increase. To enforce a per-stage rate/burst or a daily quota, add a usage plan post-deployment (console/CLI) or extend `app.py`.
+- Account-level throttle is shared across all APIs in the account/Region; set per-stage limits if you need to protect or partition backend resources.
 - Monitor `Count`, `4XXError`, `5XXError`, and `Latency` metrics.
 
 **VPC / Networking**
 
-| Setting | Development | Production |
-|---------|-------------|------------|
-| NAT Gateways | 1 | 2 (one per AZ) |
-| AZs | 2 | 2-3 |
+| Setting | Default | Production |
+|---------|---------|------------|
+| NAT Gateways | 1 | 2-3 (one per AZ) |
+| AZs | up to 3 (`max_azs=3`) | 2-3 |
 
 - A single NAT Gateway is a single point of failure. For production, deploy one per Availability Zone.
 - Additional AZs improve availability but increase NAT Gateway and cross-AZ data transfer costs.
