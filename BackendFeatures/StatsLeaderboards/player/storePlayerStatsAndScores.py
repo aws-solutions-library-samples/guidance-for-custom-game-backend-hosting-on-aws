@@ -808,11 +808,12 @@ def parse_and_validate_time_score(
     """
     score_type = leaderboard_config.get('scoreType', 'score')
     
-    # ENHANCED LOGGING FOR DEBUGGING
-    logger.info(f"=== SCORE VALIDATION DEBUG ===")
-    logger.info(f"Score value: {score_value} (type: {type(score_value)})")
-    logger.info(f"Score type: {score_type}")
-    logger.info(f"Leaderboard config: {json.dumps(leaderboard_config, default=str)}")
+    # Debug detail: keep full score value + config at DEBUG (avoids logging
+    # player payloads / config bodies to CloudWatch at INFO — L2).
+    logger.debug(f"=== SCORE VALIDATION DEBUG ===")
+    logger.debug(f"Score value: {score_value} (type: {type(score_value)})")
+    logger.debug(f"Score type: {score_type}")
+    logger.debug(f"Leaderboard config: {json.dumps(leaderboard_config, default=str)}")
     
     # If not a time score, just validate as numeric
     if score_type != 'time':
@@ -1339,12 +1340,12 @@ async def process_game_report(game_report: Dict[str, Any]) -> Dict[str, Any]:
     """
     # Get leaderboard configuration
     leaderboard_name = game_report['leaderboardName']
-    logger.info(f"=== PROCESSING DEBUG ===")
+    logger.debug(f"=== PROCESSING DEBUG ===")
     logger.info(f"Leaderboard name: {leaderboard_name}")
-    
+
     leaderboard_config = await get_leaderboard_config_async(leaderboard_name)
-    
-    logger.info(f"Retrieved leaderboard config: {json.dumps(leaderboard_config, default=str)}")
+
+    logger.debug(f"Retrieved leaderboard config: {json.dumps(leaderboard_config, default=str)}")
     
     # Parse and validate score
     logger.info(f"Processing score: {game_report.get('_originalPlayerScore')}")

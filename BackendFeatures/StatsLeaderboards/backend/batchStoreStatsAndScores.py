@@ -797,11 +797,12 @@ def parse_and_validate_time_score(
     """
     score_type = leaderboard_config.get('scoreType', 'score')
     
-    # ENHANCED LOGGING FOR DEBUGGING
-    logger.info(f"=== SCORE VALIDATION DEBUG ===")
-    logger.info(f"Score value: {score_value} (type: {type(score_value)})")
-    logger.info(f"Score type: {score_type}")
-    logger.info(f"Leaderboard config: {json.dumps(leaderboard_config, default=str)}")
+    # Debug detail: keep full score value + config at DEBUG (avoids logging
+    # player payloads / config bodies to CloudWatch at INFO — L2).
+    logger.debug(f"=== SCORE VALIDATION DEBUG ===")
+    logger.debug(f"Score value: {score_value} (type: {type(score_value)})")
+    logger.debug(f"Score type: {score_type}")
+    logger.debug(f"Leaderboard config: {json.dumps(leaderboard_config, default=str)}")
     
     # If not a time score, just validate as numeric
     if score_type != 'time':
@@ -1504,23 +1505,25 @@ async def process_batch_request(request_data: Dict[str, Any], auth_context: Dict
     
     leaderboard_configs = await get_leaderboard_configs_batch(request_data['leaderboardNames'])
     
-    logger.info(f"Retrieved leaderboard configs: {json.dumps(leaderboard_configs, default=str)}")
-    
+    logger.debug(f"Retrieved leaderboard configs: {json.dumps(leaderboard_configs, default=str)}")
+
     game_reports = request_data['batchGameReportBody']['gameReports']
     validated_reports = []
     validation_errors = []
-    
+
     # Validate all game reports
     for i, report in enumerate(game_reports):
         try:
             leaderboard_name = report['leaderboardName']
-            logger.info(f"Processing report {i}: leaderboard={leaderboard_name}, score={report.get('_originalPlayerScore')}")
-            
+            # Score value at DEBUG (avoids logging player payloads at INFO — L2).
+            logger.info(f"Processing report {i}: leaderboard={leaderboard_name}")
+            logger.debug(f"Report {i} score={report.get('_originalPlayerScore')}")
+
             if leaderboard_name not in leaderboard_configs:
                 raise ValueError(f"Leaderboard configuration not found: {leaderboard_name}")
-            
+
             leaderboard_config = leaderboard_configs[leaderboard_name]
-            logger.info(f"Using config for {leaderboard_name}: {json.dumps(leaderboard_config, default=str)}")
+            logger.debug(f"Using config for {leaderboard_name}: {json.dumps(leaderboard_config, default=str)}")
             
             # Parse and validate score
             validated_score = parse_and_validate_time_score(

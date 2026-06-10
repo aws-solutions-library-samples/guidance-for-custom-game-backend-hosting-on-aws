@@ -28,17 +28,16 @@ ssm = boto3.client('ssm', config=boto3.session.Config(
     retries={'max_attempts': 3, 'mode': 'adaptive'}
 ))
 
-lambda_client = boto3.client('lambda', config=boto3.session.Config(
-    max_pool_connections=5,
-    retries={'max_attempts': 3, 'mode': 'adaptive'}
-))
+# NOTE: this authorizer does not use the Lambda control-plane API. It used to
+# rewrite its own function configuration to cache API_KEY_PARAMETER_NAMES, but
+# that self-mutation was removed (L1): the env var is populated at deploy time
+# (app.py) and refreshed by the developer-registration Lambda on key change.
 
 # Environment variables with validation
 SSM_PARAMETER_PREFIX = os.environ.get('SSM_PARAMETER_PREFIX', '/game-statsleaderboards-dev')
 ENVIRONMENT = os.environ.get('ENVIRONMENT', 'dev')
 AWS_REGION_NAME = os.environ.get('AWS_REGION_NAME', 'us-west-2')
 API_KEY_PARAMETER_NAMES = os.environ.get('API_KEY_PARAMETER_NAMES', '')  # JSON array of parameter names
-FUNCTION_NAME = os.environ.get('AWS_LAMBDA_FUNCTION_NAME', '')  # AWS sets this automatically
 
 # Validate required environment variables
 if not SSM_PARAMETER_PREFIX:
@@ -91,12 +90,25 @@ def generate_policy(principal_id: str, effect: str, resource: str, context: Dict
         API Gateway authorizer response
     """
     
-    # Generate a more permissive resource ARN pattern for API Gateway
-    # Convert specific resource ARN to wildcard pattern to avoid authorization issues
+    # Broaden the resource ARN to the whole stage ("{base}/{stage}/*/*").
+    #
+    # DESIGN NOTE (security finding M4): route-level authorization is DELIBERATELY
+    # DELEGATED TO THE HANDLERS, not enforced here. This authorizer grants a valid
+    # Studio API key access to all methods/paths in the stage, and API Gateway
+    # caches that decision for results_cache_ttl (5 min) — which is what makes the
+    # single shared authorizer cache-efficient across every route. Per-route
+    # read/write/admin separation is enforced INSIDE each backend/player handler
+    # via validate_authenticated_context(event, <required_permission>), which
+    # rejects callers whose granted permissions don't include the required one.
+    # That compensating control is asserted for every handler by
+    # testing/test_authorization_enforcement.py (run it in CI). If you would
+    # rather enforce least-privilege at the API Gateway layer, return a
+    # method/path-specific ARN here instead (note: that reduces cache reuse).
+    #
+    # Convert specific resource ARN to wildcard pattern:
+    # From: arn:aws:execute-api:region:account:api-id/stage/method/path
+    # To:   arn:aws:execute-api:region:account:api-id/stage/*/*
     if resource and 'execute-api' in resource:
-        # Extract the base API ARN and use wildcard for method/path
-        # From: arn:aws:execute-api:region:account:api-id/stage/method/path
-        # To:   arn:aws:execute-api:region:account:api-id/stage/*/*
         arn_parts = resource.split('/')
         if len(arn_parts) >= 2:
             base_arn = arn_parts[0]  # arn:aws:execute-api:region:account:api-id
@@ -289,37 +301,21 @@ def load_ssm_parameters_once() -> Dict[str, Dict[str, Any]]:
                         parameter_names.append(parameter.get('Name', ''))
                 
                 logger.info(f"✓ Loaded {len(parameter_names)} parameter names via GetParametersByPath (100 TPS fallback)")
-                
-                # SELF-HEALING: Update our own environment variable for future cold starts (10,000 TPS)
-                if parameter_names and FUNCTION_NAME:
-                    try:
-                        logger.info(f"Self-healing: Updating own environment variable for 10,000 TPS performance")
-                        
-                        # Get current configuration
-                        response = lambda_client.get_function_configuration(
-                            FunctionName=FUNCTION_NAME
-                        )
-                        
-                        current_env = response.get('Environment', {}).get('Variables', {})
-                        current_env['API_KEY_PARAMETER_NAMES'] = json.dumps(parameter_names)
-                        
-                        # Update configuration
-                        lambda_client.update_function_configuration(
-                            FunctionName=FUNCTION_NAME,
-                            Environment={'Variables': current_env}
-                        )
-                        
-                        logger.info(f"✅ Self-healing complete: Updated env var with {len(parameter_names)} parameter(s)")
-                        logger.info("   Next cold start will use 10,000 TPS path automatically")
-                        
-                    except ClientError as e:
-                        error_code = e.response['Error']['Code']
-                        logger.warning(f"Self-healing failed: {error_code} (will retry on next cold start)")
-                        # Don't fail authorization - this is an optimization
-                    except Exception as e:
-                        logger.warning(f"Self-healing failed: {str(e)} (will retry on next cold start)")
-                        # Don't fail authorization - this is an optimization
-            
+                logger.warning(
+                    "API_KEY_PARAMETER_NAMES is not set on this function — using the 100 TPS "
+                    "GetParametersByPath fallback. It should be populated at deploy time "
+                    "(CDK) and refreshed by the developer-registration Lambda on key "
+                    "create/rotate; if you see this persistently, check that wiring."
+                )
+                # NOTE: this authorizer deliberately does NOT rewrite its own function
+                # configuration to cache the parameter names (removed for L1 — a function
+                # that can mutate its own config is a persistence primitive if compromised,
+                # and concurrent cold starts race/throttle on the update). The
+                # API_KEY_PARAMETER_NAMES env var is populated by the deployment (app.py
+                # _discover_api_key_parameters) and kept current by the developer-
+                # registration Lambda on key create/rotate. The block above remains a
+                # read-only safety net only.
+
             # Now fetch each parameter using GetParameter (10,000 TPS each)
             logger.debug(f"Fetching {len(parameter_names)} parameters using GetParameter (10,000 TPS per call)")
             

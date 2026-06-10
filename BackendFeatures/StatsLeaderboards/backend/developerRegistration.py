@@ -1105,8 +1105,11 @@ def lambda_handler(event: Dict[str, Any], context: LambdaContext) -> Dict[str, A
         path = event.get('path', event.get('rawPath', ''))
         body = event.get('body', '{}')
 
-        logger.info(f"Before isinstance(body) -- http_method: {http_method}, path: {path}, body: {body}")
-        
+        # Method + path at INFO; full request body at DEBUG (avoids logging
+        # request bodies to CloudWatch at INFO — L2).
+        logger.info(f"Request: http_method={http_method}, path={path}")
+        logger.debug(f"Request body: {body}")
+
         # Handle request data based on HTTP method
         if http_method == 'GET':
             # GET requests don't have a body, data comes from query parameters
@@ -1115,10 +1118,8 @@ def lambda_handler(event: Dict[str, Any], context: LambdaContext) -> Dict[str, A
         else:
             # POST/PUT/DELETE requests have body data
             if isinstance(body, str):
-                logger.info(f"(isinstance) body: {body}")
                 parsed_body = json.loads(body) if body else {}
             else:
-                logger.info(f"(not isinstance) body: {body}")
                 parsed_body = body if body is not None else {}
             
             # Extract from devRegRequest wrapper if present, otherwise use direct format for backward compatibility
@@ -1379,7 +1380,7 @@ def handle_key_regeneration(request_data: Dict[str, Any], event: Dict[str, Any])
     Handle API key regeneration using SSM Parameter Store with backup
     """
     logger.info("=== Starting key regeneration process ===")
-    logger.info(f"Request data: {json.dumps(request_data, default=str)}")
+    logger.debug(f"Request data: {json.dumps(request_data, default=str)}")
 
     required_fields = ['studioId', 'gameId', 'contactEmail']
     missing_fields = [field for field in required_fields if not request_data.get(field)]
@@ -1436,7 +1437,7 @@ def handle_key_regeneration(request_data: Dict[str, Any], event: Dict[str, Any])
             logger.warning(f"Developer registration not found for {request_data['studioId']}/{request_data['gameId']}")
             return wrap_response(404, {'error': 'Developer registration not found'})
 
-        logger.info(f"Found existing registration: {json.dumps(existing_data, default=str)}")
+        logger.debug(f"Found existing registration: {json.dumps(existing_data, default=str)}")
 
         # Verify contact email matches with detailed logging
         stored_email = existing_data.get('contactEmail', '')

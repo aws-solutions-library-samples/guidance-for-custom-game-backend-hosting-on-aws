@@ -126,10 +126,27 @@ def lambda_handler(event: Dict[str, Any], context: LambdaContext) -> Dict[str, A
         #
         # -----------------------------------------------------------------
 
-        logger.warning("Player authentication not yet integrated")
+        # FAIL CLOSED: until you replace this placeholder with real token
+        # validation, the authorizer DENIES every player request. An authorizer
+        # that returns 'Allow' by default is the wrong secure default — it would
+        # authorize everyone (and API Gateway caches that Allow for the
+        # results_cache_ttl window). Denying here means an unintegrated or
+        # misconfigured authorizer can never expose player endpoints.
+        #
+        # NOTE: a Deny is enforced by API Gateway BEFORE the target Lambda runs,
+        # so callers receive a generic 403 ("User is not authorized...") rather
+        # than the previous handler-level guidance message. That guidance still
+        # lives in auth/playerAuthorizer.py (this file), docs/api_reference.md
+        # Section 1.5, and the deploy.sh output, and the 'authType' marker below
+        # remains available as defense-in-depth for any path that does run.
+        logger.warning(
+            "Player authentication is NOT integrated — denying request (fail closed). "
+            "Replace the placeholder in auth/playerAuthorizer.py lambda_handler() "
+            "with your token validation. See docs/api_reference.md Section 1.5."
+        )
         return generate_policy(
             principal_id="player-auth-not-configured",
-            effect='Allow',
+            effect='Deny',
             resource=method_arn,
             context={
                 'authType': 'player_auth_not_configured',

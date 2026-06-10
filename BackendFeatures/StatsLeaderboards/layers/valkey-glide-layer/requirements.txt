@@ -12,14 +12,16 @@ valkey-glide==2.4.1
 aws-lambda-powertools[all]==3.0.0
 
 # Data validation and serialization
-pydantic>=2.5.0
+# PINNED for a reproducible, auditable layer artifact (see L3). Bump deliberately
+# and re-verify, the same way valkey-glide / powertools above are managed.
+pydantic==2.13.4
 
 # Async utilities
-asyncio-throttle>=1.0.2
-nest-asyncio>=1.5.8
+asyncio-throttle==1.0.2
+nest-asyncio==1.6.0
 
 # Date/time utilities
-python-dateutil>=2.8.2
+python-dateutil==2.9.0.post0
 
 # Note: boto3 and botocore are provided by AWS Lambda runtime
 # Note: Standard library modules don't need to be included

@@ -2239,6 +2239,29 @@ class GameStatsLeaderboardsStack(Stack):
             results_cache_ttl=Duration.minutes(5)
         )
         
+        # CORS configuration.
+        #
+        # SECURITY: we do NOT combine a wildcard origin with credentialed CORS.
+        # `Access-Control-Allow-Origin: *` together with
+        # `Access-Control-Allow-Credentials: true` is an invalid/unsafe pairing
+        # (browsers reject the literal combination, and it signals intent to
+        # accept credentialed cross-origin requests from any origin). This API is
+        # authenticated with bearer tokens / API keys in the Authorization
+        # header — NOT cookies — so credentialed CORS is unnecessary.
+        #
+        # Default: allow any origin WITHOUT credentials (safe for a token-auth
+        # API). To lock browser access down to specific origins, pass
+        #   -c allowed_origins="https://game.example.com,https://www.example.com"
+        # Credentialed CORS is only enabled when origins are explicitly
+        # restricted (never with "*").
+        allowed_origins_ctx = self.node.try_get_context("allowed_origins")
+        if allowed_origins_ctx:
+            allowed_origins = [o.strip() for o in str(allowed_origins_ctx).split(",") if o.strip()]
+        else:
+            allowed_origins = ["*"]
+        # Only allow credentials when the origin list is explicit (not a wildcard).
+        cors_allow_credentials = allowed_origins != ["*"]
+
         # Create REST API with proper CORS configuration - NO automatic deployment
         api = apigw.RestApi(
             self, f"{resource_prefix}-rest-api",
@@ -2246,17 +2269,17 @@ class GameStatsLeaderboardsStack(Stack):
             description="REST API for game stats and leaderboards component",
             deploy=False,
             default_cors_preflight_options=apigw.CorsOptions(                                   # Updated CORS configuration for CDK v2
-                allow_origins=["*"],                                                            # Use array instead of deprecated Cors.ALL_ORIGINS
+                allow_origins=allowed_origins,
                 allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],                      # Explicit resource methods
                 allow_headers=[
                     "Content-Type",
-                    "Authorization", 
+                    "Authorization",
                     "X-Api-Key",
                     "X-Glide-Client-Id",
                     "X-Amz-Date",
                     "X-Amz-Security-Token"
                 ],
-                allow_credentials=True
+                allow_credentials=cors_allow_credentials
             ),
             endpoint_configuration=apigw.EndpointConfiguration(
                 types=[apigw.EndpointType.REGIONAL]
@@ -5769,13 +5792,12 @@ class GameStatsLeaderboardsStack(Stack):
         # 1. player_authorizer -- logs + X-Ray only (stub; integrators add perms here)
         roles["player_auth"] = base("player-auth-role")
 
-        # 2. backend_authorizer -- SSM read + self-heal own function config
+        # 2. backend_authorizer -- SSM read only.
+        # (No lambda:UpdateFunctionConfiguration: the authorizer no longer rewrites
+        # its own config — removed for L1. API_KEY_PARAMETER_NAMES is set at deploy
+        # time and refreshed by the developer-registration role below.)
         r = base("backend-auth-role")
         add_ssm_read(r)
-        r.add_to_policy(iam.PolicyStatement(
-            effect=iam.Effect.ALLOW,
-            actions=["lambda:GetFunctionConfiguration", "lambda:UpdateFunctionConfiguration"],
-            resources=[fn_arn("backend-authorizer")]))
         roles["backend_auth"] = r
 
         # 3. developer_registration -- SSM read/write/delete/tag + update authorizer config

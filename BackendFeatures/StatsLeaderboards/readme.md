@@ -330,6 +330,7 @@ cdk deploy GameStatsLeaderboardsMonitoringStack --app "<python> app_post_deploy.
 | `skip_resource_discovery` | both | Skip the scan for reusable existing resources. |
 | `disable_developer_registration` | `app.py` | Skip the automatic studio/first-game registration custom resource. |
 | `data_trace_enabled` | `app.py` | Toggle API Gateway data-trace logging. |
+| `allowed_origins` | `app.py` | Comma-separated CORS allow-list for browser clients (e.g. `https://game.example.com,https://www.example.com`). Default `*` (any origin, **without** credentials). Setting explicit origins also enables credentialed CORS; a wildcard never does. |
 | `base_stack_name` | `app_post_deploy.py` | Name of the main stack the monitoring stack reads from (default `GameStatsLeaderboardsStack`). |
 | `skip_monitoring` | `app_post_deploy.py` | Skip CloudWatch dashboard/alarm creation. |
 | `skip_provisioned_concurrency` | `app_post_deploy.py` | Skip applying provisioned concurrency to the critical functions. |
@@ -725,7 +726,7 @@ For complete request/response schemas, all query types, and additional examples,
    # add --retain to keep the created leaderboards for manual inspection
    ```
 
-   > **Integrate player authentication (step 4) first.** The suite exercises player-facing endpoints; until your player auth is in place those phases fail with HTTP 401 by design. Backend (developer) phases work immediately after deployment.
+   > **Integrate player authentication (step 4) first.** The suite exercises player-facing endpoints; until your player auth is in place those phases fail with HTTP 403 by design (the authorizer fails closed). Backend (developer) phases work immediately after deployment.
 
 ### Before You Go to Production — Integration Points
 
@@ -746,9 +747,23 @@ Backend (developer) APIs work after deployment without additional configuration.
 | `backend/*.py` | Backend functions use the StudioAPI Key flow which works after deployment |
 | `auth/backendAuthorizer.py` | Backend auth is fully functional via SSM Parameter Store |
 
-Until player auth is integrated, all player API routes return HTTP `401` with a response body explaining what to configure. Search for `INTEGRATION POINT` across the codebase to find every location that needs attention.
+Until player auth is integrated, the player authorizer **fails closed**: all player API routes are denied at the API Gateway layer and return HTTP `403`. (The placeholder in `auth/playerAuthorizer.py` returns an explicit `Deny` — an unintegrated authorizer never authorizes anyone.) Search for `INTEGRATION POINT` across the codebase to find every location that needs attention.
 
 For step-by-step integration instructions with code examples (JWT, OAuth), see [API Reference — Section 1.5](docs/api_reference.md#15-integrating-player-authentication).
+
+#### How authorization is enforced (route-level authZ is delegated to handlers)
+
+Worth understanding before you extend the API: the backend Lambda authorizer (`auth/backendAuthorizer.py`) authorizes a valid Studio API key for the **whole stage** — it returns a broad resource ARN (`…/{stage}/*/*`), and API Gateway caches that decision for 5 minutes. It does **not** enforce per-route read/write/admin separation at the gateway layer (this keeps the single shared authorizer cache-efficient across every route).
+
+Per-route authorization is instead enforced **inside each handler**: every backend/player Lambda calls `validate_authenticated_context(event, <required_permission>)` and rejects callers whose granted permissions don't include the required one (`developerRegistration.py` uses an ownership model on `studioId`/`gameId` instead). This is a deliberate, sound design — but it is a **compensating control**: a new or refactored handler that omits the check would silently make its route callable by any valid key.
+
+To keep that safe as the code evolves, `testing/test_authorization_enforcement.py` statically asserts the permission check is present in every data-plane handler. It needs no AWS/deployment and is suitable for CI:
+
+```bash
+python3 testing/test_authorization_enforcement.py   # exit 0 = all handlers enforce authZ
+```
+
+If you prefer to enforce least-privilege at the API Gateway layer instead, return a method/path-specific ARN from the authorizer (at the cost of reduced authorizer-cache reuse).
 
 ### API Reference
 
