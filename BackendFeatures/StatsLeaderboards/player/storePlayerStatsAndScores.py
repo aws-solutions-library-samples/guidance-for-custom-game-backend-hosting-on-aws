@@ -6,11 +6,11 @@ storePlayerStatsAndScores.py -- Store Player Game Stats and Update Leaderboards 
 Processes individual player game reports and updates leaderboards in real-time:
 - Validates game reports and scores (including time-based formats)
 - Stores stats in DynamoDB for persistence
-- Updates leaderboards in Valkey/MemoryDB using GLIDE 2.0.1
+- Updates leaderboards in Valkey/MemoryDB using GLIDE 2.4.1
 - Handles expired leaderboards and read-only modes
 - Supports multiple score strategies (replace, best, cumulative)
 
-Updated for Python 3.13 and Valkey-GLIDE 2.0.1
+Updated for Python 3.13 and Valkey-GLIDE 2.4.1
 High-performance, robust implementation optimized for data integrity and performance.
 """
 
@@ -581,7 +581,7 @@ def get_valkey_credentials_and_config() -> Dict[str, Any]:
 
 async def get_valkey_client() -> Union[GlideClusterClient, GlideClient]:
     """
-    Get or create a high-performance Valkey client using GLIDE 2.0.1+ internal connection pooling.
+    Get or create a high-performance Valkey client using GLIDE 2.4.1+ internal connection pooling.
     """
     global valkey_client
     

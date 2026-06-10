@@ -29,7 +29,7 @@ KEY DESIGN:
 Batch processing for game statistics storage and leaderboard updates.
 Supports multiple score strategies and time-based leaderboards.
 
-Updated for Python 3.13 and Valkey-GLIDE 2.0.1
+Updated for Python 3.13 and Valkey-GLIDE 2.4.1
 """
 
 import os
@@ -570,7 +570,7 @@ def get_valkey_credentials_and_config() -> Dict[str, Any]:
 
 async def get_valkey_client() -> Union[GlideClusterClient, GlideClient]:
     """
-    Get or create a high-performance Valkey client using GLIDE 2.0.1+ internal connection pooling.
+    Get or create a high-performance Valkey client using GLIDE 2.4.1+ internal connection pooling.
     """
     global valkey_client
     

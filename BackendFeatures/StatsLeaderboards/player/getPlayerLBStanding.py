@@ -4,7 +4,7 @@
 getPlayerLBStanding.py -- Player Leaderboard Standing Retrieval Lambda Function
 
 Retrieve a player's standing and score in a leaderboard with high-performance
-implementation optimized for Python 3.13 and Valkey-GLIDE 2.0.1.
+implementation optimized for Python 3.13 and Valkey-GLIDE 2.4.1.
 
 Features:
 - Player standing and score retrieval
@@ -14,7 +14,7 @@ Features:
 - Batch operations for optimal performance
 - Comprehensive error handling
 
-Updated for Python 3.13 and Valkey-GLIDE 2.0.1
+Updated for Python 3.13 and Valkey-GLIDE 2.4.1
 High-performance, robust implementation optimized for data integrity and performance.
 """
 
@@ -546,7 +546,7 @@ def get_valkey_credentials_and_config() -> Dict[str, Any]:
 
 async def get_valkey_client() -> Union[GlideClusterClient, GlideClient]:
     """
-    Get or create a high-performance Valkey client using GLIDE 2.0.1+ internal connection pooling.
+    Get or create a high-performance Valkey client using GLIDE 2.4.1+ internal connection pooling.
     Reuses existing client within Lambda execution context for optimal performance.
     """
     global valkey_client

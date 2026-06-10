@@ -17,7 +17,7 @@ Supports multiple path patterns for flexibility:
 - PUT /config or /config/update - Update configuration
 - DELETE /config or /config/delete - Delete configuration
 
-Updated for Python 3.13 and Valkey-GLIDE 2.0.1
+Updated for Python 3.13 and Valkey-GLIDE 2.4.1
 High-performance, robust implementation optimized for data integrity and performance.
 """
 
@@ -579,7 +579,7 @@ def get_valkey_credentials_and_config() -> Dict[str, Any]:
 
 async def get_valkey_client() -> Union[GlideClusterClient, GlideClient]:
     """
-    Get or create a high-performance Valkey client using GLIDE 2.0.1+ internal connection pooling.
+    Get or create a high-performance Valkey client using GLIDE 2.4.1+ internal connection pooling.
     Reuses existing client within Lambda execution context for optimal performance.
     """
     global valkey_client

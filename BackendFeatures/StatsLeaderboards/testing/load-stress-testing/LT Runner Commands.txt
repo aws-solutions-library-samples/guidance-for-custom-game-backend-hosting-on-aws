@@ -73,7 +73,7 @@ echo "All 10 processes launched."
 
   1. The project is intended to be a Stats and Leaderboards component for games, almost every game. The original intent of the project was to support up to 100k RPS or 100k CCU.
   2. The system is designed to be serverless -- review the app.py, and the app_post_deploy.py for the infrastructure details. I already have the infra deployed & working, do not test deploy. To add
-  here, we're using Python 3.13+, with Valkey GLIDE 2.0.1, and MemoryDB for Valkey to build the leaderboards, while all the stats submitted are in the DynamoDB table.
+  here, we're using Python 3.13+, with Valkey GLIDE 2.4.1, and MemoryDB for Valkey to build the leaderboards, while all the stats submitted are in the DynamoDB table.
   3. The main Lambda for the API are in the /backend, /player, and the /auth directories -- Review these thoroughly comprehensively well.
   4. Along with the main system, I also have a /testing/load-stress-testing/ script intended for loading up the whole deployed backend. (test_LoadAndStressTests.py)
   5. During my last last test run, I was able to hit just about ~4350 RPS (with about 4000 CCU), and it started err'ing, potentially because of the service quota of the API Gateway. See the report

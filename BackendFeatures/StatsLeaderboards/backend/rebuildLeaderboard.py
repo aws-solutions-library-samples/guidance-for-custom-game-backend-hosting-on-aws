@@ -10,7 +10,7 @@ Rebuilds leaderboards from stored game statistics in DynamoDB:
 - Supports continuation for long-running operations
 - Handles multiple score strategies and time-based scores
 
-Updated for Python 3.13 and Valkey-GLIDE 2.0.1
+Updated for Python 3.13 and Valkey-GLIDE 2.4.1
 High-performance, robust implementation with Lambda relay capability.
 """
 

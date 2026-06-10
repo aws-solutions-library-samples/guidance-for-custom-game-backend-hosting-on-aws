@@ -10,7 +10,7 @@ Resets leaderboards by clearing all scores while maintaining structure:
 - Supports scheduled expiry resets (via direct invocation or future EventBridge Scheduler)
 - Handles large leaderboards with Lambda self-invoke relay capability
 
-Updated for Python 3.13 and Valkey-GLIDE 2.0.1
+Updated for Python 3.13 and Valkey-GLIDE 2.4.1
 High-performance, robust implementation optimized for data integrity and performance.
 """
 

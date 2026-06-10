@@ -10,7 +10,7 @@ Supports multiple query patterns:
 - Scores around a specific player
 - Player-specific scores
 
-Updated for Python 3.13 and Valkey-GLIDE 2.0.1
+Updated for Python 3.13 and Valkey-GLIDE 2.4.1
 """
 
 import os
@@ -556,7 +556,7 @@ def get_valkey_credentials_and_config() -> Dict[str, Any]:
 
 async def get_valkey_client() -> Union[GlideClusterClient, GlideClient]:
     """
-    Get or create a high-performance Valkey client using GLIDE 2.0.1+ internal connection pooling.
+    Get or create a high-performance Valkey client using GLIDE 2.4.1+ internal connection pooling.
     Reuses existing client within Lambda execution context for optimal performance.
     """
     global valkey_client
@@ -1066,7 +1066,7 @@ async def get_top_scores(
     next_token: Optional[Dict[str, Any]] = None
 ) -> Tuple[List[Dict[str, Any]], Optional[str], Dict[str, Any]]:
     """
-    Get top scores from leaderboard using GLIDE 2.0.1 API.
+    Get top scores from leaderboard using GLIDE 2.4.1 API.
     """
     start_index = next_token.get('startIndex', 0) if next_token else 0
     end_index = start_index + page_size - 1
@@ -1189,7 +1189,7 @@ async def get_range_scores(
     next_token: Optional[Dict[str, Any]] = None
 ) -> Tuple[List[Dict[str, Any]], Optional[str], Dict[str, Any]]:
     """
-    Get scores within a range using GLIDE 2.0.1 API.
+    Get scores within a range using GLIDE 2.4.1 API.
     """
     offset = next_token.get('offset', 0) if next_token else 0
     
@@ -1211,13 +1211,13 @@ async def get_range_scores(
             min_boundary = ScoreBoundary(min_score, is_inclusive=False)
             max_boundary = ScoreBoundary(max_score, is_inclusive=False)
     
-    # Get scores in range using GLIDE 2.0.1 zrange_withscores
+    # Get scores in range using GLIDE 2.4.1 zrange_withscores
     range_by_score = RangeByScore(min_boundary, max_boundary)
     
     logger.info(f"Range query boundaries: min={min_boundary.value}, max={max_boundary.value}, inclusive={inclusive}")
     
     try:
-        # GLIDE 2.0.1 reverse=True with RangeByScore is broken, so always use reverse=False
+        # GLIDE 2.4.1 reverse=True with RangeByScore is broken, so always use reverse=False
         # and handle sorting in application code
         all_results = await client.zrange_withscores(
             sorted_list_name,
@@ -1330,7 +1330,7 @@ async def get_scores_around_player(
     leaderboard_config: Dict[str, Any]
 ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
     """
-    Get scores around a specific player using GLIDE 2.0.1 API.
+    Get scores around a specific player using GLIDE 2.4.1 API.
     """
     # Get player's score and rank
     player_score = await client.zscore(sorted_list_name, player_id)
@@ -1472,7 +1472,7 @@ async def get_player_score(
     leaderboard_config: Dict[str, Any]
 ) -> Dict[str, Any]:
     """
-    Get a specific player's score and rank using GLIDE 2.0.1 API.
+    Get a specific player's score and rank using GLIDE 2.4.1 API.
     """
     # Get player's score
     player_score = await client.zscore(sorted_list_name, player_id)
