@@ -91,8 +91,40 @@ def generate_policy(principal_id: str, effect: str, resource: str, context: Dict
         API Gateway authorizer response
     """
     
-    # Generate a more permissive resource ARN pattern for API Gateway
-    # Convert specific resource ARN to wildcard pattern to avoid authorization issues
+    # =====================================================================
+    # DELIBERATE DESIGN DECISION — DO NOT "tighten" this to a per-route ARN
+    # without reading this note first (security finding M4).
+    # =====================================================================
+    # We intentionally broaden the returned resource ARN from the specific
+    # method/path that triggered this authorization to the WHOLE STAGE:
+    #     arn:.../api-id/stage/method/path   ->   arn:.../api-id/stage/*/*
+    #
+    # WHY THIS IS ON PURPOSE:
+    #   API Gateway caches an authorizer's returned policy per principal for
+    #   results_cache_ttl (5 min). If we returned a path-specific ARN, the
+    #   cached Allow would only match the exact route that produced it, so the
+    #   SAME valid key hitting a DIFFERENT route would force a fresh authorizer
+    #   invocation (cache miss) every time. The stage-wide ARN lets ONE cached
+    #   decision cover every route for that key — which is what keeps the
+    #   authorizer cheap and fast under load.
+    #
+    # "BUT DOESN'T THAT AUTHORIZE A KEY FOR EVERYTHING?" — at the API Gateway
+    # layer, yes. Per-route read/write/admin authorization is DELIBERATELY
+    # DELEGATED TO THE HANDLERS, not enforced here. Every backend/player Lambda
+    # calls validate_authenticated_context(event, <required_permission>) and
+    # rejects callers whose granted permissions don't include the required one
+    # (developerRegistration.py uses an ownership check on studioId/gameId).
+    # That handler-side enforcement is the real per-route control, and it is
+    # asserted for every data-plane handler by
+    # testing/test_authorization_enforcement.py (run it in CI).
+    #
+    # IF YOU WANT LEAST-PRIVILEGE AT THE GATEWAY INSTEAD: return a
+    # method/path-specific ARN here — but understand it reduces authorizer-cache
+    # reuse (more authorizer invocations / latency / cost), and you must keep
+    # the handler-side checks regardless. Do not remove the handler checks on
+    # the assumption that a tighter ARN here replaces them; they are the
+    # primary control.
+    # =====================================================================
     if resource and 'execute-api' in resource:
         # Extract the base API ARN and use wildcard for method/path
         # From: arn:aws:execute-api:region:account:api-id/stage/method/path
