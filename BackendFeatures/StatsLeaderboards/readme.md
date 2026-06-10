@@ -387,7 +387,7 @@ The system deploys with conservative defaults suitable for development and testi
 | **Lambda (player store)** | 512 MB, 30s timeout | storePlayerStatsAndScores |
 | **Lambda (long-running ops)** | 512 MB, 60s timeout | batchStoreStatsAndScores, resetLeaderboard,<br>rebuildLeaderboard |
 | **Lambda Provisioned Concurrency** | 5 min / 50 max (70% target) | Applied to store-stats,<br>get-scores, get-standing |
-| **API Gateway** | Inherits account-level throttle<br>(AWS default ~10,000 rps / 5,000 burst) | No usage plan or daily quota is created;<br>the stage uses account defaults so the<br>deploy works without a quota increase |
+| **API Gateway** | Inherits the account-level throttle<br>(no per-stage limit set) | No usage plan or daily quota is created. AWS<br>default throttle is 10,000 RPS / 5,000-request<br>burst-bucket in most Regions (2,500 RPS /<br>1,250 burst in some) and is shared across all<br>APIs in the account/Region |
 | **VPC** | 1 NAT Gateway, up to 3 AZs | Single NAT Gateway is a<br>single point of failure |
 
 #### Scaling Strategy
@@ -445,12 +445,12 @@ If you're launching to a known player base and expect high Day 1 traffic (e.g., 
 
 | Setting | Default (as deployed) | Prod (Low) | Prod (High) |
 |---------|----------------------|------------|-------------|
-| Rate Limit | Account default (~10,000 req/sec) | 1,000 req/sec | 10,000 req/sec |
-| Burst Limit | Account default (~5,000) | 2,000 | 5,000 |
+| Rate Limit | Account default (no per-stage limit) | 1,000 req/sec | 10,000 req/sec |
+| Burst Limit | Account default (no per-stage limit) | 2,000 | 5,000 |
 | Daily Quota | None (no usage plan created) | 1,000,000 | Remove or set<br>to 50,000,000 |
 
-- **As deployed, the stage sets no explicit throttle and no usage plan/daily quota** — it inherits your account-level API Gateway limits (AWS default ~10,000 rps / 5,000 burst), so the deploy works without a Service Quotas increase. To enforce a per-stage rate/burst or a daily quota, add a usage plan post-deployment (console/CLI) or extend `app.py`.
-- Account-level throttle is shared across all APIs in the account/Region; set per-stage limits if you need to protect or partition backend resources.
+- **As deployed, the stage sets no explicit throttle and no usage plan/daily quota** — it inherits your account-level API Gateway throttle, so the deploy works without a Service Quotas increase. Per the [AWS API Gateway quotas](https://docs.aws.amazon.com/apigateway/latest/developerguide/limits.html), that account default is **10,000 RPS with a 5,000-request burst bucket** in most Regions (and **2,500 RPS / 1,250 burst** in a number of newer Regions). It is **shared across all REST/HTTP/WebSocket APIs in the account/Region**, and the burst quota is set by AWS and not adjustable.
+- To enforce a per-stage rate/burst limit or a daily request quota, add a usage plan post-deployment (console/CLI) or extend `app.py`. The "Prod (Low/High)" columns above are suggested usage-plan targets if you choose to add one — they are not applied by default.
 - Monitor `Count`, `4XXError`, `5XXError`, and `Latency` metrics.
 
 **VPC / Networking**
