@@ -128,12 +128,83 @@ if ! aws_ sts get-caller-identity >/dev/null 2>&1; then
     exit 1
 fi
 ACCOUNT_ID="$(aws_ sts get-caller-identity --query Account --output text)"
+
+# ----------------------------------------------------------------------------------
+# Resolve the CDK CLI (handle NVM-managed installs)
+# ----------------------------------------------------------------------------------
+# deploy.sh installs the CDK CLI via NVM-managed npm, so `cdk` lives under
+# ~/.nvm/versions/node/<ver>/bin and is only on PATH when NVM has been sourced
+# into the shell. A fresh SSH session running teardown.sh has NOT sourced NVM,
+# so a bare `command -v cdk` fails (the "cdk CLI not found" warning). Mirror
+# deploy.sh: load NVM, then fall back to globbing the NVM node bin dirs, before
+# concluding cdk is genuinely absent.
+ensure_cdk_on_path() {
+    command -v cdk >/dev/null 2>&1 && return 0
+
+    # 1) Source NVM (this is what deploy.sh relies on) and try again.
+    export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
+    if [ -s "$NVM_DIR/nvm.sh" ]; then
+        # shellcheck disable=SC1090,SC1091
+        \. "$NVM_DIR/nvm.sh" >/dev/null 2>&1 || true
+        nvm use --lts >/dev/null 2>&1 || nvm use default >/dev/null 2>&1 || true
+        command -v cdk >/dev/null 2>&1 && return 0
+        # Ensure the active Node's bin (where global npm bins live) is on PATH.
+        if [ -n "${NVM_BIN:-}" ] && [ -d "$NVM_BIN" ]; then
+            case ":$PATH:" in *":$NVM_BIN:"*) ;; *) export PATH="$NVM_BIN:$PATH" ;; esac
+            command -v cdk >/dev/null 2>&1 && return 0
+        fi
+    fi
+
+    # 2) Last resort: search every NVM-managed Node bin dir for a cdk shim.
+    if [ -d "$NVM_DIR/versions/node" ]; then
+        local found
+        found="$(find "$NVM_DIR/versions/node" -maxdepth 2 -type f -name cdk 2>/dev/null | sort | tail -1)"
+        if [ -n "$found" ]; then
+            local found_dir
+            found_dir="$(dirname "$found")"
+            export PATH="$found_dir:$PATH"
+            command -v cdk >/dev/null 2>&1 && return 0
+        fi
+    fi
+
+    return 1
+}
+
 CDK_AVAILABLE=true
-command -v cdk >/dev/null 2>&1 || { CDK_AVAILABLE=false; warn "cdk CLI not found — stack deletes will be skipped (orphan sweep still runs). Install/activate cdk for a full teardown."; }
+if ensure_cdk_on_path; then
+    info "Using cdk CLI: $(command -v cdk) ($(cdk --version 2>/dev/null | awk '{print $1}'))"
+else
+    CDK_AVAILABLE=false
+    warn "cdk CLI not found (even after loading NVM) — stack deletes will use a CloudFormation fallback (delete-stack); the orphan sweep still runs."
+    warn "For a full CDK-managed teardown, run this on the host where you deployed, or 'npm install -g aws-cdk'."
+fi
 
 # Resolve a python interpreter for cdk --app (mirrors deploy.sh behaviour).
+# Prefer the project venv if deploy.sh created one (--venv), since that's where
+# aws-cdk-lib was installed; otherwise fall back to a system interpreter.
 PYTHON_CMD=""
-for c in python3.13 python3 python; do command -v "$c" >/dev/null 2>&1 && { PYTHON_CMD="$c"; break; }; done
+if [ -x "$SCRIPT_DIR/.venv/bin/python" ]; then
+    PYTHON_CMD="$SCRIPT_DIR/.venv/bin/python"
+elif [ -x "$SCRIPT_DIR/.venv/Scripts/python.exe" ]; then
+    PYTHON_CMD="$SCRIPT_DIR/.venv/Scripts/python.exe"
+else
+    for c in python3.15 python3.14 python3.13 python3 python; do
+        command -v "$c" >/dev/null 2>&1 && { PYTHON_CMD="$c"; break; }
+    done
+fi
+
+# A `cdk destroy` runs `$PYTHON_CMD app.py`, which requires aws_cdk to be
+# importable by that interpreter. If the CLI is present but the app can't be
+# synthesised (deps not installed in THIS shell's interpreter), a managed
+# destroy would fail -- so we treat that as "not CDK-capable" and use the
+# CloudFormation delete-stack fallback, which is fully sufficient for teardown.
+if [ "$CDK_AVAILABLE" = true ]; then
+    if [ -z "$PYTHON_CMD" ] || ! "$PYTHON_CMD" -c "import aws_cdk" >/dev/null 2>&1; then
+        CDK_AVAILABLE=false
+        warn "cdk CLI is present but '$PYTHON_CMD' cannot import aws_cdk — using the CloudFormation delete-stack fallback for stack deletes."
+        warn "(This is fine: delete-stack tears the stack down the same way. To use cdk instead, run from the deploy host / venv where requirements were installed.)"
+    fi
+fi
 
 # ----------------------------------------------------------------------------------
 # Discover the live stack + the bastion-protection guard
@@ -526,10 +597,15 @@ fi
 # 2c. Monitoring stack
 if [ "$CHOICE_MON" = "delete" ] && [ "$MON_STATUS" != "DOES_NOT_EXIST" ]; then
     if [ "$CDK_AVAILABLE" = true ]; then
-        run "cdk destroy $MONITORING_STACK" \
+        if [ "$EXECUTE" = true ]; then
+            info "RUN: cdk destroy $MONITORING_STACK"
             cdk destroy "$MONITORING_STACK" --app "$PYTHON_CMD app_post_deploy.py" \
-            --context environment="$ENVIRONMENT" --context base_stack_name="$BASE_STACK" --force \
-            </dev/null || warn "Monitoring stack destroy reported an error (continuing)."
+                --context environment="$ENVIRONMENT" --context base_stack_name="$BASE_STACK" --force </dev/null \
+                || { warn "Monitoring stack cdk destroy errored — falling back to CloudFormation delete-stack."; \
+                     aws_ cloudformation delete-stack --stack-name "$MONITORING_STACK" || true; }
+        else
+            echo "   ${YEL}[dry-run]${NC} would: cdk destroy $MONITORING_STACK (fallback: delete-stack on error)"
+        fi
     else
         run "delete monitoring stack via CloudFormation" \
             aws_ cloudformation delete-stack --stack-name "$MONITORING_STACK" || true
@@ -582,10 +658,20 @@ elif [ "$CHOICE_MEMORYDB" = "retain" ]; then
                            gamestatsleaderboardsdevmemorydbparams || \
         warn "Retain-resources delete needs the resources to be in DELETE_FAILED first; if it errored, re-run after the stack reaches that state, or retain via the console."
 else
-    run "cdk destroy $BASE_STACK" \
-        cdk destroy "$BASE_STACK" --app "$PYTHON_CMD app.py" \
-        --context environment="$ENVIRONMENT" --force </dev/null \
-        || warn "Main stack destroy reported an error — the orphan sweep below will report/clean leftovers."
+    if [ "$EXECUTE" = true ]; then
+        info "RUN: cdk destroy $BASE_STACK"
+        if cdk destroy "$BASE_STACK" --app "$PYTHON_CMD app.py" \
+               --context environment="$ENVIRONMENT" --force </dev/null; then
+            ok "cdk destroy completed for $BASE_STACK."
+        else
+            warn "cdk destroy reported an error — falling back to CloudFormation delete-stack."
+            aws_ cloudformation delete-stack --stack-name "$BASE_STACK" \
+                || warn "delete-stack also errored; the orphan sweep below will report/clean leftovers."
+        fi
+    else
+        echo "   ${YEL}[dry-run]${NC} would: cdk destroy $BASE_STACK --app \"$PYTHON_CMD app.py\" --context environment=$ENVIRONMENT --force"
+        echo "   ${YEL}[dry-run]${NC} (on error, would fall back to: aws cloudformation delete-stack --stack-name $BASE_STACK)"
+    fi
 fi
 echo ""
 
