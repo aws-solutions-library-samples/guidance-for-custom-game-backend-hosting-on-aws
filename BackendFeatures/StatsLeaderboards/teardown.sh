@@ -175,7 +175,7 @@ clear 2>/dev/null || true
 echo "${BOLD}================================================================================${NC}"
 echo "${BOLD}  GAME STATS & LEADERBOARDS — TEARDOWN${NC}"
 echo "${BOLD}================================================================================${NC}"
-echo "  Mode:        $( [ "$EXECUTE" = true ] && echo "${RED}EXECUTE (real deletions)${NC}" || echo "${GRN}DRY-RUN (no changes)${NC}" )"
+echo "  Mode:        $( [ "$EXECUTE" = true ] && echo "${RED}EXECUTE (real deletions)${NC}" || echo "${GRN}DRY-RUN (no changes — preview only; pass --execute to perform the teardown)${NC}" )"
 echo "  Account:     $ACCOUNT_ID"
 echo "  Region:      $REGION"
 echo "  Environment: $ENVIRONMENT   Prefix: $PREFIX"
