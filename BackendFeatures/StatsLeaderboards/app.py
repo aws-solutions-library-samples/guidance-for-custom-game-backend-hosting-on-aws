@@ -5792,12 +5792,13 @@ class GameStatsLeaderboardsStack(Stack):
         # 1. player_authorizer -- logs + X-Ray only (stub; integrators add perms here)
         roles["player_auth"] = base("player-auth-role")
 
-        # 2. backend_authorizer -- SSM read only.
-        # (No lambda:UpdateFunctionConfiguration: the authorizer no longer rewrites
-        # its own config — removed for L1. API_KEY_PARAMETER_NAMES is set at deploy
-        # time and refreshed by the developer-registration role below.)
+        # 2. backend_authorizer -- SSM read + self-heal own function config
         r = base("backend-auth-role")
         add_ssm_read(r)
+        r.add_to_policy(iam.PolicyStatement(
+            effect=iam.Effect.ALLOW,
+            actions=["lambda:GetFunctionConfiguration", "lambda:UpdateFunctionConfiguration"],
+            resources=[fn_arn("backend-authorizer")]))
         roles["backend_auth"] = r
 
         # 3. developer_registration -- SSM read/write/delete/tag + update authorizer config
