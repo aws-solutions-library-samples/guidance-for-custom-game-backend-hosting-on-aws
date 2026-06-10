@@ -122,17 +122,39 @@ The CDK deployment creates:
 ### 3.1 Prerequisites
 
 - An AWS account with sufficient permissions
-- An EC2 instance (recommended: Amazon Linux 2023 or Ubuntu) or local machine
-- **Python 3.13+** on the deployment host (the deploy script will attempt to install it if missing, but having it pre-installed avoids a source compilation step)
+- A deployment host (EC2 instance recommended: Amazon Linux 2023 or Ubuntu) — or a local machine
+- **At least 4 GB of RAM on the deployment host** (e.g. `t3.medium` or larger). **Do not use `t2.micro`/`t3.micro`/`small` (1–2 GB)** — the build steps will run out of memory and produce interrupted or partial deployments. See [Deployment host sizing](#deployment-host-sizing-important) below for why.
+- **Python 3.13+** on the deployment host (the deploy script will attempt to install it if missing, but having it pre-installed avoids a memory-intensive source compilation step)
 - AWS CLI v2 configured with credentials
 - Internet access for package downloads
+- At least ~8 GB of free disk on the host (for the toolchain, Python packages, and the built Lambda layer)
+
+#### Deployment host sizing (IMPORTANT)
+
+The deploy script bootstraps its own toolchain and synthesizes a large CloudFormation stack, which is memory-intensive. Under-sizing the host is the most common cause of a broken deploy: a process gets OOM-killed mid-run, leaving a partial or failed deployment.
+
+| Instance class | RAM | Suitable? |
+|----------------|-----|-----------|
+| `t2.micro`, `t3.micro` | 1 GB | ❌ No — will OOM during Python build / CDK synth |
+| `t3.small` | 2 GB | ❌ Not recommended — risks OOM on the heavier steps |
+| **`t3.medium`** | **4 GB** | ✅ **Recommended minimum** (2 vCPU, 4 GB) |
+| `t3.large` / `m5.large` | 8 GB | ✅ Comfortable; faster builds |
+
+**Why 4 GB:**
+
+- **Python source compilation** — if Python 3.13+ isn't already installed, the script compiles CPython with `--enable-optimizations` (PGO/LTO) using a parallel `make`, spawning several compiler processes at once. This is the single biggest memory consumer. *Pre-installing Python 3.13+ avoids this step entirely* and is the best way to reduce the host's memory pressure.
+- **CDK synthesis** — synthesizing this stack (~360 resources) runs Node with `aws-cdk-lib` and can use well over 1 GB of heap.
+- **Toolchain install** — installing the AWS CDK CLI (npm) and `aws-cdk-lib` (pip) adds further transient memory use.
+
+On 1–2 GB instances these steps trigger the Linux OOM killer, which terminates the compiler, `npm`, or `cdk` mid-operation — surfacing as a hung build, a "Killed" message, or a half-finished stack. If you are constrained to a smaller instance, add swap (e.g. a 4 GB swapfile) and pre-install Python 3.13+, but a host with ≥ 4 GB RAM is strongly preferred.
 
 ### 3.2 Deployment from EC2 Instance (Recommended)
 
 #### Step 1: Launch an EC2 Instance
 
 ```bash
-# Recommended instance type: t3.medium or larger
+# Instance type: t3.medium or larger (minimum 4 GB RAM — see "Deployment host
+#   sizing" in 3.1). Do NOT use t2/t3 .micro/.small; they OOM during the build.
 # AMI: Amazon Linux 2023
 # Ensure the instance has an IAM role with:
 #   - CloudFormation full access
