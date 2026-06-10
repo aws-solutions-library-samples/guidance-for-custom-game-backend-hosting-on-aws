@@ -43,6 +43,22 @@
 
 set -euo pipefail
 
+# Diagnostic trap: if the script ever exits non-zero, say so rather than dying
+# silently. (Uses plain echo — color/helpers may not be defined yet if a failure
+# happens this early.) Exit 0 stays quiet. _FAIL_LINE is stamped by the ERR trap
+# at the actual failing line.
+_FAIL_LINE="?"
+trap '_FAIL_LINE=$LINENO' ERR
+_on_exit() {
+    local code=$?
+    if [ "$code" -ne 0 ]; then
+        echo "" >&2
+        echo "[teardown.sh] ABORTED — exit code $code (around line $_FAIL_LINE)." >&2
+        echo "[teardown.sh] If there was no other message above, re-run with:  bash -x ./teardown.sh   (to trace the cause)." >&2
+    fi
+}
+trap _on_exit EXIT
+
 # ----------------------------------------------------------------------------------
 # Configuration / arg parsing
 # ----------------------------------------------------------------------------------
@@ -144,9 +160,28 @@ ensure_cdk_on_path() {
     # 1) Source NVM (this is what deploy.sh relies on) and try again.
     export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
     if [ -s "$NVM_DIR/nvm.sh" ]; then
+        # IMPORTANT: nvm.sh must be sourced in a HARDENED scope.
+        #  (a) nvm has a guard (nvm_die_on_prefix) that does `return 11` if the
+        #      $PREFIX env var points anywhere other than nvm's own dir. THIS
+        #      script sets PREFIX="game-statsleaderboards-dev" (resource names),
+        #      so without clearing it, sourcing nvm returns 11 — and because we
+        #      run under `set -e`, that 11 aborts the ENTIRE script with no output
+        #      (the exact "fails early, prints nothing" symptom). npm_config_prefix
+        #      causes the same problem. Clear both just for nvm, then restore.
+        #  (b) nvm.sh references unbound vars and returns non-zero internally, which
+        #      `set -e`/`set -u` would turn into a script-killing exit even with a
+        #      `|| true` on the source line. So we relax errexit/nounset around it.
+        local _saved_prefix="${PREFIX:-}" _saved_npm_prefix="${npm_config_prefix:-}"
+        set +e +u
+        unset PREFIX npm_config_prefix
         # shellcheck disable=SC1090,SC1091
-        \. "$NVM_DIR/nvm.sh" >/dev/null 2>&1 || true
-        nvm use --lts >/dev/null 2>&1 || nvm use default >/dev/null 2>&1 || true
+        \. "$NVM_DIR/nvm.sh" >/dev/null 2>&1
+        nvm use --lts >/dev/null 2>&1 || nvm use default >/dev/null 2>&1
+        set -e -u
+        # Restore the script's PREFIX (resource-name prefix) for everything after.
+        [ -n "$_saved_prefix" ] && export PREFIX="$_saved_prefix" || true
+        [ -n "$_saved_npm_prefix" ] && export npm_config_prefix="$_saved_npm_prefix" || true
+
         command -v cdk >/dev/null 2>&1 && return 0
         # Ensure the active Node's bin (where global npm bins live) is on PATH.
         if [ -n "${NVM_BIN:-}" ] && [ -d "$NVM_BIN" ]; then
