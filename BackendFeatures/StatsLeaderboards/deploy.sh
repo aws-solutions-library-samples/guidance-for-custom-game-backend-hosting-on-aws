@@ -17,6 +17,40 @@ echo "=========================================================="
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
+# --- Argument / environment handling ----------------------------------------
+# The deploy is configured mainly via env vars (ENVIRONMENT, AWS_DEFAULT_REGION)
+# and studio_parameters.json. The only command-line flag is an OPT-IN virtual
+# environment for Python deps (off by default -- the default is a per-user
+# install). Capture any inherited USE_VENV env value BEFORE we touch the var.
+USE_VENV_REQUEST="${USE_VENV:-}"
+for _arg in "$@"; do
+    case "$_arg" in
+        --venv) USE_VENV_REQUEST="1" ;;
+        --no-venv) USE_VENV_REQUEST="0" ;;
+        --) ;;  # ignore an explicit end-of-options marker
+        -h|--help)
+            cat <<'USAGE'
+Usage: ./deploy.sh [--venv | --no-venv]
+
+  Configuration is via environment variables and studio_parameters.json:
+    ENVIRONMENT=dev|staging|prod   (default: dev)
+    AWS_DEFAULT_REGION=<region>    (default: us-west-2)
+
+  Options:
+    --venv      Install Python dependencies into a project-local .venv
+                (isolation; recommended for testing). Equivalent to USE_VENV=1.
+    --no-venv   Force the default per-user install even if USE_VENV=1 is set.
+    -h, --help  Show this help and exit.
+
+  Default (no flag): per-user install ('pip install --user', adding
+  --break-system-packages automatically on PEP 668 / externally-managed systems).
+USAGE
+            exit 0 ;;
+        -*)
+            echo "Unknown option: $_arg (use --help). Ignoring and continuing." >&2 ;;
+    esac
+done
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -280,24 +314,63 @@ install_aws_cli() {
     fi
 }
 
+# --- pip install strategy (PEP 668 / "externally-managed-environment" safe) ---
+#
+# Modern Python distributions mark their global site-packages as "externally
+# managed" (PEP 668): Debian/Ubuntu, Fedora, Amazon Linux 2023, and Homebrew.
+# On those, a plain `pip install` -- INCLUDING `pip install --user` -- aborts
+# with:
+#   error: externally-managed-environment
+# which previously broke this deploy before CDK ever ran.
+#
+# DEFAULT BEHAVIOUR (no virtual environment): install into the user site with
+# `pip install --user`, and -- only when the interpreter is actually marked
+# externally managed AND its pip supports the flag -- add --break-system-packages
+# so the install is permitted. This keeps the system Python's own packages
+# untouched (user site is per-user) while still working on PEP 668 systems.
+# Nothing here requires or creates a virtual environment.
+#
+# OPT-IN VIRTUAL ENVIRONMENT (for testing/isolation): set USE_VENV=1 (env var)
+# or pass --venv. The script then creates a project-local .venv, re-points
+# PYTHON_CMD at it, and installs there (no --user/--break-system-packages
+# needed). .venv is git-ignored, so it leaves no trace. This is OFF by default;
+# the user is not forced into a venv.
+#
+# These globals are finalised by the install-strategy block below.
+# USE_VENV_REQUEST was captured at the top from --venv/--no-venv or the USE_VENV
+# env var; default (empty/0/false) => per-user install.
+USE_VENV=false                 # opt-in; enabled by --venv or USE_VENV=1
+case "${USE_VENV_REQUEST:-}" in
+    1|true|yes|on) USE_VENV=true ;;
+esac
+PIP_SYS_FLAGS=""               # flags applied to the default (system/user) install
+
+# Portable wrapper: run a `pip install` against $PYTHON_CMD with the right flags
+# for the active mode. Always uses `-m pip` so it targets the exact interpreter
+# we selected (a bare pip/pip3 on PATH may belong to a different Python).
+pip_install() {
+    if [ "$USE_VENV" = true ]; then
+        # Inside a venv: no --user (invalid) and no PEP 668 marker to satisfy.
+        "$PYTHON_CMD" -m pip install "$@"
+    else
+        # shellcheck disable=SC2086  # PIP_SYS_FLAGS is intentionally word-split
+        "$PYTHON_CMD" -m pip install $PIP_SYS_FLAGS "$@"
+    fi
+}
+
 # Function to upgrade pip to latest version
 upgrade_pip() {
-    local python_cmd=$1
-    print_status "Upgrading pip to latest version for $python_cmd..."
+    print_status "Upgrading pip to the latest version..."
 
-    # Always use "$python_cmd -m pip" rather than a bare pip/pip3 command.
-    # A bare pip3 on the system PATH may be tied to a different Python version
-    # (or even Python 2 on older systems). Using -m pip guarantees we upgrade
-    # the pip that belongs to the exact interpreter we selected.
-    $python_cmd -m pip install --upgrade pip --user
+    pip_install --upgrade pip
 
     # Verify pip installation
-    PIP_VERSION=$($python_cmd -m pip --version | cut -d' ' -f2)
+    PIP_VERSION=$("$PYTHON_CMD" -m pip --version | cut -d' ' -f2)
     print_success "pip upgraded to version $PIP_VERSION"
 
-    # Also install wheel and setuptools
+    # Also install wheel and setuptools (sdist builds need them)
     print_status "Installing essential Python packages..."
-    $python_cmd -m pip install --upgrade wheel setuptools --user
+    pip_install --upgrade wheel setuptools
 
     print_success "Essential Python packages installed"
 }
@@ -867,33 +940,116 @@ fi
 INSTALLED_PYTHON_VERSION=$($PYTHON_CMD --version | cut -d' ' -f2)
 print_success "Python $INSTALLED_PYTHON_VERSION is available as $PYTHON_CMD"
 
+# =============================================
+# INSTALL STRATEGY (PEP 668 aware) -- system/user by DEFAULT, venv only if opted-in
+# =============================================
+# By default we install into the per-user site (no venv). If the interpreter is
+# externally managed (PEP 668) and its pip supports it, we add
+# --break-system-packages so the user-site install is permitted -- the system
+# Python's own packages are not touched. A virtual environment is used ONLY when
+# the operator opts in (--venv or USE_VENV=1), e.g. for isolated testing.
+if [ "$USE_VENV" = true ]; then
+    # ---- Opt-in virtual environment (testing/isolation) --------------------
+    VENV_DIR="$SCRIPT_DIR/.venv"
+    print_status "USE_VENV requested -- setting up a project-local virtual environment (.venv)..."
+
+    # `python -m venv` needs the stdlib venv + ensurepip modules. Bundled with
+    # python.org, Homebrew, and Amazon Linux 2023 builds; on Debian/Ubuntu it can
+    # require the distro's python3-venv package. Probe, then best-effort install.
+    venv_module_ok=false
+    "$PYTHON_CMD" -c "import venv, ensurepip" >/dev/null 2>&1 && venv_module_ok=true
+    if [ "$venv_module_ok" != true ] && { [[ "$OS" == *"Ubuntu"* ]] || [[ "$OS" == *"Debian"* ]]; }; then
+        PY_MM="$($PYTHON_CMD -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null)"
+        print_status "Installing python${PY_MM}-venv via apt for venv support..."
+        sudo apt-get install -y "python${PY_MM}-venv" python3-venv 2>/dev/null \
+            || sudo apt-get install -y python3-venv 2>/dev/null || true
+        "$PYTHON_CMD" -c "import venv, ensurepip" >/dev/null 2>&1 && venv_module_ok=true
+    fi
+
+    if [ "$venv_module_ok" = true ] && "$PYTHON_CMD" -m venv "$VENV_DIR" 2>/dev/null; then
+        if [ -x "$VENV_DIR/bin/python" ]; then
+            PYTHON_CMD="$VENV_DIR/bin/python"
+        elif [ -x "$VENV_DIR/Scripts/python.exe" ]; then
+            PYTHON_CMD="$VENV_DIR/Scripts/python.exe"
+        fi
+        print_success "Virtual environment ready: $VENV_DIR"
+        print_status "Using interpreter: $PYTHON_CMD ($($PYTHON_CMD --version 2>&1))"
+    else
+        # Opt-in venv failed -> fall back to the default system/user path rather
+        # than aborting, so the deploy still proceeds.
+        USE_VENV=false
+        print_warning "Could not create the requested virtual environment -- falling back to a user-level install."
+    fi
+fi
+
+if [ "$USE_VENV" != true ]; then
+    # ---- Default: per-user install (no venv) -------------------------------
+    STDLIB_DIR="$($PYTHON_CMD -c 'import sysconfig; print(sysconfig.get_path("stdlib"))' 2>/dev/null)"
+    if [ -n "$STDLIB_DIR" ] && [ -f "$STDLIB_DIR/EXTERNALLY-MANAGED" ]; then
+        # Externally managed (PEP 668). Add --break-system-packages IF supported,
+        # so the per-user install is allowed; otherwise try plain --user.
+        if "$PYTHON_CMD" -m pip install --help 2>/dev/null | grep -q -- "--break-system-packages"; then
+            PIP_SYS_FLAGS="--user --break-system-packages"
+            print_status "Externally-managed environment (PEP 668) detected; using 'pip install --user --break-system-packages'."
+            print_status "(Installs into your user site only; system packages are not modified. For full isolation, re-run with --venv.)"
+        else
+            PIP_SYS_FLAGS="--user"
+            print_warning "Externally-managed environment but pip lacks --break-system-packages; using --user (consider 'pip install -U pip' or --venv)."
+        fi
+    else
+        PIP_SYS_FLAGS="--user"
+        print_status "Using a per-user install ('pip install --user')."
+    fi
+    # Make user-site console scripts reachable for the rest of the run.
+    export PATH="$HOME/.local/bin:$PATH"
+fi
+
 # Ensure pip is available before attempting to upgrade it.
 # Some Python installations (e.g., source builds, minimal OS packages) may not
-# include pip or ensurepip. We check first and bootstrap via get-pip.py if needed.
+# include pip or ensurepip. We check first and bootstrap if needed. The bootstrap
+# target differs by mode: in a venv, ensurepip installs into the venv (NO --user,
+# which is invalid there); on a system interpreter we install into the user site.
 print_status "Checking if pip is available for $PYTHON_CMD..."
-if ! $PYTHON_CMD -m pip --version &> /dev/null; then
+if ! "$PYTHON_CMD" -m pip --version &> /dev/null; then
     print_warning "pip is not available for $PYTHON_CMD -- bootstrapping now..."
 
+    if [ "$USE_VENV" = true ]; then
+        ENSUREPIP_FLAGS="--upgrade"          # venv: into the venv itself
+        GETPIP_FLAGS=""
+    else
+        ENSUREPIP_FLAGS="--upgrade --user"   # system: into the user site
+        GETPIP_FLAGS="--user"
+    fi
+
     # Try ensurepip first (ships with most CPython builds that used --with-ensurepip)
-    if $PYTHON_CMD -m ensurepip --upgrade --user 2>/dev/null; then
+    # shellcheck disable=SC2086
+    if "$PYTHON_CMD" -m ensurepip $ENSUREPIP_FLAGS 2>/dev/null; then
         print_success "pip bootstrapped via ensurepip"
     else
-        # Fallback: download the official get-pip.py installer
+        # Fallback: download the official get-pip.py installer.
         print_status "ensurepip not available -- installing pip via get-pip.py..."
         cd /tmp
-        curl -sS https://bootstrap.pypa.io/get-pip.py -o get-pip.py
-        $PYTHON_CMD get-pip.py --user
+        if curl -fsSL https://bootstrap.pypa.io/get-pip.py -o get-pip.py; then
+            # shellcheck disable=SC2086
+            "$PYTHON_CMD" get-pip.py $GETPIP_FLAGS || true
+        else
+            print_warning "Could not download get-pip.py (no network?)."
+        fi
         rm -f get-pip.py
         cd "$SCRIPT_DIR"
     fi
 
-    # On some distros pip lands in ~/.local/bin which may not be in PATH yet
-    export PATH="$HOME/.local/bin:$PATH"
+    # On some distros user-site pip lands in ~/.local/bin which may not be in PATH yet
+    [ "$USE_VENV" = true ] || export PATH="$HOME/.local/bin:$PATH"
 
     # Verify the bootstrap succeeded before continuing
-    if ! $PYTHON_CMD -m pip --version &> /dev/null; then
+    if ! "$PYTHON_CMD" -m pip --version &> /dev/null; then
         print_error "Failed to bootstrap pip for $PYTHON_CMD"
-        print_error "Please install pip manually (e.g., 'sudo apt install python3-pip' or 'sudo dnf install python3-pip') and re-run this script."
+        if [ "$USE_VENV" = true ]; then
+            print_error "The virtual environment has no pip. Ensure the 'ensurepip' module is available (e.g. install python3-venv) and re-run."
+        else
+            print_error "Please install pip manually (e.g., 'sudo apt install python3-pip' or 'sudo dnf install python3-pip'), or re-run with --venv, and try again."
+        fi
         exit 1
     fi
     print_success "pip bootstrapped successfully"
@@ -902,7 +1058,7 @@ else
 fi
 
 # Upgrade pip to latest version
-upgrade_pip "$PYTHON_CMD"
+upgrade_pip
 
 # Verify pip is working
 if $PYTHON_CMD -m pip --version &> /dev/null; then
@@ -926,7 +1082,7 @@ check_python_package "aws_lambda_powertools" "" "$PYTHON_CMD" || PACKAGES_TO_INS
 # Install only missing packages
 if [ ${#PACKAGES_TO_INSTALL[@]} -gt 0 ]; then
     print_status "Installing missing Python packages: ${PACKAGES_TO_INSTALL[*]}"
-    $PYTHON_CMD -m pip install "${PACKAGES_TO_INSTALL[@]}" --user || {
+    pip_install "${PACKAGES_TO_INSTALL[@]}" || {
         print_warning "Failed to install some Python packages. Will try again during deployment."
     }
 else
@@ -1175,7 +1331,7 @@ if [ -f "package.json" ]; then
 fi
 if [ -f "requirements.txt" ]; then
     print_status "Installing Python dependencies into $PYTHON_CMD..."
-    $PYTHON_CMD -m pip install -r requirements.txt --user
+    pip_install -r requirements.txt
 fi
 
 # Pin the interpreter CDK uses to run the app to the one we just installed into.

@@ -221,7 +221,7 @@ The deploy script is **self-bootstrapping** — it installs and version-checks i
 3. **Installs NVM + Node.js LTS** and enforces a **minimum Node.js major version of 20** (Node 18 is end-of-life and rejected). An existing Node that is too old or not NVM-managed is replaced with the LTS line.
 4. **Installs / upgrades the AWS CDK CLI** and enforces a **minimum CLI version of `2.1125.0`** — older CLIs cannot read the cloud-assembly schema emitted by the pinned `aws-cdk-lib`. A shadowing global CDK installed under a different Node is removed first.
 5. **Installs Python 3.13+** (searches for 3.15 → 3.14 → 3.13; compiles from source only as a last resort) and **bootstraps/upgrades pip** (via `ensurepip` or `get-pip.py`).
-6. **Installs Python packages**: boto3, aws-cdk-lib, constructs, aws-lambda-powertools.
+6. **Installs Python packages** (boto3, aws-cdk-lib, constructs, aws-lambda-powertools) using a **PEP 668-safe install strategy** — see [3.4](#34-configuration--command-line-behaviour). By default these go into your **per-user** site; on modern, externally-managed Python installs (Amazon Linux 2023, recent Ubuntu/Debian/Fedora, Homebrew) the script automatically adds `--break-system-packages` so the user-site install is permitted without touching system packages. (Pass `--venv` to install into an isolated virtual environment instead.)
 7. **Persists environment** (PATH, aliases, NVM config) to your shell rc files.
 8. **Validates `studio_parameters.json`** (required fields present, allowed-character check, email format) — aborts with guidance if invalid or still using template values.
 9. **Runs `validate_system.py`** (if present) as a pre-deployment sanity check.
@@ -244,7 +244,7 @@ The deploy script is **self-bootstrapping** — it installs and version-checks i
 
 ### 3.4 Configuration & Command-Line Behaviour
 
-**`deploy.sh` takes no command-line flags.** It is configured entirely through (a) two environment variables and (b) the `studio_parameters.json` file:
+`deploy.sh` is configured almost entirely through (a) environment variables and (b) the `studio_parameters.json` file. It accepts **one optional flag** (`--venv`) that only affects how Python dependencies are installed:
 
 | Input | How | Default | Effect |
 |-------|-----|---------|--------|
@@ -252,13 +252,23 @@ The deploy script is **self-bootstrapping** — it installs and version-checks i
 | **AWS region** | `export AWS_DEFAULT_REGION=<region>` | `us-west-2` | Region for bootstrap and deploy (also exported as `CDK_DEFAULT_REGION`). |
 | **Studio / game identity** | edit `studio_parameters.json` | — | `StudioName`, `ContactEmail`, `GameTitle`, `GameGenre` are passed to the main stack as CloudFormation parameters and used to auto-register your studio + first game. |
 | **AWS credentials** | standard AWS CLI credential chain | — | Profile / env vars / EC2 instance role; the script verifies `aws sts get-caller-identity` before deploying. |
+| **Python install mode** | `--venv` flag (or `USE_VENV=1`) | per-user install | `--venv` installs Python deps into an isolated project-local `.venv`; otherwise a per-user install is used. See "Python dependency installation" below. |
 
 ```bash
 # Typical invocation
 export ENVIRONMENT=prod
 export AWS_DEFAULT_REGION=us-east-1
 ./deploy.sh
+
+# Optional: isolate Python deps in a virtual environment (e.g. for testing)
+./deploy.sh --venv
 ```
+
+**Python dependency installation (PEP 668-aware).** Modern Python distributions — Amazon Linux 2023, recent Ubuntu/Debian/Fedora, and Homebrew — mark their global `site-packages` as *externally managed* ([PEP 668](https://peps.python.org/pep-0668/)). On those, a plain `pip install` (even `pip install --user`) aborts with `error: externally-managed-environment`. `deploy.sh` handles this automatically:
+
+- **Default — per-user install (no virtual environment).** Installs with `pip install --user`, and *only* when the interpreter is actually externally managed and its pip supports the flag, adds `--break-system-packages`. This installs into your **user site** (`~/.local/...`); the system Python's own packages are never modified. This is the default so the deploy works out-of-the-box on the EC2 bastion without forcing a venv on you.
+- **Opt-in — virtual environment (`--venv` or `USE_VENV=1`).** Creates a project-local `.venv`, re-points the deploy's interpreter at it, and installs there (no `--user`/`--break-system-packages` needed). The CDK app then runs from the same venv, so dependencies stay isolated. `.venv` is git-ignored, so it leaves no trace. On Debian/Ubuntu the script will `apt-get install python3-venv` if the `venv` module is missing; if a venv still can't be created it falls back to the default per-user install rather than failing.
+- `--no-venv` forces the default path even if `USE_VENV=1` is set in the environment.
 
 **CDK context and parameters the script passes** (useful if you ever run `cdk` directly instead of through `deploy.sh`):
 
