@@ -1307,7 +1307,12 @@ print_status "Building Lambda Layers..."
 if [ -f "layers/build_layer.sh" ]; then
     cd layers
     chmod +x build_layer.sh
-    if ! ./build_layer.sh; then
+    # Pass the SAME interpreter deploy.sh selected and prepared (Python 3.13+ with
+    # pip, or the venv). Without this, build_layer.sh autodetects a bare "python3"
+    # on PATH — which on Amazon Linux 2023 is the system Python 3.9 that has NO pip
+    # — and fails with "pip is not available for 'python3'". PYTHON_CMD is not
+    # exported, so it must be passed explicitly to the child script.
+    if ! PYTHON_BIN="$PYTHON_CMD" ./build_layer.sh; then
         print_error "Failed to build Lambda Layers"
         exit 1
     fi

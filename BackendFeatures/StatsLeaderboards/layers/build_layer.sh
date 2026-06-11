@@ -78,8 +78,26 @@ if [ -z "$PYTHON_BIN" ] || ! command -v "$PYTHON_BIN" >/dev/null 2>&1; then
 fi
 
 if ! "$PYTHON_BIN" -m pip --version >/dev/null 2>&1; then
-    echo "❌ pip is not available for '$PYTHON_BIN'. Install pip (python -m ensurepip --upgrade)."
-    exit 1
+    # pip missing for this interpreter (e.g. Amazon Linux 2023 system python3.9).
+    # Bootstrap it rather than failing — mirrors deploy.sh. Try ensurepip first,
+    # then the official get-pip.py.
+    echo "ℹ️  pip not found for '$PYTHON_BIN' — bootstrapping it..."
+    if "$PYTHON_BIN" -m ensurepip --upgrade >/dev/null 2>&1; then
+        echo "   ✅ pip bootstrapped via ensurepip"
+    elif command -v curl >/dev/null 2>&1 && \
+         curl -fsSL https://bootstrap.pypa.io/get-pip.py -o /tmp/get-pip.py 2>/dev/null && \
+         "$PYTHON_BIN" /tmp/get-pip.py >/dev/null 2>&1; then
+        rm -f /tmp/get-pip.py
+        echo "   ✅ pip bootstrapped via get-pip.py"
+    else
+        rm -f /tmp/get-pip.py 2>/dev/null || true
+        echo "❌ pip is not available for '$PYTHON_BIN' and could not be bootstrapped."
+        echo "   Install it manually:  $PYTHON_BIN -m ensurepip --upgrade"
+        echo "   Or run the layer build with a pip-enabled interpreter:  PYTHON_BIN=python3.13 ./build_layer.sh"
+        exit 1
+    fi
+    # Make user-site console scripts reachable if ensurepip installed to --user.
+    export PATH="$HOME/.local/bin:$PATH"
 fi
 
 # --platform + --only-binary cross-compilation needs a reasonably recent pip (>=20).
