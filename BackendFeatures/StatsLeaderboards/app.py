@@ -1981,6 +1981,8 @@ class GameStatsLeaderboardsStack(Stack):
         Tags.of(self).add("ValkeyGlideVersion", "2.4.1")
         Tags.of(self).add("StackType", "Core")
         Tags.of(self).add("Application", "GameStatsLeaderboards")
+        Tags.of(self).add("Owner", self.node.try_get_context("owner") or "MyTeam")
+        Tags.of(self).add("CostCenter", self.node.try_get_context("cost_center") or "1000")
 
         # Initialize a flag to track if registration has been created
         self._registration_provider = None
@@ -8063,7 +8065,7 @@ GameStatsLeaderboardsStack(
         "account": app.node.try_get_context("account") or os.environ.get("CDK_DEFAULT_ACCOUNT"),
         "region": app.node.try_get_context("region") or os.environ.get("CDK_DEFAULT_REGION") or "us-west-2"
     },
-    description="AWS Custom Game Backend Framework - Stats & Leaderboards Component (Core Infra)"
+    description="Guidance for Custom Game Backend Hosting on AWS - Stats & Leaderboards Component (SO9258)"
 )
 
 app.synth()

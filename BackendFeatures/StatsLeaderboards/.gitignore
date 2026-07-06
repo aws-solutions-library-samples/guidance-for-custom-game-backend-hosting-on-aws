@@ -171,3 +171,8 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+# CDK build/synth artifacts and deploy.sh logs
+cdk.out/
+cdk.staging/
+cdk_logs/

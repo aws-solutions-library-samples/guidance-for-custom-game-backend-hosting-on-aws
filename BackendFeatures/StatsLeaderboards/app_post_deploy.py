@@ -546,6 +546,8 @@ class GameStatsLeaderboardsMonitoringStack(Stack):
         Tags.of(self).add("Component", "PostDeploy")
         Tags.of(self).add("BaseStack", base_stack_name)
         Tags.of(self).add("Application", "GameStatsLeaderboards")
+        Tags.of(self).add("Owner", self.node.try_get_context("owner") or "MyTeam")
+        Tags.of(self).add("CostCenter", self.node.try_get_context("cost_center") or "1000")
 
         print(f"\n🚀 POST-DEPLOY CONFIGURATION")
         print(f"   Environment: {environment}")
