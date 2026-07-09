@@ -382,10 +382,10 @@ def validate_authenticated_context(event: Dict[str, Any], required_permission: s
     """
     Validate player authentication from API Gateway authorizer context.
     
-    INTEGRATION POINT: The player authorizer (auth/playerAuthorizer.py) must be
-    modified to validate your game's player credentials (e.g., JWT, OAuth, session
-    tokens, platform tokens) and populate the authorizer context with the fields
-    below. This function reads that context and enforces permission checks.
+    The player authorizer (auth/playerAuthorizer.py) validates the caller and
+    populates the authorizer context with the fields below (identity mode by
+    default, custom mode for bring-your-own auth). This function reads that
+    context and enforces permission checks.
     
     Required authorizer context fields:
         - studioId:    Your studio identifier (set by authorizer from your config)

@@ -1382,6 +1382,27 @@ if ! cdk bootstrap --app "$CDK_APP" --version-reporting=false > cdk_logs/bootstr
 fi
 print_success "CDK bootstrap completed (details in cdk_logs/bootstrap.log)"
 
+# Player authentication: mode + Custom Identity Component issuer URL.
+#   identity (default) -- player routes validate Custom Identity Component tokens.
+#                         Requires ISSUER_ENDPOINT_URL.
+#   custom             -- standalone / bring-your-own (see auth/playerAuthorizer.py).
+#                         Issuer URL not required.
+# Validated here, before synth, so a misconfiguration fails fast.
+PLAYER_AUTH_MODE="${PLAYER_AUTH_MODE:-identity}"
+ISSUER_ENDPOINT_URL="${ISSUER_ENDPOINT_URL:-}"
+
+if [ "$PLAYER_AUTH_MODE" = "identity" ] && [ -z "$ISSUER_ENDPOINT_URL" ]; then
+    print_error "PLAYER_AUTH_MODE=identity requires the Custom Identity Component issuer URL."
+    print_error "Set it and re-run, e.g.:"
+    print_error "  export ISSUER_ENDPOINT_URL=https://xxxxxxxx.cloudfront.net"
+    print_error "It is the CustomIdentityComponentStack 'IssuerEndpointUrl' output."
+    print_error "For a standalone deployment without the identity component, set:"
+    print_error "  export PLAYER_AUTH_MODE=custom"
+    exit 1
+fi
+
+print_status "Player auth mode: $PLAYER_AUTH_MODE"
+
 # Synthesize CDK template
 print_status "Synthesizing CDK template..."
 if ! cdk synth GameStatsLeaderboardsStack --app "$CDK_APP" > cdk_logs/synthesis.log 2>&1; then
@@ -1412,10 +1433,12 @@ if ! cdk deploy GameStatsLeaderboardsStack \
     --context environment=$DEPLOY_ENVIRONMENT \
     --context enable_resource_reuse=true \
     --context force_create_new=false \
+    --context player_auth_mode=$PLAYER_AUTH_MODE \
     --parameters StudioName="$STUDIO_NAME" \
     --parameters ContactEmail="$CONTACT_EMAIL" \
     --parameters GameTitle="$GAME_TITLE" \
     --parameters GameGenre="$GAME_GENRE" \
+    --parameters IssuerEndpointUrl="$ISSUER_ENDPOINT_URL" \
     --require-approval never \
     --outputs-file cdk_logs/stack_outputs.json; then
     print_error "CDK deployment failed"
@@ -1587,22 +1610,22 @@ echo "     -H \"Content-Type: application/json\" \\"
 echo "     -H \"Authorization: Bearer $API_KEY\" \\"
 echo "     -d '{\"studioName\": \"Your Studio\", \"contactEmail\": \"you@studio.com\", \"gameTitle\": \"Your Game Title\", \"gameGenre\": \"action\"}'"
 echo ""
-echo "3. ⚠️  REQUIRED INTEGRATION POINT — Player Authentication:"
+echo "3. Player Authentication ($PLAYER_AUTH_MODE mode):"
 echo "   Backend (developer) APIs work now using the Studio API Key above."
-echo "   Player-facing APIs (store score, get player stats, standings, scores) are"
-echo "   protected by a SEPARATE player authorizer that DENIES ALL REQUESTS BY"
-echo "   DEFAULT until you integrate your own player authentication."
-echo ""
-echo "   Until you do this, the player authorizer FAILS CLOSED: player endpoints"
-echo "   return HTTP 403 (Unauthorized) at the API Gateway layer, and the"
-echo "   comprehensive test's player-auth phases will fail by design."
-echo ""
-echo "   To integrate:"
-echo "     • Edit auth/playerAuthorizer.py — add your token validation in"
-echo "       lambda_handler() (replace the placeholder)."
-echo "     • Redeploy:  ./deploy.sh"
-echo "     • Full guidance: readme.md and docs/api_reference.md (Section 1.5)."
-echo "     • Tip: search the codebase for 'INTEGRATION POINT' to find every spot."
+if [ "$PLAYER_AUTH_MODE" = "custom" ]; then
+    echo "   Player-facing APIs use custom mode and DENY ALL REQUESTS until you add"
+    echo "   your own token validation in _authorize_custom() in auth/playerAuthorizer.py,"
+    echo "   then redeploy with ./deploy.sh."
+else
+    echo "   Player-facing APIs validate Custom Identity Component access tokens."
+    echo "   Clients call them with:  Authorization: Bearer <player_access_token>"
+    echo "   Tokens must be issued by your identity component at:"
+    echo "     $ISSUER_ENDPOINT_URL"
+    echo "   guest and authenticated tokens both get read and write; adjust in the"
+    echo "   SCOPE_PERMISSIONS table in auth/playerAuthorizer.py."
+fi
+echo "   The authorizer fails closed: anything it cannot validate returns HTTP 403."
+echo "   Full details: readme.md and docs/api_reference.md (Section 1.5)."
 echo ""
 echo "4. Quick smoke check (backend API — works without player auth):"
 echo "   # Developer info (backend auth via Studio API Key)"
@@ -1618,8 +1641,9 @@ echo "     cd testing"
 echo "     python3 test_StatsAndLeaderboards.py --region $AWS_DEFAULT_REGION --stack-name GameStatsLeaderboardsStack"
 echo ""
 echo "   Notes:"
-echo "     • Integrate player authentication FIRST (step 3) — otherwise the"
-echo "       player-facing test phases fail with HTTP 403 by design (fail closed)."
+echo "     • Player-facing test phases need a valid player token. In identity mode"
+echo "       they require a Custom Identity Component access token; without one they"
+echo "       return HTTP 403 (fail closed). Backend phases work immediately."
 echo "     • Add --retain to keep created leaderboards for manual inspection."
 echo ""
 echo "6. View the system documentation:"

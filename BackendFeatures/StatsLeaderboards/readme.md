@@ -54,7 +54,7 @@ The Game Stats and Leaderboards system is a backend built on AWS managed service
 | Function | Directory | Purpose |
 |----------|-----------|---------|
 | `backendAuthorizer` | `/auth` | Backend API key authentication |
-| `playerAuthorizer` | `/auth` | Player authentication (INTEGRATION POINT) |
+| `playerAuthorizer` | `/auth` | Player authentication (Custom Identity Component tokens by default; `PLAYER_AUTH_MODE`) |
 | `developerRegistration` | `/backend` | Studio/game registration, API key management |
 | `leaderboardsConfig` | `/backend` | Leaderboard CRUD configuration |
 | `batchStoreStatsAndScores` | `/backend` | Batch game report processing |
@@ -71,7 +71,7 @@ The Game Stats and Leaderboards system is a backend built on AWS managed service
 
 ![High-Level Architecture](Guidance%20for%20Game%20Stats%20and%20Leaderboards.png)
 
-Game backends and player clients send requests through Amazon API Gateway, which routes them to one of two Lambda authorizers: the backend authorizer (validates StudioAPI keys via SSM Parameter Store) for developer/admin operations, or the player authorizer (integration point for your game's player authentication) for player-facing operations. Authorized requests reach the target Lambda function, which reads/writes leaderboard scores in MemoryDB for Valkey (sorted sets) and persists player stats and configurations in DynamoDB. The 8 Lambda functions that connect to MemoryDB run within VPC private subnets; the 3 that only use public AWS endpoints (authorizers and developer registration) run outside the VPC.
+Game backends and player clients send requests through Amazon API Gateway, which routes them to one of two Lambda authorizers: the backend authorizer (validates StudioAPI keys via SSM Parameter Store) for developer/admin operations, or the player authorizer (validates Custom Identity Component access tokens by default) for player-facing operations. Authorized requests reach the target Lambda function, which reads/writes leaderboard scores in MemoryDB for Valkey (sorted sets) and persists player stats and configurations in DynamoDB. The 8 Lambda functions that connect to MemoryDB run within VPC private subnets; the 3 that only use public AWS endpoints (authorizers and developer registration) run outside the VPC.
 
 ### Request Flow
 
@@ -235,6 +235,14 @@ export ENVIRONMENT=dev   # Options: dev, staging, prod
 # Optional: Set AWS region (default: us-west-2)
 export AWS_DEFAULT_REGION=us-west-2
 
+# Required for player auth in identity mode (the default): the Custom Identity
+# Component issuer URL (the CustomIdentityComponentStack "IssuerEndpointUrl" output).
+export ISSUER_ENDPOINT_URL=https://xxxxxxxx.cloudfront.net
+
+# Optional: player auth mode (default: identity). Use "custom" for a standalone
+# deployment that does not use the Custom Identity Component.
+# export PLAYER_AUTH_MODE=custom
+
 # Run the deployment
 chmod +x deploy.sh
 ./deploy.sh
@@ -279,6 +287,8 @@ The deploy script is **self-bootstrapping** — it installs and version-checks i
 | **Deployment environment** | `export ENVIRONMENT=<dev\|staging\|prod>` | `dev` | Validated against `dev`/`staging`/`prod`; becomes the CDK `environment` context and the suffix in every resource name. Invalid values abort the deploy. |
 | **AWS region** | `export AWS_DEFAULT_REGION=<region>` | `us-west-2` | Region for bootstrap and deploy (also exported as `CDK_DEFAULT_REGION`). |
 | **Studio / game identity** | edit `studio_parameters.json` | — | `StudioName`, `ContactEmail`, `GameTitle`, `GameGenre` are passed to the main stack as CloudFormation parameters and used to auto-register your studio + first game. |
+| **Player auth mode** | `export PLAYER_AUTH_MODE=<identity\|custom>` | `identity` | `identity` validates Custom Identity Component tokens on player routes; `custom` is bring-your-own for standalone deployments. |
+| **Identity issuer URL** | `export ISSUER_ENDPOINT_URL=<url>` | — | The Custom Identity Component endpoint. Required in identity mode (the deploy stops without it); passed to the stack as the `IssuerEndpointUrl` parameter. |
 | **AWS credentials** | standard AWS CLI credential chain | — | Profile / env vars / EC2 instance role; the script verifies `aws sts get-caller-identity` before deploying. |
 | **Python install mode** | `--venv` flag (or `USE_VENV=1`) | per-user install | `--venv` installs Python deps into an isolated project-local `.venv`; otherwise a per-user install is used. See "Python dependency installation" below. |
 
@@ -714,7 +724,7 @@ For complete request/response schemas, all query types, and additional examples,
 1. **Deploy** — Run `./deploy.sh` on an EC2 instance or local machine. Note the API endpoint and StudioAPI Key from the output. Your studio and first game are registered automatically during deploy from `studio_parameters.json`.
 2. **Verify your registration** — The auto-registration uses whatever is in `studio_parameters.json`; if you didn't edit that file before deploying, those are stand-in placeholders. Confirm with `GET /developer/info`, and correct your studio/game details with `POST /developer/register` if needed (the API key, Studio ID, and Game ID stay the same).
 3. **Configure leaderboards** — Call `POST /leaderboards/config/create` from your game backend for each leaderboard your game needs (e.g., "level-1-highscore", "weekly-kills", "fastest-lap-trackA").
-4. **Integrate player authentication** — Edit `auth/playerAuthorizer.py` to validate your game's player tokens (JWT, OAuth, session ID, platform token, etc.). Deploy the update via `cdk deploy`.
+4. **Set the identity issuer URL.** Player auth uses the Custom Identity Component by default, so before deploying run `export ISSUER_ENDPOINT_URL=<your identity component endpoint>` (the `IssuerEndpointUrl` output of CustomIdentityComponentStack). For a standalone deployment instead, set `PLAYER_AUTH_MODE=custom` and add your own validation in `auth/playerAuthorizer.py`.
 5. **Wire score submission** — For multiplayer: call `/leaderboards/stats/batch` from your game server after each match. For single-player: call `/leaderboards/stats` from the game client after each session.
 6. **Wire leaderboard UI** — Call `/leaderboards/scores` (top players, nearby, ranges) and `/leaderboards/player/standing` (current player's rank) from your game client to display leaderboard screens.
 7. **Wire player stats UI** — Call `/leaderboards/player/stats` to show the player's match history on their profile screen.
@@ -726,20 +736,24 @@ For complete request/response schemas, all query types, and additional examples,
    # add --retain to keep the created leaderboards for manual inspection
    ```
 
-   > **Integrate player authentication (step 4) first.** The suite exercises player-facing endpoints; until your player auth is in place those phases fail with HTTP 403 by design (the authorizer fails closed). Backend (developer) phases work immediately after deployment.
+   > **Player-facing phases need a valid player token (step 4).** In identity mode the suite's player-facing phases require a Custom Identity Component access token; without one they return HTTP 403 (the authorizer fails closed). Backend (developer) phases work immediately after deployment.
 
 ### Before You Go to Production — Integration Points
 
-Backend (developer) APIs work after deployment without additional configuration. Player-facing APIs require you to integrate your own player authentication before they will accept requests.
+Backend (developer) APIs work after deployment without additional configuration. Player-facing APIs use the Custom Identity Component by default: set the issuer URL at deploy time (see below) and they accept that component's access tokens, with no code changes. For a standalone deployment, set `PLAYER_AUTH_MODE=custom` and add your own validation.
 
-**Required integration (player auth):**
+**Player auth setup (identity mode, the default):**
+
+| Step | What to do |
+|------|-----------|
+| Set the issuer URL | `export ISSUER_ENDPOINT_URL=<CustomIdentityComponentStack IssuerEndpointUrl>` before running `./deploy.sh`. Required in identity mode; the deploy stops without it. |
+| Permissions (optional) | `guest` and `authenticated` tokens both get read and write. To restrict guests to read only, edit the `SCOPE_PERMISSIONS` table in `auth/playerAuthorizer.py`. |
+
+**Standalone (custom mode):**
 
 | File | What to do |
 |------|-----------|
-| `auth/playerAuthorizer.py` | Add your player token validation logic. The function receives the `Authorization` header value and must return an IAM policy with `studioId`, `gameId`, `permissions`, and `playerId` in the authorizer context. Set `playerId` to the authenticated player's own identity — see the note below on player-identity enforcement. |
-| `app.py` | (Optional) Replace the built-in player authorizer Lambda with your own function if you already have a separate authorizer |
-
-> **Player-identity enforcement (`playerId`).** The player Lambdas compare each request's `playerID` against the authenticated `playerId` and reject a mismatch with HTTP `403` (logging a `PLAYER_ID_MISMATCH` warning). By default: a player may only submit scores as themselves (`/leaderboards/stats`) and read only their own stats (`/leaderboards/player/stats`) and standing (`/leaderboards/player/standing`). The public score queries (`/leaderboards/scores`) are not restricted. The check is skipped when the authorizer does not set `playerId` (so it stays backward-compatible), which is why setting it is strongly recommended. Two developer toggles adjust the defaults: `ALLOW_VIEWING_OTHER_PLAYERS_STANDING` in `getPlayerLBStanding.py` and `RESTRICT_PLAYER_QUERIES_TO_SELF` in `getLeaderboardScores.py`. The Studio-key batch path (`/leaderboards/stats/batch`) is exempt by design (a trusted server submits many players). See `docs/api_reference.md` for the full matrix.
+| `auth/playerAuthorizer.py` | Set `PLAYER_AUTH_MODE=custom` and implement `_authorize_custom()` to validate your own tokens, returning `studioId`, `gameId`, `permissions`, and `playerId` in the authorizer context. Setting `playerId` enables the per-request identity enforcement described below. |
 
 **No changes needed:**
 
@@ -749,9 +763,11 @@ Backend (developer) APIs work after deployment without additional configuration.
 | `backend/*.py` | Backend functions use the StudioAPI Key flow which works after deployment |
 | `auth/backendAuthorizer.py` | Backend auth is fully functional via SSM Parameter Store |
 
-Until player auth is integrated, the player authorizer **fails closed**: all player API routes are denied at the API Gateway layer and return HTTP `403`. (The placeholder in `auth/playerAuthorizer.py` returns an explicit `Deny` — an unintegrated authorizer never authorizes anyone.) Search for `INTEGRATION POINT` across the codebase to find every location that needs attention.
+The player authorizer **fails closed**: any request it cannot validate is denied at the API Gateway layer with HTTP `403`. In identity mode that rejects missing, expired, or invalid tokens; in custom mode every request is denied until you implement your validation.
 
-For step-by-step integration instructions with code examples (JWT, OAuth), see [API Reference — Section 1.5](docs/api_reference.md#15-integrating-player-authentication).
+> **Player-identity enforcement.** Beyond token validation, the player Lambdas check that a caller acts only as themselves: each request's `playerID` must match the authenticated `playerId`, or it is rejected with HTTP `403` and a `PLAYER_ID_MISMATCH` warning. By default a player may only submit their own scores (`/leaderboards/stats`) and read their own stats (`/leaderboards/player/stats`) and standing (`/leaderboards/player/standing`); the public score queries (`/leaderboards/scores`) are not restricted. In identity mode the authorizer always sets `playerId`, so this is always on; in custom mode it applies when your authorizer sets it. Two toggles adjust the defaults: `ALLOW_VIEWING_OTHER_PLAYERS_STANDING` in `getPlayerLBStanding.py` and `RESTRICT_PLAYER_QUERIES_TO_SELF` in `getLeaderboardScores.py`. The Studio-key batch path (`/leaderboards/stats/batch`) is exempt. Full matrix in `docs/api_reference.md`.
+
+For player auth details (the two modes, the issuer URL, and the scope-to-permissions mapping), see [API Reference, Section 1.5](docs/api_reference.md#15-integrating-player-authentication).
 
 #### How authorization is enforced (route-level authZ is delegated to handlers)
 

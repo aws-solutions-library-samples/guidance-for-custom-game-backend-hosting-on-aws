@@ -2027,6 +2027,16 @@ class GameStatsLeaderboardsStack(Stack):
             constraint_description="Only letters, numbers, spaces, hyphens, underscores, periods, parentheses, exclamation marks, ampersands, dollar, and at signs are allowed"
         )
 
+        # Custom Identity Component issuer URL, consumed by the player authorizer in
+        # identity mode. Empty is allowed (e.g. PLAYER_AUTH_MODE=custom). deploy.sh
+        # requires it for identity mode.
+        self.issuer_endpoint_url = CfnParameter(
+            self, "IssuerEndpointUrl",
+            type="String",
+            default="",
+            description="Custom Identity Component issuer URL (e.g. https://xxxx.cloudfront.net)"
+        )
+
         # Create comprehensive resource group for ALL resources
         comprehensive_resource_group = self._create_comprehensive_resource_group(resource_prefix, environment)
 
@@ -2230,9 +2240,8 @@ class GameStatsLeaderboardsStack(Stack):
             results_cache_ttl=Duration.minutes(5)
         )
         
-        # Potential INTEGRATION POINT — Player Authorizer
-        # Uses auth/playerAuthorizer.py — add your player token validation there,
-        # or replace this with your own authorizer Lambda function.
+        # Player authorizer (auth/playerAuthorizer.py). Validates Custom Identity
+        # Component tokens in identity mode (default), or your own auth in custom mode.
         player_authorizer = apigw.RequestAuthorizer(
             self, f"{resource_prefix}-player-apigw-authorizer",
             handler=lambda_functions["player_authorizer"],
@@ -3748,7 +3757,22 @@ class GameStatsLeaderboardsStack(Stack):
                         )
                     
                     print(f"SSM put_parameter response: {response}")
-                    
+
+                    # Publish the non-secret studioId/gameId to a plain parameter
+                    # the player authorizer reads.
+                    try:
+                        registration_param = parameter_name.rsplit('/api-keys/', 1)[0] + '/config/registration'
+                        ssm.put_parameter(
+                            Name=registration_param,
+                            Value=json.dumps({'studioId': api_key_data['studioId'], 'gameId': api_key_data['gameId']}),
+                            Type='String',
+                            Overwrite=True,
+                            Tier='Standard'
+                        )
+                        print(f"Stored registration metadata parameter: {registration_param}")
+                    except Exception as reg_error:
+                        print(f"Warning: Could not write registration metadata parameter: {reg_error}")
+
                     return {'success': True, 'response': response}
                     
                 except Exception as e:
@@ -5791,8 +5815,14 @@ class GameStatsLeaderboardsStack(Stack):
 
         roles = {}
 
-        # 1. player_authorizer -- logs + X-Ray only (stub; integrators add perms here)
-        roles["player_auth"] = base("player-auth-role")
+        # 1. player_authorizer -- logs + X-Ray, plus read of the studio/game
+        #    registration param (identity mode resolves studioId/gameId from it)
+        r = base("player-auth-role")
+        r.add_to_policy(iam.PolicyStatement(
+            effect=iam.Effect.ALLOW,
+            actions=["ssm:GetParameter"],
+            resources=[f"arn:aws:ssm:{region}:{account}:parameter/{resource_prefix}/config/registration"]))
+        roles["player_auth"] = r
 
         # 2. backend_authorizer -- SSM read + self-heal own function config
         r = base("backend-auth-role")
@@ -6181,12 +6211,15 @@ class GameStatsLeaderboardsStack(Stack):
                     "API_KEY_PARAMETER_NAMES": json.dumps(api_key_param_names)  # For 10,000 TPS performance
                 })
             elif func_name == "player_authorizer":
-                # Potential INTEGRATION POINT — add environment variables for your player auth
-                # (e.g., JWT secret, OAuth endpoint, session store table name)
+                # Player auth path. In identity mode (default) this validates Custom
+                # Identity Component tokens. In custom mode it is bring-your-own
+                # (see auth/playerAuthorizer.py). The authorizer resolves
+                # studioId/gameId at runtime from SSM.
                 func_env.update({
                     "POWERTOOLS_SERVICE_NAME": "player-authorizer",
-                    "STUDIO_ID": "",   # Set after deployment or read from SSM
-                    "GAME_ID": "",     # Set after deployment or read from SSM
+                    "PLAYER_AUTH_MODE": self.node.try_get_context("player_auth_mode") or "identity",
+                    "ISSUER_URL": self.issuer_endpoint_url.value_as_string,
+                    "TOKEN_AUDIENCE": "gamebackend",
                 })
             elif func_name == "developer_registration":
                 func_env.update({

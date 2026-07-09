@@ -30,7 +30,7 @@
 
 All API endpoints (except developer registration) require authentication via the API Gateway Lambda Authorizer.
 
-> **Backend vs. Player Authentication:** The StudioAPI Key is intended exclusively for backend (developer) APIs. Player-facing APIs are protected by the authorizer but **deny all requests by default** — game developers must integrate their own player authentication system before player APIs will accept requests. See [Section 1.5](#15-integrating-player-authentication).
+> **Backend vs. Player Authentication:** The StudioAPI Key is for backend (developer) APIs only. Player-facing APIs are authenticated separately. By default they use access tokens issued by the AWS Game Backend Custom Identity Component. See [Section 1.5](#15-integrating-player-authentication).
 
 ```
 Client Request
@@ -121,17 +121,61 @@ The system uses **two separate API Gateway authorizers** to cleanly separate bac
                    |                                     |
                    v                                     v
      backendAuthorizer.py               playerAuthorizer.py
-     (StudioAPI Key via SSM)               (Potential INTEGRATION POINT)
-     Functional after deployment            Add your player auth here
+     (StudioAPI Key via SSM)               (Custom Identity Component tokens)
+     Functional after deployment            identity mode by default
                    |                                     |
                    v                                     v
           Backend Lambdas                       Player Lambdas
 ```
 
-- **Backend routes** use `auth/backendAuthorizer.py` — validates the StudioAPI Key from SSM Parameter Store. Functional after deployment.
-- **Player routes** use `auth/playerAuthorizer.py` — a template that **allows requests through with a marker** until you add your player token validation. Player Lambda functions detect this marker and return a developer-friendly error with integration guidance.
+- **Backend routes** use `auth/backendAuthorizer.py`, which validates the StudioAPI Key from SSM Parameter Store. Functional after deployment.
+- **Player routes** use `auth/playerAuthorizer.py`, which runs in one of two modes set by the `PLAYER_AUTH_MODE` environment variable.
 
-Each authorizer has its own independent API Gateway cache, so backend and player authentication caches are isolated from each other.
+Each authorizer has its own API Gateway cache, so backend and player auth stay isolated.
+
+**identity mode (default).** Player requests carry an access token issued by the AWS Game Backend Custom Identity Component:
+
+```
+Authorization: Bearer <player_access_token>
+```
+
+The authorizer verifies the token's RS256 signature against the issuer's public keys (JWKS), checks the audience (`gamebackend`) and issuer, and confirms it has not expired. On success it passes the player id, the granted permissions, and this deployment's studio and game ids to the target Lambda. You set the issuer URL at deploy time and no code changes are needed.
+
+Set the issuer URL before deploying:
+
+```
+export ISSUER_ENDPOINT_URL=https://xxxxxxxx.cloudfront.net
+```
+
+This is the `IssuerEndpointUrl` output of the CustomIdentityComponentStack. `deploy.sh` requires it in identity mode and stops with guidance if it is missing.
+
+The token's `scope` claim maps to permissions:
+
+| scope | permissions |
+|-------|-------------|
+| `guest` | read, write |
+| `authenticated` | read, write |
+
+Both scopes get read and write by default. To let guests read only, change the `guest` entry to `read` in the `SCOPE_PERMISSIONS` table at the top of `auth/playerAuthorizer.py`. An unrecognized scope is denied.
+
+**custom mode.** For standalone deployments that do not use the Custom Identity Component. Set `PLAYER_AUTH_MODE=custom` and add your own token validation in `_authorize_custom()` in `auth/playerAuthorizer.py`. It denies every request until you do. See "Custom mode" below.
+
+#### Player-identity enforcement
+
+On top of token validation and permission scope, the player Lambdas enforce that a caller acts only as themselves. Each handler compares the request's `playerID` against the authenticated `playerId` in the authorizer context and rejects a mismatch with HTTP 403 (`error: "Forbidden"`), logging a `PLAYER_ID_MISMATCH` warning for abuse monitoring.
+
+In identity mode the authorizer always sets `playerId` (from the token's `sub`), so this is always active. In custom mode it applies only when your authorizer sets `playerId` (enforce-when-present), so an authorizer that omits it stays backward compatible, though without this protection.
+
+| Endpoint | Default enforcement | Notes |
+|----------|--------------------|-------|
+| `POST /leaderboards/stats` (store score) | Enforced | A player may only submit under their own `playerID` (anti-spoofing). |
+| `POST /leaderboards/player/stats` | Enforced | A player may only read their own stats history (privacy). |
+| `POST /leaderboards/player/standing` | Enforced by default | A player may only view their own standing. Set `ALLOW_VIEWING_OTHER_PLAYERS_STANDING = True` in `getPlayerLBStanding.py` to allow viewing others. |
+| `POST /leaderboards/scores` | Not enforced (public) | Leaderboard scores are public ranking data. Optional: set `RESTRICT_PLAYER_QUERIES_TO_SELF = True` in `getLeaderboardScores.py` to restrict the player-scoped query types to the caller. |
+
+The backend batch path (`POST /leaderboards/stats/batch`, StudioAPI-key authenticated) is exempt: a trusted game server submits many players' scores in one call.
+
+Together, the two authorizers and this check form three layers: token validation, then permission scope, then player identity.
 
 #### Backend API Authentication (StudioAPI Key)
 
@@ -139,9 +183,9 @@ The `StudioAPI Key` is generated during deployment and stored in SSM Parameter S
 
 **This key is intended for server-side use only.** It grants full `read` and `write` access to all of your game's stats and leaderboard data. Do not embed it in game client builds, mobile apps, or any code distributed to end users.
 
-#### Player API Authentication — How to Integrate
+#### How Player Authentication Works
 
-Your game already authenticates players — through your login server, a platform provider, or an identity service. The same credential your game client uses to prove a player's identity should be passed to this component. The player authorizer then validates that credential before allowing the request through.
+Your game authenticates players and issues them a token. The client sends that token to this component on each request, and the player authorizer validates it before the request reaches a player Lambda. The diagram below shows the flow.
 
 ```
     Player launches game
@@ -168,115 +212,22 @@ Your game already authenticates players — through your login server, a platfor
                (processes request for authenticated player)
 ```
 
-You have two options:
-
 ---
 
-#### Option A: Add Your Auth Logic to the Built-in Player Authorizer (fewer changes required)
+#### Custom Mode: Bring Your Own Player Auth
 
-Edit `auth/playerAuthorizer.py` and replace the placeholder in `lambda_handler()`. The API Gateway routing is already wired — add your token validation logic.
+For standalone deployments that do not use the Custom Identity Component, set `PLAYER_AUTH_MODE=custom` and implement `_authorize_custom()` in `auth/playerAuthorizer.py`. It denies every request until you do.
 
-Search for `INTEGRATION POINT` in the file to find the placeholder.
-
-**Example using JWT:**
-
-```python
-def lambda_handler(event, context):
-    method_arn = event.get('methodArn', '*')
-    headers = event.get('headers', {})
-
-    normalized = {k.lower(): v for k, v in headers.items()}
-    token = normalized.get('authorization', '').replace('Bearer ', '').strip()
-
-    if not token:
-        return generate_policy('no-token', 'Deny', method_arn)
-
-    try:
-        import jwt  # Add PyJWT to layers/valkey-glide-layer/requirements.txt
-        claims = jwt.decode(token, YOUR_JWT_SECRET, algorithms=['HS256'])
-
-        return generate_policy(
-            principal_id=claims['player_id'],
-            effect='Allow',
-            resource=method_arn,
-            context={
-                'authType': 'player_token',
-                'studioId': STUDIO_ID,
-                'gameId': GAME_ID,
-                'permissions': 'read,write',
-                'playerId': claims['player_id']
-            }
-        )
-    except jwt.InvalidTokenError:
-        return generate_policy('invalid-token', 'Deny', method_arn)
-```
-
-**Required context fields** that downstream player Lambdas read from `event['requestContext']['authorizer']`:
+On success, return an Allow via `generate_policy(...)` with these context fields, which the player Lambdas read from `event['requestContext']['authorizer']`:
 
 | Field | Required | Description |
 |-------|----------|-------------|
 | `studioId` | Yes | Your studio identifier |
 | `gameId` | Yes | Your game identifier |
-| `permissions` | Yes | Comma-separated: `"read"`, `"write"`, or `"read,write"` |
-| `playerId` | Strongly recommended | Authenticated player's identity from the validated token. Used for audit logging **and** as a security control — see "Player-identity enforcement" below. |
+| `permissions` | Yes | Comma-separated: `read`, `write`, or `read,write` |
+| `playerId` | Recommended | The authenticated player's identity. Used for audit logging and as a security control (see "Player-identity enforcement"). |
 
-##### Player-identity enforcement (playerId)
-
-Set `playerId` to the authenticated player's own identity. The player Lambdas compare the request's `playerID` against this authenticated `playerId` and reject a mismatch with **HTTP 403** (`error: "Forbidden"`), logging a `PLAYER_ID_MISMATCH` warning for abuse monitoring. This prevents a player from acting as someone else:
-
-| Endpoint | Default enforcement | Notes |
-|----------|--------------------|-------|
-| `POST /leaderboards/stats` (store score) | Enforced | A player may only submit under their own `playerID` (anti-spoofing). |
-| `POST /leaderboards/player/stats` | Enforced | A player may only read their own stats history (privacy). |
-| `POST /leaderboards/player/standing` | Enforced by default | A player may only view their own standing. Toggle `ALLOW_VIEWING_OTHER_PLAYERS_STANDING = True` in `getPlayerLBStanding.py` to allow viewing others. |
-| `POST /leaderboards/scores` | Not enforced (public) | Leaderboard scores are public ranking data (`top`, `scoreRange`, `aroundPlayer`, `playerScore`). Optional: set `RESTRICT_PLAYER_QUERIES_TO_SELF = True` in `getLeaderboardScores.py` to restrict the player-scoped query types to the caller. |
-
-Enforcement is **skipped when `playerId` is absent** from the authorizer context ("enforce-when-present"), so an authorizer that does not set it keeps working — but then these protections do not apply, which is why setting `playerId` is strongly recommended. The backend batch path (`POST /leaderboards/stats/batch`, Studio-API-key authenticated) is intentionally exempt: a trusted game server submits many players' scores in one call.
-
-**No changes needed in `app.py` or the player Lambda functions.** The API Gateway routing and the `validate_authenticated_context()` function in each player Lambda already read from the authorizer context. Search for `INTEGRATION POINT` in the player functions to see where the context is consumed.
-
----
-
-#### Option B: Use Your Own Separate Authorizer Lambda
-
-If you already have your own authorizer Lambda, point the player authorizer to it in `app.py`. Find the `Potential INTEGRATION POINT — Player Authorizer` comment and replace `lambda_functions["player_authorizer"]` with your own Lambda function reference:
-
-```python
-# In app.py, _create_rest_api():
-
-# Potential INTEGRATION POINT — Player Authorizer
-player_authorizer = apigw.RequestAuthorizer(
-    self, f"{resource_prefix}-player-authorizer",
-    handler=your_own_authorizer_function,    # <-- replace this
-    identity_sources=[apigw.IdentitySource.header('Authorization')],
-    authorizer_name=f"{resource_prefix}-player-authorizer",
-    results_cache_ttl=Duration.minutes(5)
-)
-```
-
-Your authorizer must return the same context structure (studioId, gameId, permissions) so the downstream player Lambdas can process the request.
-
----
-
-#### Finding All Integration Points
-
-Search for `INTEGRATION POINT` across the codebase to find every location that needs attention for player authentication:
-
-| File | What to do |
-|------|-----------|
-| `auth/playerAuthorizer.py` | Add your player token validation logic |
-| `app.py` | (Optional) Replace with your own authorizer Lambda |
-| `player/*.py` | (No changes needed) Already reads from authorizer context |
-
-#### Common Auth Approaches
-
-| Approach | How it works | Best for |
-|----------|-------------|----------|
-| **Session tokens** | Issued by your login server after player authentication | Custom backends |
-| **JWT tokens** | Self-issued, signed tokens with player identity claims | Serverless / stateless architectures |
-| **OAuth 2.0 / OIDC** | Federated identity through Google, Apple, Steam, etc. | Cross-platform games |
-| **Platform tokens** | Steam tickets, PSN tokens, Xbox Live tokens | Platform-exclusive titles |
-| **Custom API keys** | Per-player or per-session keys from your auth backend | Simple integrations |
+The API Gateway routing and the player Lambdas are already wired, so no changes are needed in `app.py` or the player functions.
 
 > **Important:** The StudioAPI Key grants full read/write access to all of your game's stats and leaderboard data, including destructive operations like reset and delete. It must never be used as a player credential. If a player obtains the StudioAPI Key, they can manipulate all stats and leaderboard data for all players.
 
@@ -1646,7 +1597,7 @@ For large leaderboards, the rebuild may span multiple Lambda invocations via sel
 
 Player APIs are designed to be called from the game client or game server on behalf of individual players. These APIs handle individual score submissions and player-specific queries.
 
-> **Authentication Note:** Player routes are protected by the player authorizer but **deny all requests by default** until you integrate your own player authentication. The player authorizer's `_authorize_player_request()` function is the integration point — see [Section 1.5](#15-integrating-player-authentication) for step-by-step guidance.
+> **Authentication Note:** Player routes are authenticated by the player authorizer. In identity mode (the default) it validates Custom Identity Component access tokens; in custom mode you supply your own validation. See [Section 1.5](#15-integrating-player-authentication) for details.
 
 All player APIs currently require authentication. Store operations require `write` permission; query operations require `read` permission.
 

@@ -3,58 +3,79 @@
 """
 playerAuthorizer.py -- API Gateway Lambda Authorizer for Player-Facing APIs
 
-=============================================================================
-INTEGRATION POINT — Player Authentication
-=============================================================================
+Handles the player-facing routes:
+    POST /leaderboards/stats            -- submit a player's score
+    POST /leaderboards/scores           -- query a leaderboard
+    POST /leaderboards/player/stats     -- player stat history
+    POST /leaderboards/player/standing  -- player rank / neighbours
 
-This authorizer handles all player-facing API routes:
-    /leaderboards/stats/*       — store player stats and scores
-    /leaderboards/scores        — get leaderboard scores
-    /leaderboards/player/*      — get player stats, standings
+Separate from backendAuthorizer.py (StudioAPI-key / developer routes) so the two
+auth paths cache, scale, and are monitored independently.
 
-It is a SEPARATE authorizer from backendAuthorizer.py (which handles
-backend/developer routes using the StudioAPI Key). This separation ensures:
-    - Independent caching (backend and player auth caches are isolated)
-    - Independent scaling and monitoring
-    - Clean separation of concerns
+Mode is selected by the PLAYER_AUTH_MODE environment variable:
+    identity (default) -- validate access tokens issued by the AWS Game Backend
+                          Custom Identity Component: an RS256 JWT verified against
+                          the issuer's JWKS (aud "gamebackend", matching issuer).
+    custom             -- bring-your-own: standalone deployments implement their
+                          own validation in _authorize_custom(); fail closed until
+                          they do.
 
-HOW TO INTEGRATE:
-    1. Replace the placeholder in lambda_handler() with your token validation
-    2. Add any dependencies to layers/valkey-glide-layer/requirements.txt
-    3. Deploy: the CDK stack (app.py) already wires this to player routes
-
-The context you return is read by player Lambda functions via:
-    event['requestContext']['authorizer']
-
-Required context fields:
-    studioId    — your studio identifier (from your config or token claims)
-    gameId      — your game identifier (from your config or token claims)
-    permissions — comma-separated: "read", "write", or "read,write"
-    playerId    — the authenticated player's ID (recommended)
-=============================================================================
+Context returned to the player Lambdas via event['requestContext']['authorizer']:
+    studioId, gameId  -- this deployment's studio/game (read from SSM)
+    permissions       -- "read", "write", or "read,write"
+    playerId          -- authenticated player id (the JWT 'sub' claim)
 """
 
 import json
 import os
+import time
+import threading
 from typing import Dict, Any, Optional
+
+import jwt
+import requests
+import boto3
+from botocore.exceptions import ClientError
 
 from aws_lambda_powertools import Logger, Tracer
 from aws_lambda_powertools.logging import correlation_paths
 from aws_lambda_powertools.utilities.typing import LambdaContext
 
-# Initialize AWS Lambda Powertools
 logger = Logger(service="player-authorizer")
 tracer = Tracer(service="player-authorizer")
 
-# Environment variables
+# Configuration (wired by the CDK stack, see app.py player_authorizer env)
 ENVIRONMENT = os.environ.get('ENVIRONMENT', 'dev')
+PLAYER_AUTH_MODE = os.environ.get('PLAYER_AUTH_MODE', 'identity').strip().lower()
+ISSUER_URL = os.environ.get('ISSUER_URL', '').rstrip('/')
+TOKEN_AUDIENCE = os.environ.get('TOKEN_AUDIENCE', 'gamebackend')
+SSM_PARAMETER_PREFIX = os.environ.get('SSM_PARAMETER_PREFIX', f'/game-statsleaderboards-{ENVIRONMENT}')
 
-# =============================================================================
-# CONFIGURE THESE for your game — or read them from environment variables,
-# SSM Parameter Store, or your token claims.
-# =============================================================================
-STUDIO_ID = os.environ.get('STUDIO_ID', '')
-GAME_ID = os.environ.get('GAME_ID', '')
+# Log the resolved config once at cold start. If tokens are rejected with 403, the
+# most common cause is ISSUER_URL not matching the token's `iss`. That makes the
+# expected issuer easy to compare against the token. None of these are secrets.
+logger.info(
+    f"Player authorizer init: mode={PLAYER_AUTH_MODE}, "
+    f"issuer={ISSUER_URL or '(unset)'}, audience={TOKEN_AUDIENCE}"
+)
+
+# scope claim -> permissions granted. Tighten a scope here (e.g. "guest": "read")
+# to restrict it. An unrecognized scope is denied.
+SCOPE_PERMISSIONS = {
+    "guest": "read,write",
+    "authenticated": "read,write",
+}
+
+ssm = boto3.client('ssm')
+
+# JWKS cache. Keys rotate, so refetch on an unknown kid or once the cache is stale.
+_jwks_lock = threading.Lock()
+_jwks_keys: Dict[str, Any] = {}
+_jwks_fetched_at = 0.0
+_JWKS_TTL = 900
+
+# studio/game identity cache (single-tenant: one fixed pair per deployment)
+_registration_cache: Optional[Dict[str, str]] = None
 
 
 def generate_policy(principal_id: str, effect: str, resource: str, context: Dict[str, Any] = None) -> Dict[str, Any]:
@@ -82,81 +103,133 @@ def generate_policy(principal_id: str, effect: str, resource: str, context: Dict
     return policy
 
 
+def _refresh_jwks() -> None:
+    """Fetch the issuer's public keys into the module cache."""
+    global _jwks_keys, _jwks_fetched_at
+    response = requests.get(f"{ISSUER_URL}/.well-known/jwks.json", timeout=3)
+    response.raise_for_status()
+    _jwks_keys = {k["kid"]: k for k in response.json().get("keys", []) if "kid" in k}
+    _jwks_fetched_at = time.time()
+
+
+def _get_signing_key(kid: str):
+    """Return the RSA key for kid, refetching the JWKS once if it's missing or stale."""
+    with _jwks_lock:
+        if kid not in _jwks_keys or (time.time() - _jwks_fetched_at) > _JWKS_TTL:
+            _refresh_jwks()
+        key = _jwks_keys.get(kid)
+    if not key:
+        return None
+    return jwt.algorithms.RSAAlgorithm.from_jwk(json.dumps(key))
+
+
+def _get_studio_game() -> Optional[Dict[str, str]]:
+    """Read this deployment's studioId/gameId from SSM (cached; single-tenant)."""
+    global _registration_cache
+    if _registration_cache is not None:
+        return _registration_cache
+    try:
+        param = ssm.get_parameter(Name=f"{SSM_PARAMETER_PREFIX}/config/registration")
+        data = json.loads(param['Parameter']['Value'])
+        _registration_cache = {"studioId": data["studioId"], "gameId": data["gameId"]}
+        return _registration_cache
+    except (ClientError, KeyError, json.JSONDecodeError) as e:
+        logger.error(f"Could not read studio/game registration from SSM: {e}")
+        return None
+
+
+def _authorize_identity(event: Dict[str, Any], method_arn: str) -> Dict[str, Any]:
+    """Validate a Custom Identity Component access token (RS256 JWT)."""
+    if not ISSUER_URL:
+        logger.error("PLAYER_AUTH_MODE=identity but ISSUER_URL is not set - denying.")
+        return generate_policy("issuer-not-configured", 'Deny', method_arn)
+
+    headers = {k.lower(): v for k, v in (event.get('headers') or {}).items()}
+    auth_header = headers.get('authorization', '').strip()
+    token = auth_header[7:].strip() if auth_header.lower().startswith('bearer ') else auth_header
+    if not token:
+        return generate_policy("no-token", 'Deny', method_arn)
+
+    # Identify the signing key from the (unverified) header, then look it up in the JWKS.
+    try:
+        kid = jwt.get_unverified_header(token).get('kid')
+    except jwt.InvalidTokenError:
+        return generate_policy("malformed-token", 'Deny', method_arn)
+    if not kid:
+        return generate_policy("no-kid", 'Deny', method_arn)
+
+    signing_key = _get_signing_key(kid)
+    if signing_key is None:
+        logger.warning("No JWKS key matched the token's kid.")
+        return generate_policy("unknown-key", 'Deny', method_arn)
+
+    # Verify signature, audience, issuer, and expiry.
+    try:
+        claims = jwt.decode(
+            token,
+            signing_key,
+            algorithms=["RS256"],
+            audience=TOKEN_AUDIENCE,
+            issuer=ISSUER_URL,
+            options={"require": ["exp", "iss", "sub"]},
+        )
+    except jwt.InvalidTokenError as e:
+        logger.info(f"Token rejected: {e}")
+        return generate_policy("invalid-token", 'Deny', method_arn)
+
+    permissions = SCOPE_PERMISSIONS.get(claims.get('scope'))
+    if not permissions:
+        logger.info(f"Unrecognized scope '{claims.get('scope')}' - denying.")
+        return generate_policy("unrecognized-scope", 'Deny', method_arn)
+
+    studio_game = _get_studio_game()
+    if not studio_game:
+        return generate_policy("registration-unavailable", 'Deny', method_arn)
+
+    player_id = claims['sub']
+    return generate_policy(
+        principal_id=player_id,
+        effect='Allow',
+        resource=method_arn,
+        context={
+            'authType': 'player_token',
+            'studioId': studio_game['studioId'],
+            'gameId': studio_game['gameId'],
+            'permissions': permissions,
+            'playerId': player_id,
+        },
+    )
+
+
+def _authorize_custom(event: Dict[str, Any], method_arn: str) -> Dict[str, Any]:
+    """
+    Standalone / bring-your-own player auth. Fail closed until implemented.
+
+    Replace the body below with your own token validation, and on success return
+    an Allow via generate_policy(...) with context fields: studioId, gameId,
+    permissions ("read" / "write" / "read,write"), and playerId.
+    """
+    logger.warning(
+        "PLAYER_AUTH_MODE=custom but no custom validation is implemented - "
+        "denying (fail closed). Implement _authorize_custom() in auth/playerAuthorizer.py."
+    )
+    return generate_policy(
+        principal_id="player-auth-not-configured",
+        effect='Deny',
+        resource=method_arn,
+        context={'authType': 'player_auth_not_configured'},
+    )
+
+
 @logger.inject_lambda_context(correlation_id_path=correlation_paths.API_GATEWAY_REST)
 @tracer.capture_lambda_handler
 def lambda_handler(event: Dict[str, Any], context: LambdaContext) -> Dict[str, Any]:
-    """
-    Player authentication authorizer.
-
-    =========================================================================
-    INTEGRATION POINT — Replace the placeholder below with your game's
-    player token validation logic.
-    =========================================================================
-    """
+    """Player authorizer. Dispatches on PLAYER_AUTH_MODE; fails closed on any error."""
     method_arn = event.get('methodArn', '*')
-    headers = event.get('headers', {})
-
     try:
-        # -----------------------------------------------------------------
-        # PLACEHOLDER — Replace this entire block with your auth logic.
-        #
-        # Example with JWT:
-        #
-        #     import jwt
-        #     normalized = {k.lower(): v for k, v in headers.items()}
-        #     token = normalized.get('authorization', '').replace('Bearer ', '').strip()
-        #     if not token:
-        #         return generate_policy('no-token', 'Deny', method_arn)
-        #     try:
-        #         claims = jwt.decode(token, YOUR_SECRET, algorithms=['HS256'])
-        #         return generate_policy(
-        #             principal_id=claims['player_id'],
-        #             effect='Allow',
-        #             resource=method_arn,
-        #             context={
-        #                 'authType': 'player_token',
-        #                 'studioId': STUDIO_ID,
-        #                 'gameId': GAME_ID,
-        #                 'permissions': 'read,write',
-        #                 'playerId': claims['player_id']
-        #             }
-        #         )
-        #     except jwt.InvalidTokenError:
-        #         return generate_policy('invalid-token', 'Deny', method_arn)
-        #
-        # -----------------------------------------------------------------
-
-        # FAIL CLOSED: until you replace this placeholder with real token
-        # validation, the authorizer DENIES every player request. An authorizer
-        # that returns 'Allow' by default is the wrong secure default — it would
-        # authorize everyone (and API Gateway caches that Allow for the
-        # results_cache_ttl window). Denying here means an unintegrated or
-        # misconfigured authorizer can never expose player endpoints.
-        #
-        # NOTE: a Deny is enforced by API Gateway BEFORE the target Lambda runs,
-        # so callers receive a generic 403 ("User is not authorized...") rather
-        # than the previous handler-level guidance message. That guidance still
-        # lives in auth/playerAuthorizer.py (this file), docs/api_reference.md
-        # Section 1.5, and the deploy.sh output, and the 'authType' marker below
-        # remains available as defense-in-depth for any path that does run.
-        logger.warning(
-            "Player authentication is NOT integrated — denying request (fail closed). "
-            "Replace the placeholder in auth/playerAuthorizer.py lambda_handler() "
-            "with your token validation. See docs/api_reference.md Section 1.5."
-        )
-        return generate_policy(
-            principal_id="player-auth-not-configured",
-            effect='Deny',
-            resource=method_arn,
-            context={
-                'authType': 'player_auth_not_configured',
-                'studioId': '',
-                'gameId': '',
-                'permissions': '',
-                'playerId': ''
-            }
-        )
-
+        if PLAYER_AUTH_MODE == 'custom':
+            return _authorize_custom(event, method_arn)
+        return _authorize_identity(event, method_arn)
     except Exception as e:
         logger.error(f"Unexpected player authorizer error: {str(e)}")
         return generate_policy(principal_id="system-error", effect='Deny', resource=method_arn)

@@ -661,6 +661,31 @@ def construct_ssm_parameter_name(prefix: str, studio_id: str, game_id: str) -> s
     
     return parameter_name
 
+
+def store_registration_metadata(studio_id: str, game_id: str) -> None:
+    """Publish the non-secret studioId/gameId to a plain SSM parameter the player
+    authorizer reads.
+
+    Best-effort: logs on failure rather than failing registration. The player
+    authorizer fails closed if the value is missing.
+    """
+    if not studio_id or not game_id:
+        logger.warning("Skipping registration metadata write: missing studioId/gameId")
+        return
+    parameter_name = f"{SSM_PARAMETER_PREFIX.rstrip('/')}/config/registration"
+    try:
+        ssm.put_parameter(
+            Name=parameter_name,
+            Value=json.dumps({"studioId": studio_id, "gameId": game_id}),
+            Type='String',
+            Overwrite=True,
+            Tier='Standard',
+        )
+        logger.info(f"Stored registration metadata parameter: {parameter_name}")
+    except ClientError as e:
+        logger.error(f"Failed to write registration metadata parameter {parameter_name}: {e}")
+
+
 def store_api_key_in_ssm(parameter_name: str, api_key_data: Dict[str, Any], description: str, backup_old_key: bool = True) -> bool:
     """
     Store API key data in SSM Parameter Store with optional backup of old key.
@@ -808,7 +833,10 @@ def store_api_key_in_ssm(parameter_name: str, api_key_data: Dict[str, Any], desc
         
         logger.info(f"Successfully stored SSM parameter: {parameter_name}")
         logger.info(f"SSM response: {response}")
-        
+
+        # Publish studioId/gameId to a non-secret parameter the player authorizer reads.
+        store_registration_metadata(api_key_data.get('studioId'), api_key_data.get('gameId'))
+
         return True
         
     except ClientError as e:
