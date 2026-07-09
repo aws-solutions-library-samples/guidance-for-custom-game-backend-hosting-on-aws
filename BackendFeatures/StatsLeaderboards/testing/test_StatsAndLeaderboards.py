@@ -9,6 +9,17 @@ configuration from CloudFormation stack outputs and SSM Parameter Store. Logs ev
 request/response to a session log file. Cleans up all created leaderboards after each
 run (unless --retain is passed).
 
+TODO / IMPORTANT (player-identity enforcement):
+    This suite submits and queries MANY distinct player IDs against the player
+    endpoints. Those endpoints now enforce that a request's playerID matches the
+    authenticated player (auth_context['playerId']) — store/get-player-stats
+    always, get-player-standing by default. So this suite only passes end-to-end
+    when your integrated auth/playerAuthorizer.py does NOT pin a single fixed
+    'playerId' (i.e. it echoes the request's player, or omits 'playerId' so the
+    enforce-when-present checks are skipped). A production authorizer SHOULD pin
+    the real player's id from the validated token; that is correct for a live game
+    but is intentionally not what a multi-player test harness needs.
+
 Phase numbers are for reference only (not sequential due to iterative development).
 
 Test Phases:
@@ -238,6 +249,13 @@ def discover_configuration():
     printlog(f"    SSM:     {ssm_prefix}")
 
     # --- SSM Parameter Store: find active API key ---
+    # TODO / TEST INSTRUMENTATION ONLY: this suite authenticates ALL requests
+    # (including the player-facing endpoints) with the backend Studio API key
+    # retrieved below. That is a deliberate test convenience so the suite can run
+    # without standing up a real player-identity provider. A real game does NOT
+    # do this: player endpoints must be called with a player token that your
+    # integrated auth/playerAuthorizer.py validates. Do not copy this pattern
+    # into client code.
     ssm = session.client("ssm")
     api_keys_path = f"{ssm_prefix.rstrip('/')}/api-keys"
 

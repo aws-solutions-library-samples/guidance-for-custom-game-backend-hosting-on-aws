@@ -218,7 +218,20 @@ def lambda_handler(event, context):
 | `studioId` | Yes | Your studio identifier |
 | `gameId` | Yes | Your game identifier |
 | `permissions` | Yes | Comma-separated: `"read"`, `"write"`, or `"read,write"` |
-| `playerId` | No (recommended) | Authenticated player ID for logging and audit |
+| `playerId` | Strongly recommended | Authenticated player's identity from the validated token. Used for audit logging **and** as a security control — see "Player-identity enforcement" below. |
+
+##### Player-identity enforcement (playerId)
+
+Set `playerId` to the authenticated player's own identity. The player Lambdas compare the request's `playerID` against this authenticated `playerId` and reject a mismatch with **HTTP 403** (`error: "Forbidden"`), logging a `PLAYER_ID_MISMATCH` warning for abuse monitoring. This prevents a player from acting as someone else:
+
+| Endpoint | Default enforcement | Notes |
+|----------|--------------------|-------|
+| `POST /leaderboards/stats` (store score) | Enforced | A player may only submit under their own `playerID` (anti-spoofing). |
+| `POST /leaderboards/player/stats` | Enforced | A player may only read their own stats history (privacy). |
+| `POST /leaderboards/player/standing` | Enforced by default | A player may only view their own standing. Toggle `ALLOW_VIEWING_OTHER_PLAYERS_STANDING = True` in `getPlayerLBStanding.py` to allow viewing others. |
+| `POST /leaderboards/scores` | Not enforced (public) | Leaderboard scores are public ranking data (`top`, `scoreRange`, `aroundPlayer`, `playerScore`). Optional: set `RESTRICT_PLAYER_QUERIES_TO_SELF = True` in `getLeaderboardScores.py` to restrict the player-scoped query types to the caller. |
+
+Enforcement is **skipped when `playerId` is absent** from the authorizer context ("enforce-when-present"), so an authorizer that does not set it keeps working — but then these protections do not apply, which is why setting `playerId` is strongly recommended. The backend batch path (`POST /leaderboards/stats/batch`, Studio-API-key authenticated) is intentionally exempt: a trusted game server submits many players' scores in one call.
 
 **No changes needed in `app.py` or the player Lambda functions.** The API Gateway routing and the `validate_authenticated_context()` function in each player Lambda already read from the authorizer context. Search for `INTEGRATION POINT` in the player functions to see where the context is consumed.
 

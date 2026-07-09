@@ -736,8 +736,10 @@ Backend (developer) APIs work after deployment without additional configuration.
 
 | File | What to do |
 |------|-----------|
-| `auth/playerAuthorizer.py` | Add your player token validation logic. The function receives the `Authorization` header value and must return an IAM policy with `studioId`, `gameId`, `permissions`, and optionally `playerId` in the authorizer context. |
+| `auth/playerAuthorizer.py` | Add your player token validation logic. The function receives the `Authorization` header value and must return an IAM policy with `studioId`, `gameId`, `permissions`, and `playerId` in the authorizer context. Set `playerId` to the authenticated player's own identity — see the note below on player-identity enforcement. |
 | `app.py` | (Optional) Replace the built-in player authorizer Lambda with your own function if you already have a separate authorizer |
+
+> **Player-identity enforcement (`playerId`).** The player Lambdas compare each request's `playerID` against the authenticated `playerId` and reject a mismatch with HTTP `403` (logging a `PLAYER_ID_MISMATCH` warning). By default: a player may only submit scores as themselves (`/leaderboards/stats`) and read only their own stats (`/leaderboards/player/stats`) and standing (`/leaderboards/player/standing`). The public score queries (`/leaderboards/scores`) are not restricted. The check is skipped when the authorizer does not set `playerId` (so it stays backward-compatible), which is why setting it is strongly recommended. Two developer toggles adjust the defaults: `ALLOW_VIEWING_OTHER_PLAYERS_STANDING` in `getPlayerLBStanding.py` and `RESTRICT_PLAYER_QUERIES_TO_SELF` in `getLeaderboardScores.py`. The Studio-key batch path (`/leaderboards/stats/batch`) is exempt by design (a trusted server submits many players). See `docs/api_reference.md` for the full matrix.
 
 **No changes needed:**
 

@@ -9,6 +9,18 @@ Load and Stress Testing System for Stats & Leaderboards AWS Backend
 Simulates up to 100,000 concurrent players generating realistic gameplay traffic
 to test the Stats & Leaderboards AWS custom game backend framework.
 
+TODO / IMPORTANT (player-identity enforcement):
+    This harness drives the player endpoints for a large pool of distinct
+    simulated player IDs, all authenticated with the backend Studio API key
+    (test instrumentation only — see the note at the API-key retrieval below).
+    The player endpoints now enforce that a request's playerID matches the
+    authenticated player (auth_context['playerId']) — store/get-player-stats
+    always, get-player-standing by default. Those checks are skipped when
+    'playerId' is absent from the authorizer context (enforce-when-present), so
+    this Studio-key-authed harness runs unaffected. If you instead point this
+    harness at a real player authorizer that pins a single 'playerId', the
+    multi-player phases would be rejected with HTTP 403 by design.
+
 QUICK START
 -----------
 1. Generate test configuration:
@@ -3393,7 +3405,14 @@ def register_developer_studio(api_base_url, studio_name, game_title, contact_ema
             # Parse the complete metadata JSON from SSM
             ssm_metadata = json.loads(param_response['Parameter']['Value'])
             
-            # Extract API key from metadata
+            # Extract API key from metadata.
+            # TODO / TEST INSTRUMENTATION ONLY: this Studio (backend) API key is
+            # used to authenticate ALL of the harness's simulated traffic,
+            # including the player-facing endpoints, so the load test can run
+            # without a real player-identity provider. A real game does NOT do
+            # this: player endpoints must be called with a per-player token that
+            # your integrated auth/playerAuthorizer.py validates. Do not copy this
+            # pattern into client code.
             api_key = ssm_metadata.get('apiKey')
             if not api_key:
                 print(f"❌ No apiKey field found in SSM parameter")

@@ -205,6 +205,17 @@ class LeaderboardNotFoundError(Exception):
     pass
 
 
+class PlayerIdentityMismatchError(Exception):
+    """
+    Raised when the playerID in the request does not match the authenticated
+    player's identity (auth_context['playerId']). A player's stats history is
+    private, so a caller may only read their OWN stats. Mapped to HTTP 403
+    (Forbidden) — authenticated, but not permitted to read another player's
+    data. See the identity check in lambda_handler().
+    """
+    pass
+
+
 def handle_errors(func):
     """
     Enhanced error handler with specific error types and recovery strategies.
@@ -242,6 +253,20 @@ def handle_errors(func):
                 'headers': {'Content-Type': 'application/json'},
                 'body': json.dumps({'playerStatsAndScoresResponse': {
                     'error': 'Unauthorized',
+                    'message': str(e),
+                    'timestamp': datetime.now(timezone.utc).isoformat()
+                }})
+            }
+        except PlayerIdentityMismatchError as e:
+            # 403 Forbidden: authenticated, but requesting another player's stats.
+            # The PLAYER_ID_MISMATCH WARNING is logged at the detection site below;
+            # the attempted ID is not echoed back to the caller.
+            logger.error(f"Player identity mismatch: {str(e)}")
+            return {
+                'statusCode': 403,
+                'headers': {'Content-Type': 'application/json'},
+                'body': json.dumps({'playerStatsAndScoresResponse': {
+                    'error': 'Forbidden',
                     'message': str(e),
                     'timestamp': datetime.now(timezone.utc).isoformat()
                 }})
@@ -1234,7 +1259,31 @@ def lambda_handler(event: Dict[str, Any], context: LambdaContext) -> Dict[str, A
     
     # Validate request
     request_params = validate_request(event)
-    
+
+    # =========================================================================
+    # PRIVACY: a player's stats history is personal data — a caller may only read
+    # THEIR OWN stats. Compare the requested playerID against the authenticated
+    # player's id (auth_context['playerId'], set by your Lambda authorizer from
+    # the validated token). A mismatch means the caller is trying to read another
+    # player's history, so we reject with HTTP 403 and log it as potential abuse.
+    #
+    # Enforce-when-present: skipped if your authorizer does not set 'playerId'
+    # (documented as recommended, not mandatory), so the deployment keeps working.
+    # To make it MANDATORY, drop the `authenticated_player_id and` guard and have
+    # the authorizer always populate 'playerId'.
+    # =========================================================================
+    authenticated_player_id = auth_context.get('playerId', '')
+    if authenticated_player_id and authenticated_player_id != request_params['playerID']:
+        logger.warning(
+            "PLAYER_ID_MISMATCH: authenticated player '%s' attempted to read stats of '%s' "
+            "(studio=%s, game=%s, requestId=%s)",
+            authenticated_player_id, request_params['playerID'],
+            auth_context['studioId'], auth_context['gameId'], context.aws_request_id,
+        )
+        raise PlayerIdentityMismatchError(
+            "playerID does not match the authenticated player"
+        )
+
     # Execute the async processing
     stats_result = run_async(process_player_stats_retrieval(request_params))
     

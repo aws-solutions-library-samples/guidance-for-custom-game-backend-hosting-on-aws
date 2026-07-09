@@ -241,6 +241,16 @@ class LeaderboardNotFoundError(Exception):
     pass
 
 
+class PlayerIdentityMismatchError(Exception):
+    """
+    Raised only when RESTRICT_PLAYER_QUERIES_TO_SELF is enabled (see
+    lambda_handler) and a player-scoped query (`aroundPlayer`/`playerScore`)
+    targets a playerID other than the authenticated player. Mapped to HTTP 403.
+    OFF by default — leaderboard scores are public ranking data.
+    """
+    pass
+
+
 def handle_errors(func):
     """
     Enhanced error handler with specific error types and recovery strategies.
@@ -280,6 +290,21 @@ def handle_errors(func):
                 'headers': {'Content-Type': 'application/json'},
                 'body': json.dumps({'leaderboardScoresResponse': {
                     'error': 'Unauthorized',
+                    'message': str(e),
+                    'timestamp': datetime.now(timezone.utc).isoformat(),
+                    'success': False
+                }})
+            }
+        except PlayerIdentityMismatchError as e:
+            # 403 Forbidden — only reachable when RESTRICT_PLAYER_QUERIES_TO_SELF
+            # is enabled. The PLAYER_ID_MISMATCH WARNING is logged at the
+            # detection site; the attempted ID is not echoed back.
+            logger.error(f"Player identity mismatch: {str(e)}")
+            return {
+                'statusCode': 403,
+                'headers': {'Content-Type': 'application/json'},
+                'body': json.dumps({'leaderboardScoresResponse': {
+                    'error': 'Forbidden',
                     'message': str(e),
                     'timestamp': datetime.now(timezone.utc).isoformat(),
                     'success': False
@@ -1746,7 +1771,49 @@ def lambda_handler(event: Dict[str, Any], context: LambdaContext) -> Dict[str, A
     # Authenticate request
     auth_context = validate_authenticated_context(event, 'read')
     logger.info(f"Authenticated request for studio: {auth_context['studioId']}, game: {auth_context['gameId']}")
-    
+
+    # =========================================================================
+    # PLAYER-QUERY SCOPE (default: OPEN / auth-only — BY DESIGN).
+    #
+    # Leaderboard scores are public ranking data. The `top` and `scoreRange`
+    # queries return many players, and `aroundPlayer` / `playerScore` accept any
+    # playerID so a client can render standard leaderboard screens (e.g. "players
+    # around rank N", "look up a player's score"). This is the same data reachable
+    # by paginating the leaderboard, so by default no per-player restriction is
+    # applied — any authenticated player may read it.
+    #
+    # ---- DEVELOPER TOGGLE ---------------------------------------------------
+    # Set RESTRICT_PLAYER_QUERIES_TO_SELF = True if your game design requires that
+    # the player-scoped query types (`aroundPlayer`, `playerScore`) may only
+    # target the caller's OWN playerID. When enabled, a mismatch is rejected with
+    # HTTP 403 and logged as a potential-abuse signal. This makes the
+    # around/specific-player lookups consistent with getPlayerLBStanding, which
+    # restricts standing to the caller by default. `top` and `scoreRange` are
+    # never restricted (they are inherently multi-player views).
+    # -------------------------------------------------------------------------
+    RESTRICT_PLAYER_QUERIES_TO_SELF = False
+
+    if RESTRICT_PLAYER_QUERIES_TO_SELF:
+        authenticated_player_id = auth_context.get('playerId', '')
+        if authenticated_player_id:  # enforce-when-present
+            try:
+                _body = json.loads(event['body']) if isinstance(event.get('body'), str) else (event.get('body') or {})
+                _req = (_body.get('leaderboardScoresRequest') or {})
+            except (json.JSONDecodeError, TypeError, AttributeError):
+                _req = {}
+            if _req.get('queryType') in ('aroundPlayer', 'playerScore'):
+                _requested_player_id = _req.get('playerID', '')
+                if _requested_player_id and _requested_player_id != authenticated_player_id:
+                    logger.warning(
+                        "PLAYER_ID_MISMATCH: authenticated player '%s' attempted a %s query for '%s' "
+                        "(studio=%s, game=%s, requestId=%s)",
+                        authenticated_player_id, _req.get('queryType'), _requested_player_id,
+                        auth_context['studioId'], auth_context['gameId'], context.aws_request_id,
+                    )
+                    raise PlayerIdentityMismatchError(
+                        "playerID does not match the authenticated player"
+                    )
+
     # Validate AWS resources
     validate_aws_resources()
     

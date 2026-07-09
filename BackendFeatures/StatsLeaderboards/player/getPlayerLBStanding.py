@@ -229,6 +229,18 @@ class PlayerNotFoundError(Exception):
     pass
 
 
+class PlayerIdentityMismatchError(Exception):
+    """
+    Raised when the playerID in the request does not match the authenticated
+    player's identity (auth_context['playerId']). By default a player may only
+    view THEIR OWN standing (rank, percentile, neighbours) — most games do not
+    expose another player's personal standing. Mapped to HTTP 403 (Forbidden).
+    See the identity check in lambda_handler(), which includes a documented
+    toggle for developers who intentionally want to allow viewing others.
+    """
+    pass
+
+
 def handle_errors(func):
     """
     Enhanced error handler with specific error types and recovery strategies.
@@ -277,6 +289,20 @@ def handle_errors(func):
                 'headers': {'Content-Type': 'application/json'},
                 'body': json.dumps({'playerLBStandingResponse': {
                     'error': 'Unauthorized',
+                    'message': str(e),
+                    'timestamp': datetime.now(timezone.utc).isoformat()
+                }})
+            }
+        except PlayerIdentityMismatchError as e:
+            # 403 Forbidden: authenticated, but requesting another player's standing.
+            # The PLAYER_ID_MISMATCH WARNING is logged at the detection site below;
+            # the attempted ID is not echoed back to the caller.
+            logger.error(f"Player identity mismatch: {str(e)}")
+            return {
+                'statusCode': 403,
+                'headers': {'Content-Type': 'application/json'},
+                'body': json.dumps({'playerLBStandingResponse': {
+                    'error': 'Forbidden',
                     'message': str(e),
                     'timestamp': datetime.now(timezone.utc).isoformat()
                 }})
@@ -1343,10 +1369,52 @@ def lambda_handler(event: Dict[str, Any], context: LambdaContext) -> Dict[str, A
     # Authenticate request
     auth_context = validate_authenticated_context(event, 'read')
     logger.info(f"Player standing request for studio: {auth_context['studioId']}, game: {auth_context['gameId']}")
-    
+
+    # =========================================================================
+    # PRIVACY (default: ON): a player may only view THEIR OWN standing (rank,
+    # percentile, neighbours). Most games do not expose another player's personal
+    # standing, so by default we reject a request whose playerID does not match
+    # the authenticated player (auth_context['playerId'], set by your Lambda
+    # authorizer) with HTTP 403, and log it as a potential-abuse signal.
+    #
+    # Enforce-when-present: skipped if your authorizer does not set 'playerId'
+    # (documented as recommended, not mandatory), so the deployment keeps working.
+    #
+    # ---- DEVELOPER TOGGLE ---------------------------------------------------
+    # If your game design intentionally allows viewing OTHER players' standing
+    # (e.g. inspecting a friend's rank), disable this restriction by setting
+    # ALLOW_VIEWING_OTHER_PLAYERS_STANDING = True. The standing data is derived
+    # from the same sorted set that backs the public /leaderboards/scores queries.
+    # -------------------------------------------------------------------------
+    ALLOW_VIEWING_OTHER_PLAYERS_STANDING = False
+
+    if not ALLOW_VIEWING_OTHER_PLAYERS_STANDING:
+        authenticated_player_id = auth_context.get('playerId', '')
+        if authenticated_player_id:
+            # Read the requested playerID directly from the request body. This
+            # mirrors validate_player_standing_request()'s parsing; that function
+            # runs again downstream and will surface any malformed-body errors as
+            # HTTP 400, so here we only need the value for the ownership check.
+            try:
+                _body = json.loads(event['body']) if isinstance(event.get('body'), str) else (event.get('body') or {})
+                _requested_player_id = (_body.get('playerLBStandingRequest') or {}).get('playerID', '')
+            except (json.JSONDecodeError, TypeError, AttributeError):
+                _requested_player_id = ''
+
+            if _requested_player_id and _requested_player_id != authenticated_player_id:
+                logger.warning(
+                    "PLAYER_ID_MISMATCH: authenticated player '%s' attempted to view standing of '%s' "
+                    "(studio=%s, game=%s, requestId=%s)",
+                    authenticated_player_id, _requested_player_id,
+                    auth_context['studioId'], auth_context['gameId'], context.aws_request_id,
+                )
+                raise PlayerIdentityMismatchError(
+                    "playerID does not match the authenticated player"
+                )
+
     # Validate AWS resources after authentication
     validate_aws_resources()
-    
+
     # Process the player standing request
     response_data = run_async(handle_player_standing_request(event))
     

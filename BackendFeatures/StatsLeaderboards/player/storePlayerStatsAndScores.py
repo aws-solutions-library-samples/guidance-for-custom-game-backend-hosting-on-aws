@@ -249,6 +249,17 @@ class LeaderboardExpiredError(Exception):
     pass
 
 
+class PlayerIdentityMismatchError(Exception):
+    """
+    Raised when the playerID in the request does not match the authenticated
+    player's identity (auth_context['playerId']). This is an anti-spoofing
+    control: a player must only submit scores under their own identity. Mapped
+    to HTTP 403 (Forbidden) — the caller is authenticated, but not permitted to
+    act as the requested player. See the identity check in lambda_handler().
+    """
+    pass
+
+
 def handle_errors(func):
     """
     Enhanced error handler with specific error types and recovery strategies.
@@ -325,6 +336,23 @@ def handle_errors(func):
                 'body': json.dumps({
                     'gameReportResponse': {
                         'error': 'Unauthorized',
+                        'message': str(e),
+                        'timestamp': datetime.now(timezone.utc).isoformat()
+                    }
+                })
+            }
+        except PlayerIdentityMismatchError as e:
+            # 403 Forbidden: authenticated, but attempting to act as another player.
+            # The WARNING with the PLAYER_ID_MISMATCH marker is emitted at the
+            # detection site (below) for abuse monitoring; here we only shape the
+            # client response and deliberately avoid echoing the attempted ID back.
+            logger.error(f"Player identity mismatch: {str(e)}")
+            return {
+                'statusCode': 403,
+                'headers': {'Content-Type': 'application/json'},
+                'body': json.dumps({
+                    'gameReportResponse': {
+                        'error': 'Forbidden',
                         'message': str(e),
                         'timestamp': datetime.now(timezone.utc).isoformat()
                     }
@@ -1506,7 +1534,37 @@ def lambda_handler(event: Dict[str, Any], context: LambdaContext) -> Dict[str, A
     
     # Validate request
     game_report = validate_request(event)
-    
+
+    # =========================================================================
+    # ANTI-SPOOFING: a player may only submit scores under THEIR OWN identity.
+    # Compare the playerID in the request against the authenticated player's id
+    # (auth_context['playerId'], set by your Lambda authorizer from the validated
+    # token). A mismatch means the caller is trying to write a score as someone
+    # else — a potential abuse condition — so we reject with HTTP 403 and log it.
+    #
+    # Enforce-when-present: if your authorizer does not set 'playerId' (it is
+    # documented as recommended, not mandatory), this check is skipped so the
+    # deployment keeps working. To make player identity MANDATORY, change the
+    # condition to `if authenticated_player_id != game_report['playerID']:` and
+    # have the authorizer always populate 'playerId'.
+    # =========================================================================
+    authenticated_player_id = auth_context.get('playerId', '')
+    if authenticated_player_id and authenticated_player_id != game_report['playerID']:
+        # WARNING (not error) so it is easy to alarm on as a potential-abuse
+        # signal in CloudWatch via the stable PLAYER_ID_MISMATCH marker. We log
+        # the authenticated id and the attempted id, plus context for triage; we
+        # do NOT log tokens or full payloads.
+        logger.warning(
+            "PLAYER_ID_MISMATCH: authenticated player '%s' attempted to submit as '%s' "
+            "(leaderboard=%s, studio=%s, game=%s, requestId=%s)",
+            authenticated_player_id, game_report['playerID'],
+            game_report.get('leaderboardName'), auth_context['studioId'],
+            auth_context['gameId'], context.aws_request_id,
+        )
+        raise PlayerIdentityMismatchError(
+            "playerID does not match the authenticated player"
+        )
+
     # Execute async processing
     response_metadata = run_async(process_game_report(game_report))
     
