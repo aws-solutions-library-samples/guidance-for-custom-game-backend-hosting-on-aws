@@ -1154,7 +1154,7 @@ async def reset_leaderboard_with_relay_async(
                 # Save state and continue
                 state['processedEntries'] = processed
                 state['phase'] = 'reset_in_progress'
-                return await continue_execution_async(state)
+                return continue_execution_async(state)
 
             # Always read from index 0 — entries shift down after each removal
             entries_to_remove = await client.zrange(sorted_list_name, RangeByIndex(0, BATCH_SIZE - 1))

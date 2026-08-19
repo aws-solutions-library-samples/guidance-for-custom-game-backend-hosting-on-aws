@@ -2683,8 +2683,6 @@ These are set by CDK during deployment. Variables marked "(CDK-managed)" are aut
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `API_KEY_PARAMETER_NAMES` | (CDK-managed) | JSON array of SSM parameter names (pre-loaded at startup, bypasses per-request SSM API calls) |
-| `JWT_SECRET` | (placeholder) | JWT secret — placeholder value, not used in current SSM-based auth flow |
-| `ALLOWED_API_KEYS` | (placeholder) | Static API keys — placeholder value, not used in current SSM-based auth flow |
 
 ### Player-Specific
 

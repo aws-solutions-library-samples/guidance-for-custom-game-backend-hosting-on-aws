@@ -176,3 +176,6 @@ cython_debug/
 cdk.out/
 cdk.staging/
 cdk_logs/
+
+# Locally generated load/stress test reports
+testing/load-stress-testing/reports/

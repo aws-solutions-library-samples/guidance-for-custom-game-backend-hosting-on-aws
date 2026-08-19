@@ -1,0 +1,93 @@
+project_name: stats-leaderboards
+
+global_settings:
+  severity_threshold: MEDIUM
+
+  suppressions:
+    # AWS documentation example credentials used as HTML placeholder text in the
+    # load-test viewer's credential form. Not real values.
+    - rule_id: SECRET-AWS-ACCESS-KEY
+      path: 'testing/load-stress-testing/test_LoadAndStressTests.py'
+      reason: 'HTML placeholder attributes on an input form, using the example values published in the AWS IAM docs'
+
+    - rule_id: SECRET-BASE64-HIGH-ENTROPY-STRING
+      path: 'testing/load-stress-testing/test_LoadAndStressTests.py'
+      reason: 'Same HTML placeholder line as SECRET-AWS-ACCESS-KEY above'
+
+    # Bandit's hardcoded-SQL rule firing on f-strings that build the HTML report.
+    - rule_id: B608
+      path: 'testing/load-stress-testing/test_LoadAndStressTests.py'
+      reason: 'f-string builds an HTML report document; no SQL or database access'
+
+    # detect-secrets keyword matches where the identifier contains "secret" or
+    # "password" but the value is a label, a decision string, or an env var NAME.
+    # Line-pinned rather than file-wide so a future real secret is still flagged.
+    - rule_id: SECRET-SECRET-KEYWORD
+      path: 'app.py'
+      line_start: 697
+      line_end: 703
+      reason: 'secret_type classification labels (unknown / memorydb_password / password)'
+
+    - rule_id: SECRET-SECRET-KEYWORD
+      path: 'app.py'
+      line_start: 4145
+      line_end: 4145
+      reason: 'secrets_manager_decision resource-reuse string, sibling of lambda_decision / ssm_decision'
+
+    - rule_id: SECRET-SECRET-KEYWORD
+      path: 'app.py'
+      line_start: 4216
+      line_end: 4219
+      reason: "secrets_manager_decision set to 'reuse' / 'create_new'"
+
+    - rule_id: SECRET-SECRET-KEYWORD
+      path: 'player/getPlayerStatsAndScores.py'
+      line_start: 598
+      line_end: 598
+      reason: "maps config key to the env var NAME 'VALKEY_PASSWORD' (see findings M11)"
+
+    - rule_id: SECRET-SECRET-KEYWORD
+      path: 'backend/rebuildLeaderboard.py'
+      line_start: 619
+      line_end: 619
+      reason: "maps config key to the env var NAME 'VALKEY_PASSWORD' (see findings M11)"
+
+    - rule_id: SECRET-SECRET-KEYWORD
+      path: 'backend/resetLeaderboard.py'
+      line_start: 576
+      line_end: 576
+      reason: "maps config key to the env var NAME 'VALKEY_PASSWORD' (see findings M11)"
+
+    - rule_id: SECRET-SECRET-KEYWORD
+      path: 'teardown.sh'
+      line_start: 379
+      line_end: 379
+      reason: 'CHOICE_SECRET teardown choice variable set to "retain"'
+
+    - rule_id: SECRET-SECRET-KEYWORD
+      path: 'teardown.sh'
+      line_start: 459
+      line_end: 459
+      reason: 'SECRET_USES_KMS check on a secret ARN, no credential value'
+
+    - rule_id: SECRET-SECRET-KEYWORD
+      path: 'teardown.sh'
+      line_start: 746
+      line_end: 746
+      reason: 'CHOICE_SECRET compared to "delete"'
+
+    - rule_id: SECRET-SECRET-KEYWORD
+      path: 'check_resources.sh'
+      line_start: 307
+      line_end: 307
+      reason: 'loop guard comparing a secret NAME against empty / "None"'
+
+    # Pseudo-random used for synthetic test and load-simulation data: randint,
+    # choice, uniform, sample, expovariate for player behaviour, score values and
+    # inter-action timing. Verified: the production code (app.py, app_post_deploy.py,
+    # player/, backend/, auth/) does not use the random module at all, and no random
+    # value feeds a token, key, secret, password or credential. API keys are
+    # generated with secrets.token_urlsafe.
+    - rule_id: B311
+      path: 'testing/**'
+      reason: 'random() generates synthetic test/load data only; production code uses no random, and secrets.token_urlsafe is used for key generation'

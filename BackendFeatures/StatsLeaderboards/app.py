@@ -3357,7 +3357,7 @@ class GameStatsLeaderboardsStack(Stack):
         """Create a minimal resource that can be safely updated without affecting infrastructure"""
         
         # Create a deployment marker that changes with each deployment
-        deployment_id = hashlib.md5(f"{datetime.now(timezone.utc).isoformat()}-{resource_prefix}".encode()).hexdigest()[:8]
+        deployment_id = hashlib.md5(f"{datetime.now(timezone.utc).isoformat()}-{resource_prefix}".encode(), usedforsecurity=False).hexdigest()[:8]
         
         deployment_marker = ssm.StringParameter(
             self, f"{resource_prefix}-deployment-marker",
@@ -5738,7 +5738,7 @@ class GameStatsLeaderboardsStack(Stack):
         glide -> glide_shared protobuf move) from redeploys.
         """
         # Generate a hash of the layer content for versioning
-        layer_hash = hashlib.md5(f"{resource_prefix}-{datetime.now().strftime('%Y%m%d')}".encode()).hexdigest()[:8]
+        layer_hash = hashlib.md5(f"{resource_prefix}-{datetime.now().strftime('%Y%m%d')}".encode(), usedforsecurity=False).hexdigest()[:8]
         
         return lambda_.LayerVersion(
             self, f"{resource_prefix}-valkey-glide-layer",
@@ -6205,8 +6205,6 @@ class GameStatsLeaderboardsStack(Stack):
                 api_key_param_names = self._discover_api_key_parameters(resource_prefix)
 
                 func_env.update({
-                    "JWT_SECRET": "your-jwt-secret-key-change-in-production",
-                    "ALLOWED_API_KEYS": "demo-key-1,demo-key-2,demo-key-3",
                     "POWERTOOLS_SERVICE_NAME": "backend-authorizer",
                     "API_KEY_PARAMETER_NAMES": json.dumps(api_key_param_names)  # For 10,000 TPS performance
                 })
