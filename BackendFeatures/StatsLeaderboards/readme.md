@@ -264,10 +264,12 @@ The deploy script is **self-bootstrapping** — it installs and version-checks i
 10. **Builds the Lambda Layer** (`layers/build_layer.sh`) by downloading prebuilt Linux wheels for the Lambda runtime (it never compiles on the host, so the build host's OS/CPU don't affect the output). Targets Python 3.13 / x86_64 by default (override with `LAMBDA_PY_VERSION`, `LAMBDA_ARCH`, `PYTHON_BIN`). Contents (from `layers/valkey-glide-layer/requirements.txt`):
     - valkey-glide==2.4.1 *(pinned — the package reorganized at 2.1.0, so the version is fixed for reproducible imports)*
     - aws-lambda-powertools[all]==3.0.0
-    - pydantic>=2.5.0
-    - asyncio-throttle>=1.0.2
-    - nest-asyncio>=1.5.8
-    - python-dateutil>=2.8.2
+    - pydantic==2.13.4 *(pinned for a reproducible, auditable layer artifact)*
+    - asyncio-throttle==1.0.2
+    - nest-asyncio==1.6.0
+    - python-dateutil==2.9.0.post0
+    - PyJWT[crypto]==2.13.0 *(pinned — RS256 access-token verification in the player authorizer)*
+    - requests==2.34.2 *(pinned — fetches the issuer JWKS in identity mode)*
 11. **Installs CDK dependencies** from `requirements.txt` (into the same interpreter CDK runs `app.py` with) and verifies `aws_cdk` is importable.
 12. **Bootstraps CDK** (`cdk bootstrap`; logs to `cdk_logs/bootstrap.log`).
 13. **Synthesizes** the main stack (`cdk synth GameStatsLeaderboardsStack`; logs to `cdk_logs/synthesis.log`).
@@ -763,7 +765,7 @@ Backend (developer) APIs work after deployment without additional configuration.
 | `backend/*.py` | Backend functions use the StudioAPI Key flow which works after deployment |
 | `auth/backendAuthorizer.py` | Backend auth is fully functional via SSM Parameter Store |
 
-The player authorizer **fails closed**: any request it cannot validate is denied at the API Gateway layer with HTTP `403`. In identity mode that rejects missing, expired, or invalid tokens; in custom mode every request is denied until you implement your validation.
+The player authorizer **fails closed**: any request it cannot validate is denied at the API Gateway layer with HTTP `403`. In identity mode that rejects missing, expired, or invalid tokens; in custom mode every request is denied until you implement your validation. Note that API Gateway caches each authorizer decision for 5 minutes (`results_cache_ttl`), keyed on the `Authorization` header, so a token accepted once is honored from cache for up to 5 minutes even after it expires or is revoked; lower the player authorizer's `results_cache_ttl` in `app.py` if you need tighter enforcement for short-lived tokens.
 
 > **Player-identity enforcement.** Beyond token validation, the player Lambdas check that a caller acts only as themselves: each request's `playerID` must match the authenticated `playerId`, or it is rejected with HTTP `403` and a `PLAYER_ID_MISMATCH` warning. By default a player may only submit their own scores (`/leaderboards/stats`) and read their own stats (`/leaderboards/player/stats`) and standing (`/leaderboards/player/standing`); the public score queries (`/leaderboards/scores`) are not restricted. In identity mode the authorizer always sets `playerId`, so this is always on; in custom mode it applies when your authorizer sets it. Two toggles adjust the defaults: `ALLOW_VIEWING_OTHER_PLAYERS_STANDING` in `getPlayerLBStanding.py` and `RESTRICT_PLAYER_QUERIES_TO_SELF` in `getLeaderboardScores.py`. The Studio-key batch path (`/leaderboards/stats/batch`) is exempt. Full matrix in `docs/api_reference.md`.
 

@@ -28,7 +28,7 @@
 
 ### 1.1 Authentication Flow
 
-All API endpoints (except developer registration) require authentication via the API Gateway Lambda Authorizer.
+All API endpoints (except developer registration) require authentication via an API Gateway Lambda authorizer. The flow below traces the **backend authorizer** (StudioAPI Key) path used by developer APIs; player-facing APIs use a **separate** authorizer with a different context, described in [Section 1.5](#15-integrating-player-authentication).
 
 > **Backend vs. Player Authentication:** The StudioAPI Key is for backend (developer) APIs only. Player-facing APIs are authenticated separately. By default they use access tokens issued by the AWS Game Backend Custom Identity Component. See [Section 1.5](#15-integrating-player-authentication).
 
@@ -114,10 +114,11 @@ The system uses **two separate API Gateway authorizers** to cleanly separate bac
                    +------------------+------------------+
                    |                                     |
           Backend Routes                        Player Routes
-          /developer/*                          /leaderboards/stats/*
+          /developer/*                          /leaderboards/stats
           /leaderboards/config/*                /leaderboards/scores
           /leaderboards/configs                 /leaderboards/player/*
           /leaderboards/admin/*
+          /leaderboards/stats/batch
                    |                                     |
                    v                                     v
      backendAuthorizer.py               playerAuthorizer.py
@@ -140,6 +141,8 @@ Authorization: Bearer <player_access_token>
 ```
 
 The authorizer verifies the token's RS256 signature against the issuer's public keys (JWKS), checks the audience (`gamebackend`) and issuer, and confirms it has not expired. On success it passes the player id, the granted permissions, and this deployment's studio and game ids to the target Lambda. You set the issuer URL at deploy time and no code changes are needed.
+
+> **Token expiry is not instant.** API Gateway caches each authorizer decision for 5 minutes (`results_cache_ttl`), keyed on the `Authorization` header. A token validated once is therefore accepted from cache for up to 5 minutes even after it expires. If your access tokens are short-lived and you need tighter enforcement, lower the player authorizer's `results_cache_ttl` in `app.py`.
 
 Set the issuer URL before deploying:
 
@@ -185,14 +188,15 @@ The `StudioAPI Key` is generated during deployment and stored in SSM Parameter S
 
 #### How Player Authentication Works
 
-Your game authenticates players and issues them a token. The client sends that token to this component on each request, and the player authorizer validates it before the request reaches a player Lambda. The diagram below shows the flow.
+In identity mode (the default), the AWS Game Backend Custom Identity Component authenticates players and issues each one an access token. The game client sends that token to this component on every request, and the player authorizer validates it — RS256 signature against the issuer's JWKS, audience, issuer, and expiry — before the request reaches a player Lambda. In custom mode, your own identity provider takes the place of the Custom Identity Component and `_authorize_custom()` performs the validation.
 
 ```
     Player launches game
            |
            v
-    Game Login Server / Identity Provider
-    (authenticates the player, issues a token)
+    Custom Identity Component            (identity mode, default)
+    — or your own identity provider      (custom mode)
+    (authenticates the player, issues an access token)
            |
            v
     Game Client receives token
@@ -201,15 +205,16 @@ Your game authenticates players and issues them a token. The client sends that t
     |             |
     v             v
   Your Game    Stats & Leaderboards API
-  Services     Authorization: Bearer <same_player_token>
+  Services     Authorization: Bearer <player_access_token>
                       |
                       v
                playerAuthorizer.py
-               (validates token against YOUR auth system)
+               (identity mode: verify RS256 signature via JWKS;
+                custom mode: your own validation)
                       |
                       v
                Player API Lambda
-               (processes request for authenticated player)
+               (processes request for the authenticated player)
 ```
 
 ---
@@ -1604,7 +1609,7 @@ All player APIs currently require authentication. Store operations require `writ
 ```
 Player / Game Client
     |
-    +-- Authorization: Bearer <player_token>   (your custom auth)
+    +-- Authorization: Bearer <player_access_token>   (Custom Identity Component token; or your own in custom mode)
     |
     v
 API Gateway --> Lambda Authorizer --> Player Lambda
@@ -1645,7 +1650,7 @@ Submits a single player's game report.
 ```http
 POST /leaderboards/stats
 Content-Type: application/json
-Authorization: Bearer <api_key>
+Authorization: Bearer <player_access_token>
 ```
 
 **Request Template (all parameters):**
@@ -1774,6 +1779,7 @@ Authorization: Bearer <api_key>
 |--------|-------|-----------|
 | 400 | Bad Request | Missing body, invalid JSON, missing fields, invalid characters, invalid score, score out of range, gameID/gameMode mismatch |
 | 401 | Unauthorized | No authorizer context, missing studioId/gameId, no `write` permission |
+| 403 | Forbidden | Request `playerID` does not match the authenticated player (`PLAYER_ID_MISMATCH`) |
 | 403 | AccessDeniedException | IAM permission error |
 | 404 | Not Found | Leaderboard config not found |
 | 423 | LEADERBOARD_EXPIRED_READONLY | Expired leaderboard in read-only mode |
@@ -1795,7 +1801,7 @@ Queries leaderboard data with four query types.
 ```http
 POST /leaderboards/scores
 Content-Type: application/json
-Authorization: Bearer <api_key>
+Authorization: Bearer <player_access_token>
 ```
 
 ---
@@ -2188,7 +2194,7 @@ Retrieves a player's game stats history from DynamoDB.
 ```http
 POST /leaderboards/player/stats
 Content-Type: application/json
-Authorization: Bearer <api_key>
+Authorization: Bearer <player_access_token>
 ```
 
 **Request Template (all parameters):**
@@ -2338,6 +2344,7 @@ Authorization: Bearer <api_key>
 |--------|-----------|
 | 400 | Missing fields, invalid formats, invalid timestamps |
 | 401 | Auth failure |
+| 403 | Request `playerID` does not match the authenticated player (`PLAYER_ID_MISMATCH`) |
 | 404 | Leaderboard not found (if filtering by leaderboard) |
 | 405 | Non-POST method (returns `Allow: POST` header) |
 | 429 | Throttling |
@@ -2377,7 +2384,7 @@ Returns a player's rank, score, percentile, and surrounding players.
 ```http
 POST /leaderboards/player/standing
 Content-Type: application/json
-Authorization: Bearer <api_key>
+Authorization: Bearer <player_access_token>
 ```
 
 **Request Template (all parameters):**
@@ -2500,6 +2507,7 @@ Authorization: Bearer <api_key>
 |--------|-----------|
 | 400 | Missing fields, invalid formats, neighboursCount > 50 |
 | 401 | Auth failure |
+| 403 | Request `playerID` does not match the authenticated player (`PLAYER_ID_MISMATCH`); default-enforced, relaxable via `ALLOW_VIEWING_OTHER_PLAYERS_STANDING` |
 | 404 | Player not found in leaderboard, leaderboard config not found, sorted list not in Valkey |
 | 405 | Non-POST method |
 | 429 | Throttling |
@@ -2683,6 +2691,14 @@ These are set by CDK during deployment. Variables marked "(CDK-managed)" are aut
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `API_KEY_PARAMETER_NAMES` | (CDK-managed) | JSON array of SSM parameter names (pre-loaded at startup, bypasses per-request SSM API calls) |
+
+### Player Authorizer (additional)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PLAYER_AUTH_MODE` | `identity` | `identity` validates Custom Identity Component access tokens; `custom` routes to your own `_authorize_custom()`. Set via CDK context `player_auth_mode`. |
+| `ISSUER_URL` | (empty) | Custom Identity Component issuer URL, used in identity mode to fetch the JWKS and verify the token issuer. From the `IssuerEndpointUrl` deploy parameter (the `ISSUER_ENDPOINT_URL` export). Required in identity mode; empty denies all requests. |
+| `TOKEN_AUDIENCE` | `gamebackend` | Expected `aud` claim on player access tokens (identity mode). |
 
 ### Player-Specific
 
