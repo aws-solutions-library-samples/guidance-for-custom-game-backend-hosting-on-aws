@@ -1298,7 +1298,6 @@ async def store_game_stats_batch(game_reports: List[Dict[str, Any]]) -> List[Dic
                 'fullRawGameReport': convert_floats_to_decimal(report['fullRawGameReport']),
                 'timestamp': current_timestamp,
                 'timestampISO': current_datetime,
-                'scoreStrategy': 'best'  # Default, will be overridden by leaderboard config
             }
             
             # Add additional fields

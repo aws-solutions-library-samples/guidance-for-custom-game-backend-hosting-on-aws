@@ -1249,7 +1249,6 @@ async def store_game_stats_async(game_report: Dict[str, Any]) -> Tuple[str, str]
         'fullRawGameReport': convert_floats_to_decimal(game_report['fullRawGameReport']),
         'timestamp': current_timestamp,
         'timestampISO': current_datetime,
-        'scoreStrategy': 'best'  # Default, will be overridden by leaderboard config
     }
     
     # Add any additional fields

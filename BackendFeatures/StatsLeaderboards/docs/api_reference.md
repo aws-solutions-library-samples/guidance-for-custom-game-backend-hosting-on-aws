@@ -2288,8 +2288,7 @@ Authorization: Bearer <player_access_token>
             "matchDuration": 1200
           },
           "timestamp": 1739880000,
-          "timestampISO": "2026-02-18T12:00:00Z",
-          "scoreStrategy": "best"
+          "timestampISO": "2026-02-18T12:00:00Z"
         }
       ],
       "statsSummary": {
@@ -2537,7 +2536,7 @@ Fields stored: `gameID`, `gameMode`, `statAttributeForLeaderboard`, `leaderboard
 | `playerID` (PK) | string | Player identifier |
 | Sort Key (SK) | string | `gameID#gameMode#ISO-timestamp` |
 
-Fields stored: `gameID`, `gameMode`, `playerScore`, `leaderboardName`, `fullRawGameReport`, `timestamp`, `timestampISO`, `scoreStrategy`, `studioId`, `gameId`
+Fields stored: `gameID`, `gameMode`, `playerScore`, `leaderboardName`, `fullRawGameReport`, `timestamp`, `timestampISO`, `studioId`, `gameId`
 
 ### 4.2 MemoryDB for Valkey
 
