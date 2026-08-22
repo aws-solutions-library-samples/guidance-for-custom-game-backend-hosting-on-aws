@@ -1,0 +1,267 @@
+{
+  "racing-circuit": {
+    "description": "Traditional circuit racing with lap times",
+    "stats_pool": ["lap_time", "best_lap", "total_time", "top_speed", "avg_speed", "drift_score", "perfect_corners", "overtakes", "position_gained", "collision_count"],
+    "max_stats_per_config": 8,
+    "leaderboard_configs": [
+      {"scoreType": "time", "leaderboardType": "ASCENDING_LB", "scoreStrategy": "best", "timeFormat": "milliseconds", "timePrecision": 3, "minValidTimeInSeconds": 30000.0, "maxValidTimeInSeconds": 600000.0},
+      {"scoreType": "score", "leaderboardType": "DESCENDING_LB", "scoreStrategy": "best", "minValidScore": 0, "maxValidScore": 10000}
+    ]
+  },
+  "racing-rally": {
+    "description": "Off-road rally racing with stage times",
+    "stats_pool": ["stage_time", "total_damage", "perfect_stages", "drift_distance", "air_time", "near_misses", "checkpoint_bonus", "weather_mastery"],
+    "max_stats_per_config": 6,
+    "leaderboard_configs": [
+      {"scoreType": "time", "leaderboardType": "ASCENDING_LB", "scoreStrategy": "best", "timeFormat": "seconds", "timePrecision": 2, "minValidTimeInSeconds": 60.0, "maxValidTimeInSeconds": 1800.0}
+    ]
+  },
+  "racing-drag": {
+    "description": "Straight-line drag racing",
+    "stats_pool": ["reaction_time", "quarter_mile_time", "top_speed_mph", "perfect_shifts", "launch_rating", "finish_speed"],
+    "max_stats_per_config": 5,
+    "leaderboard_configs": [
+      {"scoreType": "time", "leaderboardType": "ASCENDING_LB", "scoreStrategy": "best", "timeFormat": "milliseconds", "timePrecision": 3, "minValidTimeInSeconds": 5000.0, "maxValidTimeInSeconds": 30000.0}
+    ]
+  },
+  "rpg-action": {
+    "description": "Action RPG with combat and progression",
+    "stats_pool": ["damage_dealt", "damage_taken", "healing_done", "enemies_defeated", "bosses_killed", "quests_completed", "experience_gained", "gold_earned", "items_collected", "skills_unlocked", "critical_hits", "combo_count", "death_count", "playtime_minutes"],
+    "max_stats_per_config": 12,
+    "leaderboard_configs": [
+      {"scoreType": "score", "leaderboardType": "DESCENDING_LB", "scoreStrategy": "cumulative", "minValidScore": 0, "maxValidScore": 5000},
+      {"scoreType": "level", "leaderboardType": "ASCENDING_LB", "scoreStrategy": "best", "minValidScore": 1, "maxValidScore": 500},
+      {"scoreType": "level", "leaderboardType": "DESCENDING_LB", "scoreStrategy": "best", "minValidScore": 1, "maxValidScore": 500}
+    ]
+  },
+  "rpg-turn-based": {
+    "description": "Turn-based RPG with strategic combat",
+    "stats_pool": ["battles_won", "perfect_victories", "turns_taken", "damage_dealt", "healing_done", "items_used", "spells_cast", "party_level", "gold_earned", "monsters_defeated"],
+    "max_stats_per_config": 10,
+    "leaderboard_configs": [
+      {"scoreType": "score", "leaderboardType": "DESCENDING_LB", "scoreStrategy": "best", "minValidScore": 0, "maxValidScore": 5000}
+    ]
+  }
+,
+  "mmorpg-fantasy": {
+    "description": "Massively multiplayer fantasy RPG (solo play)",
+    "stats_pool": ["player_kills", "monster_kills", "dungeons_completed", "raids_completed", "pvp_rating", "contribution_points", "achievement_points", "mounts_collected", "pets_collected", "reputation_earned", "gold_earned", "quests_completed", "playtime_hours"],
+    "max_stats_per_config": 15,
+    "leaderboard_configs": [
+      {"scoreType": "points", "leaderboardType": "DESCENDING_LB", "scoreStrategy": "cumulative", "minValidScore": 0, "maxValidScore": 10000},
+      {"scoreType": "rank", "leaderboardType": "ASCENDING_LB", "scoreStrategy": "best", "minValidScore": 1, "maxValidScore": 1000}
+    ]
+  },
+  "puzzle-match3": {
+    "description": "Match-3 puzzle game",
+    "stats_pool": ["score", "moves_remaining", "combos", "special_gems_created", "levels_completed", "stars_earned", "perfect_levels", "time_bonus"],
+    "max_stats_per_config": 8,
+    "leaderboard_configs": [
+      {"scoreType": "score", "leaderboardType": "DESCENDING_LB", "scoreStrategy": "best", "minValidScore": 0, "maxValidScore": 10000}
+    ]
+  },
+  "puzzle-physics": {
+    "description": "Physics-based puzzle game",
+    "stats_pool": ["stars_earned", "time_to_complete", "moves_used", "efficiency_rating", "perfect_solutions", "hints_used", "retries"],
+    "max_stats_per_config": 7,
+    "leaderboard_configs": [
+      {"scoreType": "score", "leaderboardType": "DESCENDING_LB", "scoreStrategy": "best", "minValidScore": 0, "maxValidScore": 10000},
+      {"scoreType": "time", "leaderboardType": "ASCENDING_LB", "scoreStrategy": "best", "timeFormat": "seconds", "timePrecision": 2, "minValidTimeInSeconds": 10.0, "maxValidTimeInSeconds": 3600.0}
+    ]
+  },
+  "shooter-fps": {
+    "description": "First-person shooter",
+    "stats_pool": ["kills", "deaths", "assists", "headshots", "accuracy_percent", "damage_dealt", "healing_done", "objectives_captured", "killstreak_best", "wins", "losses", "kd_ratio", "score_per_minute"],
+    "max_stats_per_config": 12,
+    "leaderboard_configs": [
+      {"scoreType": "score", "leaderboardType": "DESCENDING_LB", "scoreStrategy": "cumulative", "minValidScore": 0, "maxValidScore": 10000},
+      {"scoreType": "rank", "leaderboardType": "ASCENDING_LB", "scoreStrategy": "best", "minValidScore": 1, "maxValidScore": 5000}
+    ]
+  },
+  "shooter-battle-royale": {
+    "description": "Battle royale shooter (solo mode)",
+    "stats_pool": ["wins", "top_10_finishes", "kills", "damage_dealt", "survival_time", "distance_traveled", "revives", "enemy_eliminations", "longest_kill_distance", "headshot_kills"],
+    "max_stats_per_config": 10,
+    "leaderboard_configs": [
+      {"scoreType": "score", "leaderboardType": "DESCENDING_LB", "scoreStrategy": "best", "minValidScore": 0, "maxValidScore": 50000},
+      {"scoreType": "rank", "leaderboardType": "ASCENDING_LB", "scoreStrategy": "best", "minValidScore": 1, "maxValidScore": 100}
+    ]
+  },
+  "strategy-rts": {
+    "description": "Real-time strategy game",
+    "stats_pool": ["wins", "losses", "units_built", "units_killed", "resources_gathered", "buildings_constructed", "tech_researched", "apm_average", "game_duration", "victory_type"],
+    "max_stats_per_config": 10,
+    "leaderboard_configs": [
+      {"scoreType": "points", "leaderboardType": "DESCENDING_LB", "scoreStrategy": "cumulative", "minValidScore": 0, "maxValidScore": 2000},
+      {"scoreType": "rank", "leaderboardType": "ASCENDING_LB", "scoreStrategy": "best", "minValidScore": 1, "maxValidScore": 1000}
+    ]
+  }
+,
+  "strategy-turn-based": {
+    "description": "Turn-based strategy game",
+    "stats_pool": ["wins", "losses", "turns_to_victory", "units_lost", "territories_captured", "resources_managed", "diplomatic_victories", "military_victories", "cultural_victories"],
+    "max_stats_per_config": 9,
+    "leaderboard_configs": [
+      {"scoreType": "score", "leaderboardType": "DESCENDING_LB", "scoreStrategy": "best", "minValidScore": 0, "maxValidScore": 500}
+    ]
+  },
+  "platformer-2d": {
+    "description": "2D platformer game",
+    "stats_pool": ["completion_time", "deaths", "collectibles_found", "secrets_discovered", "perfect_jumps", "speedrun_time", "score", "levels_completed"],
+    "max_stats_per_config": 8,
+    "leaderboard_configs": [
+      {"scoreType": "time", "leaderboardType": "ASCENDING_LB", "scoreStrategy": "best", "timeFormat": "minutes_seconds", "timePrecision": 2, "minValidTimeInSeconds": 30.0, "maxValidTimeInSeconds": 7200.0},
+      {"scoreType": "score", "leaderboardType": "DESCENDING_LB", "scoreStrategy": "best", "minValidScore": 0, "maxValidScore": 1000}
+    ]
+  },
+  "sports-soccer": {
+    "description": "Soccer/football simulation",
+    "stats_pool": ["goals_scored", "assists", "shots_on_target", "passes_completed", "tackles_won", "clean_sheets", "saves", "possession_percent", "distance_covered", "wins", "draws", "losses"],
+    "max_stats_per_config": 12,
+    "leaderboard_configs": [
+      {"scoreType": "score", "leaderboardType": "DESCENDING_LB", "scoreStrategy": "cumulative", "minValidScore": 0, "maxValidScore": 1000},
+      {"scoreType": "rank", "leaderboardType": "ASCENDING_LB", "scoreStrategy": "best", "minValidScore": 1, "maxValidScore": 1000}
+    ]
+  },
+  "card-collectible": {
+    "description": "Collectible card game",
+    "stats_pool": ["wins", "losses", "cards_played", "damage_dealt", "healing_done", "minions_summoned", "spells_cast", "perfect_victories", "win_streak", "rank_points", "tournaments_won"],
+    "max_stats_per_config": 11,
+    "leaderboard_configs": [
+      {"scoreType": "points", "leaderboardType": "DESCENDING_LB", "scoreStrategy": "cumulative", "minValidScore": 0, "maxValidScore": 2000},
+      {"scoreType": "rank", "leaderboardType": "ASCENDING_LB", "scoreStrategy": "best", "minValidScore": 1, "maxValidScore": 1000}
+    ]
+  },
+  "survival-horror": {
+    "description": "Survival horror game",
+    "stats_pool": ["survival_time", "enemies_killed", "resources_collected", "health_remaining", "ammo_efficiency", "stealth_kills", "puzzles_solved", "deaths", "saves_used", "distance_traveled", "items_crafted"],
+    "max_stats_per_config": 11,
+    "leaderboard_configs": [
+      {"scoreType": "time", "leaderboardType": "DESCENDING_LB", "scoreStrategy": "best", "timeFormat": "minutes_seconds", "timePrecision": 2, "minValidTimeInSeconds": 60.0, "maxValidTimeInSeconds": 36000.0},
+      {"scoreType": "score", "leaderboardType": "DESCENDING_LB", "scoreStrategy": "best", "minValidScore": 0, "maxValidScore": 1000}
+    ]
+  },
+  "roguelike-dungeon": {
+    "description": "Roguelike dungeon crawler",
+    "stats_pool": ["floors_cleared", "enemies_defeated", "gold_collected", "items_found", "deaths", "run_time", "damage_dealt", "damage_taken", "bosses_killed", "secrets_found", "highest_floor", "total_runs"],
+    "max_stats_per_config": 12,
+    "leaderboard_configs": [
+      {"scoreType": "score", "leaderboardType": "DESCENDING_LB", "scoreStrategy": "best", "minValidScore": 0, "maxValidScore": 2000},
+      {"scoreType": "level", "leaderboardType": "DESCENDING_LB", "scoreStrategy": "best", "minValidScore": 1, "maxValidScore": 999}
+    ]
+  },
+  "fighting-1v1": {
+    "description": "1v1 fighting game",
+    "stats_pool": ["wins", "losses", "perfect_rounds", "combo_count", "damage_dealt", "blocks_successful", "counters", "special_moves", "ultra_combos", "win_streak", "ranked_points", "tournament_wins"],
+    "max_stats_per_config": 12,
+    "leaderboard_configs": [
+      {"scoreType": "points", "leaderboardType": "DESCENDING_LB", "scoreStrategy": "cumulative", "minValidScore": 0, "maxValidScore": 1000},
+      {"scoreType": "rank", "leaderboardType": "ASCENDING_LB", "scoreStrategy": "best", "minValidScore": 1, "maxValidScore": 5000}
+    ]
+  },
+  "simulation-city": {
+    "description": "City building simulation",
+    "stats_pool": ["population", "happiness_rating", "income_per_hour", "buildings_constructed", "services_provided", "pollution_level", "traffic_flow", "education_level", "crime_rate", "tourism_rating", "city_value"],
+    "max_stats_per_config": 11,
+    "leaderboard_configs": [
+      {"scoreType": "score", "leaderboardType": "DESCENDING_LB", "scoreStrategy": "best", "minValidScore": 0, "maxValidScore": 1000},
+      {"scoreType": "score", "leaderboardType": "DESCENDING_LB", "scoreStrategy": "best", "minValidScore": 0, "maxValidScore": 1000}
+    ]
+  },
+  "simulation-farming": {
+    "description": "Farming simulation game",
+    "stats_pool": ["crops_harvested", "animals_raised", "gold_earned", "land_owned", "buildings_built", "friendships_level", "festivals_won", "fish_caught", "recipes_cooked", "artifacts_found", "community_center_bundles"],
+    "max_stats_per_config": 11,
+    "leaderboard_configs": [
+      {"scoreType": "score", "leaderboardType": "DESCENDING_LB", "scoreStrategy": "cumulative", "minValidScore": 0, "maxValidScore": 1000}
+    ]
+  },
+  "rhythm-music": {
+    "description": "Rhythm and music game",
+    "stats_pool": ["perfect_notes", "good_notes", "missed_notes", "combo_max", "score", "accuracy_percent", "songs_completed", "full_combos", "difficulty_cleared", "stars_earned"],
+    "max_stats_per_config": 10,
+    "leaderboard_configs": [
+      {"scoreType": "score", "leaderboardType": "DESCENDING_LB", "scoreStrategy": "best", "minValidScore": 0, "maxValidScore": 1000},
+      {"scoreType": "points", "leaderboardType": "DESCENDING_LB", "scoreStrategy": "best", "minValidScore": 0, "maxValidScore": 100}
+    ]
+  },
+  "adventure-open-world": {
+    "description": "Open world adventure game",
+    "stats_pool": ["quests_completed", "locations_discovered", "collectibles_found", "enemies_defeated", "distance_traveled", "playtime_hours", "achievements_unlocked", "side_quests_done", "secrets_found", "fast_travel_points", "companions_recruited"],
+    "max_stats_per_config": 11,
+    "leaderboard_configs": [
+      {"scoreType": "score", "leaderboardType": "DESCENDING_LB", "scoreStrategy": "cumulative", "minValidScore": 0, "maxValidScore": 1000},
+      {"scoreType": "points", "leaderboardType": "DESCENDING_LB", "scoreStrategy": "best", "minValidScore": 0, "maxValidScore": 100}
+    ]
+  },
+  "tower-defense": {
+    "description": "Tower defense strategy",
+    "stats_pool": ["waves_survived", "enemies_killed", "towers_built", "towers_upgraded", "damage_dealt", "gold_earned", "lives_remaining", "perfect_waves", "special_abilities_used", "boss_kills"],
+    "max_stats_per_config": 10,
+    "leaderboard_configs": [
+      {"scoreType": "score", "leaderboardType": "DESCENDING_LB", "scoreStrategy": "best", "minValidScore": 0, "maxValidScore": 5000},
+      {"scoreType": "level", "leaderboardType": "DESCENDING_LB", "scoreStrategy": "best", "minValidScore": 1, "maxValidScore": 1000}
+    ]
+  },
+  "idle-clicker": {
+    "description": "Idle clicker game",
+    "stats_pool": ["total_clicks", "currency_earned", "upgrades_purchased", "prestige_count", "achievements_unlocked", "auto_clickers", "multiplier_level", "offline_earnings", "total_playtime"],
+    "max_stats_per_config": 9,
+    "leaderboard_configs": [
+      {"scoreType": "score", "leaderboardType": "DESCENDING_LB", "scoreStrategy": "cumulative", "minValidScore": 0, "maxValidScore": 1000},
+      {"scoreType": "level", "leaderboardType": "DESCENDING_LB", "scoreStrategy": "best", "minValidScore": 0, "maxValidScore": 1000}
+    ]
+  },
+  "auto-battler": {
+    "description": "Auto chess / auto battler solo mode",
+    "stats_pool": ["wins", "top_4_finishes", "units_upgraded", "gold_managed", "damage_dealt", "health_remaining", "synergies_completed", "perfect_rounds", "win_streak", "ranked_points"],
+    "max_stats_per_config": 10,
+    "leaderboard_configs": [
+      {"scoreType": "points", "leaderboardType": "DESCENDING_LB", "scoreStrategy": "cumulative", "minValidScore": 0, "maxValidScore": 1000},
+      {"scoreType": "rank", "leaderboardType": "ASCENDING_LB", "scoreStrategy": "best", "minValidScore": 1, "maxValidScore": 1000}
+    ]
+  },
+  "sandbox-creative": {
+    "description": "Sandbox creative building game",
+    "stats_pool": ["blocks_placed", "blocks_mined", "structures_built", "distance_traveled", "mobs_defeated", "items_crafted", "biomes_explored", "achievements_unlocked", "playtime_hours", "worlds_created"],
+    "max_stats_per_config": 10,
+    "leaderboard_configs": [
+      {"scoreType": "score", "leaderboardType": "DESCENDING_LB", "scoreStrategy": "cumulative", "minValidScore": 0, "maxValidScore": 1000}
+    ]
+  },
+  "racing-kart": {
+    "description": "Kart racing game",
+    "stats_pool": ["race_time", "position_finish", "items_used", "drifts_perfect", "shortcuts_taken", "opponents_hit", "coins_collected", "boost_time", "wins", "podium_finishes"],
+    "max_stats_per_config": 10,
+    "leaderboard_configs": [
+      {"scoreType": "time", "leaderboardType": "ASCENDING_LB", "scoreStrategy": "best", "timeFormat": "minutes_seconds", "timePrecision": 3, "minValidTimeInSeconds": 45.0, "maxValidTimeInSeconds": 600.0},
+      {"scoreType": "score", "leaderboardType": "DESCENDING_LB", "scoreStrategy": "cumulative", "minValidScore": 0, "maxValidScore": 5000}
+    ]
+  },
+  "stealth-action": {
+    "description": "Stealth action game",
+    "stats_pool": ["stealth_kills", "alerts_triggered", "bodies_hidden", "objectives_completed", "detection_time", "non_lethal_takedowns", "gadgets_used", "time_to_complete", "perfect_stealth_missions", "collectibles_found"],
+    "max_stats_per_config": 10,
+    "leaderboard_configs": [
+      {"scoreType": "score", "leaderboardType": "DESCENDING_LB", "scoreStrategy": "best", "minValidScore": 0, "maxValidScore": 1000},
+      {"scoreType": "time", "leaderboardType": "ASCENDING_LB", "scoreStrategy": "best", "timeFormat": "minutes_seconds", "timePrecision": 2, "minValidTimeInSeconds": 120.0, "maxValidTimeInSeconds": 7200.0}
+    ]
+  },
+  "endless-runner": {
+    "description": "Endless runner game",
+    "stats_pool": ["distance_traveled", "coins_collected", "obstacles_dodged", "power_ups_used", "near_misses", "perfect_runs", "high_score", "enemies_defeated", "multiplier_max"],
+    "max_stats_per_config": 9,
+    "leaderboard_configs": [
+      {"scoreType": "score", "leaderboardType": "DESCENDING_LB", "scoreStrategy": "best", "minValidScore": 0, "maxValidScore": 1000},
+      {"scoreType": "distance", "leaderboardType": "DESCENDING_LB", "scoreStrategy": "best", "minValidScore": 0, "maxValidScore": 1000}
+    ]
+  },
+  "arcade-shooter": {
+    "description": "Classic arcade shooter",
+    "stats_pool": ["score", "enemies_destroyed", "waves_cleared", "power_ups_collected", "accuracy_percent", "combo_multiplier", "lives_remaining", "perfect_stages", "boss_kills"],
+    "max_stats_per_config": 9,
+    "leaderboard_configs": [
+      {"scoreType": "score", "leaderboardType": "DESCENDING_LB", "scoreStrategy": "best", "minValidScore": 0, "maxValidScore": 5000}
+    ]
+  }
+}

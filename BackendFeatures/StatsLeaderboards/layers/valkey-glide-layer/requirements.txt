@@ -1,0 +1,32 @@
+# Lambda Layer Dependencies for Game Stats & Leaderboards System
+# These dependencies will be shared across all Lambda functions
+
+# Core Valkey-GLIDE dependency.
+# PINNED: an unpinned >= range floats to the newest release, and valkey-glide
+# reorganized its package at 2.1.0 (glide.protobuf -> glide_shared.protobuf),
+# which silently broke imports in the Lambda code. Pin exactly so the layer is
+# reproducible; bump deliberately (and re-verify imports) when upgrading.
+valkey-glide==2.4.1
+
+# AWS Lambda Powertools for logging, tracing, and metrics
+aws-lambda-powertools[all]==3.0.0
+
+# Data validation and serialization
+# PINNED for a reproducible, auditable layer artifact (see L3). Bump deliberately
+# and re-verify, the same way valkey-glide / powertools above are managed.
+pydantic==2.13.4
+
+# Async utilities
+asyncio-throttle==1.0.2
+nest-asyncio==1.6.0
+
+# Date/time utilities
+python-dateutil==2.9.0.post0
+
+# JWT verification for the player authorizer: PyJWT[crypto] validates the
+# RS256 access tokens, requests fetches the issuer's public keys (JWKS).
+PyJWT[crypto]==2.13.0
+requests==2.34.2
+
+# Note: boto3 and botocore are provided by AWS Lambda runtime
+# Note: Standard library modules don't need to be included

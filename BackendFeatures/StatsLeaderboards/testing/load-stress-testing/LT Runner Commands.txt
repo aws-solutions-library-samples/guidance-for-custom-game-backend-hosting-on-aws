@@ -1,0 +1,95 @@
+cd testing/load-stress-testing
+
+python3 test_LoadAndStressTests.py \
+  --generate-new \
+  --test-name "Racing-Circuit-Test001" \
+  --genre "racing-circuit" \
+  --aws-profile gtisengard \
+  --region us-west-2 \
+  --overwrite
+
+python3 test_LoadAndStressTests.py \
+  --test-config-id "test-20260220-160546-c3pm" \
+  --aws-profile gtisengard \
+  --region us-west-2 \
+  --dry-run
+
+python3 test_LoadAndStressTests.py \
+  --test-config-id "test-20260220-160546-c3pm" \
+  --aws-profile gtisengard \
+  --region us-west-2 \
+  --max-players 100
+
+python3 test_LoadAndStressTests.py \
+  --test-config-id "test-20260220-160546-c3pm" \
+  --aws-profile gtisengard \
+  --region us-west-2 \
+  --max-players 100
+
+New Terminal.
+
+python3 test_LoadAndStressTests.py \
+  --test-config-id "test-20260220-160546-c3pm" \
+  --aws-profile gtisengard \
+  --region us-west-2 \
+  --max-players 30
+
+
+python3 clearDatastore.py --profile gtisengard --region us-west-2 --all --boost
+
+python3 test_LoadAndStressTests.py --generate-new --genre "card-collectible" --test-name "Load Test Card Collectibles 001" --aws-profile gtisengard --region us-west-2 --overwrite
+
+python3 test_LoadAndStressTests.py --generate-new --genre "rpg-action" --test-name "Load Test RPG Action 001" --aws-profile gtisengard --region us-west-2 --overwrite
+
+python3 test_LoadAndStressTests.py --test-config-id "test-20260220-160546-c3pm" --aws-profile gtisengard --region us-west-2 --dry-run
+python3 test_LoadAndStressTests.py --test-config-id "test-20260220-160546-c3pm" --aws-profile gtisengard --region us-west-2 --max-players 60 --retain-web-server
+
+python3 test_LoadAndStressTests.py --test-config-id "test-20260220-160546-c3pm" --aws-profile gtisengard --region us-west-2 --max-players 150 &
+python3 test_LoadAndStressTests.py --test-config-id "test-20260220-160546-c3pm" --aws-profile gtisengard --region us-west-2 --max-players 150 &
+
+
+
+python3 test_LoadAndStressTests.py --test-config-id "test-20260220-160546-c3pm" --region us-west-2 --max-players 100 &
+python3 test_LoadAndStressTests.py --test-config-id "test-20260220-160546-c3pm" --region us-west-2 --max-players 100 &
+
+
+for i in $(seq 1 10); do
+  echo "..."
+  echo "..."
+  echo "Starting process $i of 10..."
+  python3 test_LoadAndStressTests.py --test-config-id "test-20260220-160546-c3pm" --region us-west-2 --max-players 100 &
+  echo "Process $i started (PID: $!)"
+  if [ $i -lt 10 ]; then
+    echo "Sleeping 240 seconds before next process..."
+    sleep 240
+  fi
+done
+echo "All 10 processes launched."
+
+
+---
+  '''
+  I want you to review my project here: '/Users/niravdd/Downloads/00 Game Tech/CustomGameBackend-LB/Stats & Leaderboards - v0.1'. A few things to note:
+
+  1. The project is intended to be a Stats and Leaderboards component for games, almost every game. The original intent of the project was to support up to 100k RPS or 100k CCU.
+  2. The system is designed to be serverless -- review the app.py, and the app_post_deploy.py for the infrastructure details. I already have the infra deployed & working, do not test deploy. To add
+  here, we're using Python 3.13+, with Valkey GLIDE 2.4.1, and MemoryDB for Valkey to build the leaderboards, while all the stats submitted are in the DynamoDB table.
+  3. The main Lambda for the API are in the /backend, /player, and the /auth directories -- Review these thoroughly comprehensively well.
+  4. Along with the main system, I also have a /testing/load-stress-testing/ script intended for loading up the whole deployed backend. (test_LoadAndStressTests.py)
+  5. During my last last test run, I was able to hit just about ~4350 RPS (with about 4000 CCU), and it started err'ing, potentially because of the service quota of the API Gateway. See the report
+  available at '/Users/niravdd/Downloads/00 Game Tech/CustomGameBackend-LB/Stats & Leaderboards - v0.1/testing/load-stress-testing/reports/test_report_test-20260220-160546-c3pm_20260217_181607.html',
+  if necessary.
+  6. Note that the '/Users/niravdd/Downloads/00 Game Tech/CustomGameBackend-LB/Stats & Leaderboards - v0.1/.kiro' diretory has design specs for the load & stress testing system, and is additional &
+  more informative data for you to understand how the backend is intended to be used.
+  7. If you need to run any AWS CLI commands to query the infrastructure/account, use AWS Profile 'gtisengard' in the us-west-2 region only.
+
+  In any case -- a few things that I need help with after you do your comprehensive & complete review.
+  1. Do you have any questions before you perform your review here?
+  2. Does the main project need any improvements? Do not make changes to the code right now, but let's discuss your detailed findings. Prepare a single findings report that we can review together &
+  discuss.
+  3. After this, I need your help to write a detailed documentation of the main project, together with specific detailed specs of each API, each parameter in the request/response objects for each API,
+  the potential values of each parameter, and samples of each and every possibility so the reader knows what and how to consume the system. This needs to start with the deployment using the CDK
+  script, preferably from inside an EC2 instance. Let's work on this, after your review has completed, and you have a thorough understanding of this. Make sure you keep a complete track of everything
+  you review, so even if you switch context to a newer window, you have full knowledge of everything from the previous window.
+  '''
+---

@@ -1,0 +1,931 @@
+# Game Stats and Leaderboards System - Developer Documentation
+
+## Table of Contents
+
+1. [System Overview](#1-system-overview)
+2. [Architecture](#2-architecture)
+3. [Deployment Guide](#3-deployment-guide)
+    - [Deployment](#32-deployment-from-ec2-instance-recommended)
+    - [Teardown / Decommissioning](#38-teardown--decommissioning)
+4. [Integration](#4-integration)
+    - [Integration Guide — Who Calls What](#integration-guide--who-calls-what)
+    - [Before You Go to Production — Integration Points](#before-you-go-to-production--integration-points)
+    - [API Reference](#api-reference) ([full documentation](docs/api_reference.md))
+5. [Appendices](#appendices)
+    - [Appendix A: Introduction to Leaderboards and Game Statistics](#appendix-a-introduction-to-leaderboards-and-game-statistics)
+    - [Appendix B: Load Testing Framework](#appendix-b-load-testing-framework)
+
+> This project has been tested across all supported score types, leaderboard strategies, time formats, and common edge cases using the included integration test suite (`testing/test_StatsAndLeaderboards.py`) and load/stress tested using the distributed test runner (`testing/load-stress-testing/test_LoadAndStressTests.py`). That said, please perform your own validation and testing against your specific game's data patterns and traffic profiles before deploying to production.
+
+---
+
+## 1. System Overview
+
+The Game Stats and Leaderboards system is a backend built on AWS managed services for managing game statistics and real-time leaderboards. Lambda, API Gateway, and DynamoDB run on-demand; MemoryDB for Valkey runs as a provisioned cluster. For readers new to game leaderboards and statistics, see [Appendix A](#appendix-a-introduction-to-leaderboards-and-game-statistics).
+
+> **Single-Tenant Design:** This system is designed for a single game per deployment. If you need to support multiple games, deploy a separate instance for each game (see [Deployment Guide, Step 3](#32-deployment-from-ec2-instance-recommended)).
+
+### Key Capabilities
+
+- **Real-time leaderboards** with sorted sets
+- **Player statistics storage** with full game report history
+- **Multiple leaderboard strategies**: best, cumulative, replace
+- **Multiple score types**: score, time, distance, points, rank, level (ascending and descending)
+- **Event leaderboards** with expiry and read-only/auto-delete modes
+- **Batch submission and processing** for multiplayer game server reports
+- **Leaderboard reset and rebuild** with backup/restore
+- **Unit testing and distributed load testing** framework included
+
+### Technology Stack
+
+| Component | Technology |
+|-----------|-----------|
+| Compute | AWS Lambda (Python 3.13) |
+| Leaderboard Store | Amazon MemoryDB for Valkey (Valkey-GLIDE 2.4.1) |
+| Stats Store | Amazon DynamoDB (on-demand) |
+| API Layer | Amazon API Gateway (REST) |
+| Auth | Lambda Authorizers (backend + player) + SSM Parameter Store |
+| IaC | AWS CDK (Python) |
+| Monitoring | CloudWatch + Lambda Powertools |
+| Long-Running Operations | Lambda self-invoke relay |
+
+### Lambda Functions (11 total)
+
+| Function | Directory | Purpose |
+|----------|-----------|---------|
+| `backendAuthorizer` | `/auth` | Backend API key authentication |
+| `playerAuthorizer` | `/auth` | Player authentication (Custom Identity Component tokens by default; `PLAYER_AUTH_MODE`) |
+| `developerRegistration` | `/backend` | Studio/game registration, API key management |
+| `leaderboardsConfig` | `/backend` | Leaderboard CRUD configuration |
+| `batchStoreStatsAndScores` | `/backend` | Batch game report processing |
+| `resetLeaderboard` | `/backend` | Reset leaderboard scores |
+| `rebuildLeaderboard` | `/backend` | Rebuild leaderboard from DynamoDB |
+| `storePlayerStatsAndScores` | `/player` | Individual player game report |
+| `getLeaderboardScores` | `/player` | Query leaderboard scores |
+| `getPlayerStatsAndScores` | `/player` | Query player stats history |
+| `getPlayerLBStanding` | `/player` | Player rank, percentile, neighbours |
+
+---
+
+## 2. Architecture
+
+![High-Level Architecture](Guidance%20for%20Game%20Stats%20and%20Leaderboards.png)
+
+Game backends and player clients send requests through Amazon API Gateway, which routes them to one of two Lambda authorizers: the backend authorizer (validates StudioAPI keys via SSM Parameter Store) for developer/admin operations, or the player authorizer (validates Custom Identity Component access tokens by default) for player-facing operations. Authorized requests reach the target Lambda function, which reads/writes leaderboard scores in MemoryDB for Valkey (sorted sets) and persists player stats and configurations in DynamoDB. The 8 Lambda functions that connect to MemoryDB run within VPC private subnets; the 3 that only use public AWS endpoints (authorizers and developer registration) run outside the VPC.
+
+### Request Flow
+
+```
+Game Client / Game Server
+    |
+    v
+API Gateway (REST)
+    |
+    v
+Lambda Authorizer (backendAuthorizer)
+    |  SSM Parameter Store lookup (cached)
+    |  Returns Allow/Deny policy + context (studioId, gameId, permissions)
+    v
+Target Lambda Function
+    |
+    +---> MemoryDB for Valkey (leaderboard sorted sets)
+    +---> DynamoDB (config table, stats table)
+    +---> SSM Parameter Store (API keys, config)
+```
+
+### AWS Resources Created
+
+The CDK deployment creates:
+
+- **VPC** with private subnets and VPC endpoints for Lambda + MemoryDB connectivity
+- **MemoryDB for Valkey** cluster (db.r6g.large, 1 shard, 1 replica)
+- **DynamoDB tables**: leaderboard config table, player stats table
+- **API Gateway** REST API with two Lambda authorizers (backend and player)
+- **11 Lambda functions** with shared layer
+- **Lambda Layer** (valkey-glide, aws-lambda-powertools, pydantic, etc.)
+- **SSM Parameters** for API keys and configuration
+- **CloudWatch** log groups, alarms, dashboards
+- **Lambda self-invoke relay** for long-running reset/rebuild operations (when processing exceeds the ~15 minute Lambda timeout, the function asynchronously invokes itself with continuation state to resume the work)
+- **IAM roles** for all Lambda functions
+
+### CDK Stacks
+
+| Stack | File | Purpose |
+|-------|------|---------|
+| `GameStatsLeaderboardsStack` | `app.py` (CDK main) | Core infrastructure: VPC, MemoryDB,<br>DynamoDB, API Gateway, Lambda functions |
+| `GameStatsLeaderboardsMonitoringStack` | `app_post_deploy.py` | Post-deploy: CloudWatch dashboards,<br>alarms, provisioned concurrency,<br>Lambda Insights |
+
+---
+
+## 3. Deployment Guide
+
+### 3.1 Prerequisites
+
+- An AWS account with sufficient permissions
+- A deployment host (EC2 instance recommended: Amazon Linux 2023 or Ubuntu) — or a local machine
+- **At least 4 GB of RAM on the deployment host** (e.g. `t3.medium` or larger). **Do not use `t2.micro`/`t3.micro`/`small` (1–2 GB)** — the build steps will run out of memory and produce interrupted or partial deployments. See [Deployment host sizing](#deployment-host-sizing-important) below for why.
+- **Python 3.13+** on the deployment host (the deploy script will attempt to install it if missing, but having it pre-installed avoids a memory-intensive source compilation step)
+- AWS CLI v2 configured with credentials
+- Internet access for package downloads
+- At least ~8 GB of free disk on the host (for the toolchain, Python packages, and the built Lambda layer)
+
+#### Deployment host sizing (IMPORTANT)
+
+The deploy script bootstraps its own toolchain and synthesizes a large CloudFormation stack, which is memory-intensive. Under-sizing the host is the most common cause of a broken deploy: a process gets OOM-killed mid-run, leaving a partial or failed deployment.
+
+**Recommended minimum: `t3.medium` — 4 GB RAM, 2 vCPU.** 8 GB is *not* required; 4 GB has been verified sufficient for the full deploy. Smaller burstable instances (`t2/t3.micro`, `t3.small`) are not.
+
+| Instance class | RAM / vCPU | Suitable? |
+|----------------|-----------|-----------|
+| `t2.micro`, `t3.micro` | 1 GB / 2 | ❌ No — OOMs during the Python build / CDK synth |
+| `t3.small` | 2 GB / 2 | ❌ Not recommended — risks OOM on the heavier steps |
+| **`t3.medium`** | **4 GB / 2** | ✅ **Recommended minimum** |
+| `t3.large` / `m5.large` | 8 GB / 2 | ✅ Comfortable; more headroom |
+
+**Why 4 GB is enough (measured against this project):**
+
+- **CDK synthesis (runs on every deploy).** Synthesizing the stack (**358 resources**) peaks at roughly **0.5 GB** for the Python app, and around **1–1.3 GB** once the Node `cdk` CLI that wraps it is included. Comfortable within 4 GB.
+- **Toolchain install.** Installing `aws-cdk-lib` via pip peaks at roughly **0.75 GB**; the CDK CLI (npm) adds transient use. Sequential, so they don't stack.
+- **Python source compilation (only if Python 3.13+ is absent).** This is the heaviest step: the script builds CPython with `--enable-optimizations` (PGO + LTO) using `make -j $(nproc)`, so it runs **one compiler process per vCPU** and the LTO link loads the whole program into memory. On a **2-vCPU** host (like `t3.medium`) that's 2 parallel jobs, which fits in 4 GB.
+
+> **Caveat — RAM scales with vCPU here.** Because the compile uses `make -j $(nproc)`, its memory need grows with core count, not just total RAM. 4 GB is safe at **~2 vCPU**. If you pick a higher-core instance with a low RAM-to-vCPU ratio (e.g. a 4-vCPU box with only 4 GB, such as some `c`-family types), the parallel compile can still OOM — prefer **≥ 2 GB RAM per vCPU**, or pre-install Python.
+
+**Best mitigation:** **pre-install Python 3.13+** on the host (Amazon Linux 2023 ships 3.9, so the script otherwise compiles 3.13 from source). That removes the single largest memory consumer entirely, after which even the compile-free path stays around ~1.3 GB.
+
+On 1–2 GB instances the heavy steps trigger the Linux OOM killer, which terminates the compiler, `npm`, or `cdk` mid-operation — surfacing as a hung build, a "Killed" message, or a half-finished stack. If you are genuinely constrained to a smaller instance, pre-install Python 3.13+ and add swap (e.g. a 4 GB swapfile), but a host with ≥ 4 GB RAM (and ~2 GB/vCPU) is strongly preferred.
+
+### 3.2 Deployment from EC2 Instance (Recommended)
+
+#### Step 1: Launch an EC2 Instance
+
+```bash
+# Instance type: t3.medium or larger (minimum 4 GB RAM — see "Deployment host
+#   sizing" in 3.1). Do NOT use t2/t3 .micro/.small; they OOM during the build.
+# AMI: Amazon Linux 2023
+# Ensure the instance has an IAM role with:
+#   - CloudFormation full access
+#   - Lambda full access
+#   - DynamoDB full access
+#   - MemoryDB full access
+#   - API Gateway full access
+#   - SSM Parameter Store full access
+#   - VPC full access
+#   - IAM role creation permissions
+#   - CloudWatch full access
+#   - (Step Functions access no longer required)
+#   - S3 access (for CDK bootstrap)
+```
+
+#### Step 2: Clone or Upload the Project
+
+```bash
+# Upload the project directory to the EC2 instance
+# or clone from your repository
+cd /home/ec2-user
+# Example: scp -r StatsLeaderboards ec2-user@<instance-ip>:~/
+```
+
+#### Step 3: Connect to the EC2 Instance
+
+Connect and log into the EC2 bastion box, then navigate to the project directory:
+
+```bash
+# SSH into the EC2 instance
+ssh -i <your-key.pem> ec2-user@<instance-ip>
+
+# Navigate to the project directory
+cd ~/StatsLeaderboards/
+
+# Verify the project files are present
+ls -la
+```
+
+> **Multi-Game Deployments:** This system is single-tenanted by design -- one deployment per game. If you need to support multiple games, repeat the full deployment process (Steps 3-5) for each game, each with its own `studio_parameters.json` configuration.
+
+#### Step 4: Configure Studio Parameters
+
+Edit `studio_parameters.json` with your studio details (on the EC2 instance before deploying). This is important metadata, used for the Studio API Key for all backend use:
+
+```json
+{
+  "StudioName": "Your Studio Name",
+  "ContactEmail": "contact@yourstudio.tld",
+  "GameTitle": "Your Game Title",
+  "GameGenre": "Your Game's Genre"
+}
+```
+
+**Field Requirements:**
+
+| Field | Type | Constraints |
+|-------|------|------------|
+| `StudioName` | string | Letters, numbers, spaces, hyphens, underscores, periods, `()!&@` |
+| `ContactEmail` | string | Valid email format |
+| `GameTitle` | string | Same character rules as StudioName |
+| `GameGenre` | string | Same character rules as StudioName (e.g., `racing`, `space-rpg`, `action`) |
+
+#### Step 5: Run the Deployment Script
+
+```bash
+cd StatsLeaderboards
+
+# Optional: Set deployment environment (default: dev)
+export ENVIRONMENT=dev   # Options: dev, staging, prod
+
+# Optional: Set AWS region (default: us-west-2)
+export AWS_DEFAULT_REGION=us-west-2
+
+# Required for player auth in identity mode (the default): the Custom Identity
+# Component issuer URL (the CustomIdentityComponentStack "IssuerEndpointUrl" output).
+export ISSUER_ENDPOINT_URL=https://xxxxxxxx.cloudfront.net
+
+# Optional: player auth mode (default: identity). Use "custom" for a standalone
+# deployment that does not use the Custom Identity Component.
+# export PLAYER_AUTH_MODE=custom
+
+# Run the deployment
+chmod +x deploy.sh
+./deploy.sh
+```
+
+### 3.3 What the Deploy Script Does (In Order)
+
+The deploy script is **self-bootstrapping** — it installs and version-checks its own toolchain before deploying, so a fresh EC2 instance needs nothing but the project files and AWS credentials.
+
+1. **Detects operating system** (Amazon Linux/RHEL/Fedora, Ubuntu/Debian, macOS) and installs the system build packages it needs.
+2. **Installs AWS CLI v2** if not present (x86_64 and aarch64 supported).
+3. **Installs NVM + Node.js LTS** and enforces a **minimum Node.js major version of 20** (Node 18 is end-of-life and rejected). An existing Node that is too old or not NVM-managed is replaced with the LTS line.
+4. **Installs / upgrades the AWS CDK CLI** and enforces a **minimum CLI version of `2.1125.0`** — older CLIs cannot read the cloud-assembly schema emitted by the pinned `aws-cdk-lib`. A shadowing global CDK installed under a different Node is removed first.
+5. **Installs Python 3.13+** (searches for 3.15 → 3.14 → 3.13; compiles from source only as a last resort) and **bootstraps/upgrades pip** (via `ensurepip` or `get-pip.py`).
+6. **Installs Python packages** (boto3, aws-cdk-lib, constructs, aws-lambda-powertools) using a **PEP 668-safe install strategy** — see [3.4](#34-configuration--command-line-behaviour). By default these go into your **per-user** site; on modern, externally-managed Python installs (Amazon Linux 2023, recent Ubuntu/Debian/Fedora, Homebrew) the script automatically adds `--break-system-packages` so the user-site install is permitted without touching system packages. (Pass `--venv` to install into an isolated virtual environment instead.)
+7. **Persists environment** (PATH, aliases, NVM config) to your shell rc files.
+8. **Validates `studio_parameters.json`** (required fields present, allowed-character check, email format) — aborts with guidance if invalid or still using template values.
+9. **Runs `validate_system.py`** (if present) as a pre-deployment sanity check.
+10. **Builds the Lambda Layer** (`layers/build_layer.sh`) by downloading prebuilt Linux wheels for the Lambda runtime (it never compiles on the host, so the build host's OS/CPU don't affect the output). Targets Python 3.13 / x86_64 by default (override with `LAMBDA_PY_VERSION`, `LAMBDA_ARCH`, `PYTHON_BIN`). Contents (from `layers/valkey-glide-layer/requirements.txt`):
+    - valkey-glide==2.4.1 *(pinned — the package reorganized at 2.1.0, so the version is fixed for reproducible imports)*
+    - aws-lambda-powertools[all]==3.0.0
+    - pydantic==2.13.4 *(pinned for a reproducible, auditable layer artifact)*
+    - asyncio-throttle==1.0.2
+    - nest-asyncio==1.6.0
+    - python-dateutil==2.9.0.post0
+    - PyJWT[crypto]==2.13.0 *(pinned — RS256 access-token verification in the player authorizer)*
+    - requests==2.34.2 *(pinned — fetches the issuer JWKS in identity mode)*
+11. **Installs CDK dependencies** from `requirements.txt` (into the same interpreter CDK runs `app.py` with) and verifies `aws_cdk` is importable.
+12. **Bootstraps CDK** (`cdk bootstrap`; logs to `cdk_logs/bootstrap.log`).
+13. **Synthesizes** the main stack (`cdk synth GameStatsLeaderboardsStack`; logs to `cdk_logs/synthesis.log`).
+14. **Deploys the main stack** `GameStatsLeaderboardsStack` (`app.py`) with the studio details passed as CloudFormation **parameters** and resource-reuse **context** enabled (see [3.4](#34-configuration--command-line-behaviour)). Outputs are written to `cdk_logs/stack_outputs.json`.
+15. **Deploys the monitoring stack** `GameStatsLeaderboardsMonitoringStack` (`app_post_deploy.py`). Outputs are written to `cdk_logs/monitoring_outputs.json`.
+16. **Retrieves and displays deployment outputs**: API Endpoint, Studio API Key, Studio ID, Game ID, Layer ARN.
+17. **Creates the `deployment_info.sh`** convenience script and prints next-steps guidance (verify registration, integrate player auth, run the test suite).
+
+> The deploy is **idempotent and reuse-aware**: re-running `./deploy.sh` against an existing deployment updates the stacks in place. It reuses (does not recreate) the stateful resources, isolates and updates only changed Lambda functions, and keeps the MemoryDB secret / DynamoDB KMS-key pairings consistent. To fully remove a deployment, use [`teardown.sh`](#38-teardown--decommissioning).
+
+### 3.4 Configuration & Command-Line Behaviour
+
+`deploy.sh` is configured almost entirely through (a) environment variables and (b) the `studio_parameters.json` file. It accepts **one optional flag** (`--venv`) that only affects how Python dependencies are installed:
+
+| Input | How | Default | Effect |
+|-------|-----|---------|--------|
+| **Deployment environment** | `export ENVIRONMENT=<dev\|staging\|prod>` | `dev` | Validated against `dev`/`staging`/`prod`; becomes the CDK `environment` context and the suffix in every resource name. Invalid values abort the deploy. |
+| **AWS region** | `export AWS_DEFAULT_REGION=<region>` | `us-west-2` | Region for bootstrap and deploy (also exported as `CDK_DEFAULT_REGION`). |
+| **Studio / game identity** | edit `studio_parameters.json` | — | `StudioName`, `ContactEmail`, `GameTitle`, `GameGenre` are passed to the main stack as CloudFormation parameters and used to auto-register your studio + first game. |
+| **Player auth mode** | `export PLAYER_AUTH_MODE=<identity\|custom>` | `identity` | `identity` validates Custom Identity Component tokens on player routes; `custom` is bring-your-own for standalone deployments. |
+| **Identity issuer URL** | `export ISSUER_ENDPOINT_URL=<url>` | — | The Custom Identity Component endpoint. Required in identity mode (the deploy stops without it); passed to the stack as the `IssuerEndpointUrl` parameter. |
+| **AWS credentials** | standard AWS CLI credential chain | — | Profile / env vars / EC2 instance role; the script verifies `aws sts get-caller-identity` before deploying. |
+| **Python install mode** | `--venv` flag (or `USE_VENV=1`) | per-user install | `--venv` installs Python deps into an isolated project-local `.venv`; otherwise a per-user install is used. See "Python dependency installation" below. |
+
+```bash
+# Typical invocation
+export ENVIRONMENT=prod
+export AWS_DEFAULT_REGION=us-east-1
+./deploy.sh
+
+# Optional: isolate Python deps in a virtual environment (e.g. for testing)
+./deploy.sh --venv
+```
+
+**Python dependency installation (PEP 668-aware).** Modern Python distributions — Amazon Linux 2023, recent Ubuntu/Debian/Fedora, and Homebrew — mark their global `site-packages` as *externally managed* ([PEP 668](https://peps.python.org/pep-0668/)). On those, a plain `pip install` (even `pip install --user`) aborts with `error: externally-managed-environment`. `deploy.sh` handles this automatically:
+
+- **Default — per-user install (no virtual environment).** Installs with `pip install --user`, and *only* when the interpreter is actually externally managed and its pip supports the flag, adds `--break-system-packages`. This installs into your **user site** (`~/.local/...`); the system Python's own packages are never modified. This is the default so the deploy works out-of-the-box on the EC2 bastion without forcing a venv on you.
+- **Opt-in — virtual environment (`--venv` or `USE_VENV=1`).** Creates a project-local `.venv`, re-points the deploy's interpreter at it, and installs there (no `--user`/`--break-system-packages` needed). The CDK app then runs from the same venv, so dependencies stay isolated. `.venv` is git-ignored, so it leaves no trace. On Debian/Ubuntu the script will `apt-get install python3-venv` if the `venv` module is missing; if a venv still can't be created it falls back to the default per-user install rather than failing.
+- `--no-venv` forces the default path even if `USE_VENV=1` is set in the environment.
+
+**CDK context and parameters the script passes** (useful if you ever run `cdk` directly instead of through `deploy.sh`):
+
+*Main stack (`app.py`):*
+```bash
+cdk deploy GameStatsLeaderboardsStack --app "<python> app.py" \
+  --context environment=$ENVIRONMENT \
+  --context enable_resource_reuse=true \
+  --context force_create_new=false \
+  --parameters StudioName="..." --parameters ContactEmail="..." \
+  --parameters GameTitle="..." --parameters GameGenre="..." \
+  --require-approval never
+```
+
+*Monitoring stack (`app_post_deploy.py`):*
+```bash
+cdk deploy GameStatsLeaderboardsMonitoringStack --app "<python> app_post_deploy.py" \
+  --context environment=$ENVIRONMENT \
+  --context base_stack_name=GameStatsLeaderboardsStack \
+  --context enable_debug_mode=true \
+  --require-approval never
+```
+
+**Supported CDK context keys** (all optional; set with `--context key=value` when running `cdk` directly):
+
+| Context key | Used by | Purpose |
+|-------------|---------|---------|
+| `environment` | both | Deployment environment (`dev`/`staging`/`prod`); drives resource naming. Defaults to `dev`. |
+| `enable_resource_reuse` | `app.py` | Reuse compatible pre-existing resources rather than failing. `deploy.sh` sets `true`. |
+| `force_create_new` | both | Force creation of new resources instead of reusing/importing. `deploy.sh` sets `false`. |
+| `skip_resource_discovery` | both | Skip the scan for reusable existing resources. |
+| `disable_developer_registration` | `app.py` | Skip the automatic studio/first-game registration custom resource. |
+| `data_trace_enabled` | `app.py` | Toggle API Gateway data-trace logging. |
+| `allowed_origins` | `app.py` | Comma-separated CORS allow-list for browser clients (e.g. `https://game.example.com,https://www.example.com`). Default `*` (any origin, **without** credentials). Setting explicit origins also enables credentialed CORS; a wildcard never does. |
+| `base_stack_name` | `app_post_deploy.py` | Name of the main stack the monitoring stack reads from (default `GameStatsLeaderboardsStack`). |
+| `skip_monitoring` | `app_post_deploy.py` | Skip CloudWatch dashboard/alarm creation. |
+| `skip_provisioned_concurrency` | `app_post_deploy.py` | Skip applying provisioned concurrency to the critical functions. |
+| `skip_lambda_insights` | `app_post_deploy.py` | Skip enabling Lambda Insights. |
+| `skip_advanced_features` | `app_post_deploy.py` | Skip all post-deploy enhancements at once. |
+| `enable_debug_mode` | `app_post_deploy.py` | Verbose post-deploy logging. `deploy.sh` sets `true`. |
+| `account` / `region` | both | Override the target account/region (otherwise from the AWS environment). |
+
+> **Note on the monitoring stack:** several post-deploy enhancements — **provisioned concurrency** and its **application-autoscaling** targets — are applied imperatively via boto3 (`put_provisioned_concurrency_config`, `register_scalable_target`), not as CloudFormation resources. This is why `teardown.sh` cleans them up explicitly (see [3.8](#38-teardown--decommissioning)); a plain `cdk destroy` would leave them behind.
+
+> **Resources retained on stack deletion:** the **two DynamoDB tables**, the **KMS key**, and the **Lambda layer** are created with a `RETAIN` deletion policy so they are never destroyed by an accidental stack delete. The MemoryDB cluster, API Gateway, Lambda functions, IAM roles, and VPC are destroyed with the stack. Plan removals accordingly, or use [`teardown.sh`](#38-teardown--decommissioning) for a controlled teardown.
+
+### 3.5 Deployment Outputs
+
+After successful deployment, you receive:
+
+| Output | Description |
+|--------|-------------|
+| `ApiEndpoint` | The API Gateway base URL<br>(e.g., `https://abc123.execute-api.us-west-2.amazonaws.com/dev`)<br>to prefix to the specific API end points |
+| `StudioAPIKey` | Your generated API key for backend API authentication only.<br>Intended only for game developers' use,<br>do not use this for player API authentication |
+| `StudioId` | Your studio identifier,<br>required by most API |
+| `GameId` | Your game identifier,<br>required by most API |
+| `SharedLayerArn` | Lambda Layer ARN |
+
+These are also stored in CloudFormation outputs and SSM Parameter Store, and here onwards the system only refers to the SSM Parameter Store for this metadata.
+
+### 3.6 Post-Deployment Verification
+
+```bash
+# Check deployment info — this convenience script is auto-generated by deploy.sh
+# in the project root directory after a successful deployment. It queries CloudFormation
+# for your API endpoint, Studio API Key, Studio ID, Game ID, and stack status.
+./deployment_info.sh
+
+# Verify the system is operational using the developer info endpoint (recommended health check)
+curl -X GET "$API_ENDPOINT/developer/info?studioId=$STUDIO_ID&gameId=$GAME_ID" \
+  -H "Authorization: Bearer $API_KEY"
+```
+
+> **Note:** There is no dedicated `/health` endpoint. The `GET /developer/info` call serves as the recommended health check, as it exercises the authentication flow and returns registration metadata.
+
+### 3.7 Production Infrastructure Sizing
+
+The system deploys with conservative defaults suitable for development and testing. Before going to production, review and adjust the resource sizing to match your expected workload. Incorrect sizing leads to either throttling (under-provisioned) or unnecessary cost (over-provisioned).
+
+#### Default Deployment Sizing
+
+| Resource | Default | Notes |
+|----------|---------|-------|
+| **DynamoDB** | On-Demand (PAY_PER_REQUEST) | No pre-provisioned RCU/WCU;<br>scales automatically but at higher per-request cost |
+| **MemoryDB for Valkey** | db.r6g.large, 1 shard, 1 replica | Single-shard cluster<br>with one read replica |
+| **Lambda (authorizers)** | 256 MB, 10s timeout | backendAuthorizer, playerAuthorizer |
+| **Lambda (developer registration)** | 256 MB, 30s timeout | developerRegistration |
+| **Lambda (config, player queries)** | 512 MB, 15s timeout | leaderboardsConfig, getPlayerStatsAndScores,<br>getLeaderboardScores, getPlayerLBStanding |
+| **Lambda (player store)** | 512 MB, 30s timeout | storePlayerStatsAndScores |
+| **Lambda (long-running ops)** | 512 MB, 60s timeout | batchStoreStatsAndScores, resetLeaderboard,<br>rebuildLeaderboard |
+| **Lambda Provisioned Concurrency** | 5 min / 50 max (70% target) | Applied to store-stats,<br>get-scores, get-standing |
+| **API Gateway** | Inherits the account-level throttle<br>(no per-stage limit set) | No usage plan or daily quota is created. AWS<br>default throttle is 10,000 RPS / 5,000-request<br>burst-bucket in most Regions (2,500 RPS /<br>1,250 burst in some) and is shared across all<br>APIs in the account/Region |
+| **VPC** | 1 NAT Gateway, up to 3 AZs | Single NAT Gateway is a<br>single point of failure |
+
+#### Scaling Strategy
+
+There are two approaches. Pick the one that matches your situation:
+
+**Approach A: Start Low, Scale Up (recommended for new games / soft launch)**
+
+Deploy with the defaults, monitor CloudWatch metrics for 1-2 weeks under real traffic, then increase resources where bottlenecks appear. This minimizes cost during the uncertain early period.
+
+**Approach B: Start High, Scale Down (recommended for established games / hard launch)**
+
+If you're launching to a known player base and expect high Day 1 traffic (e.g., >1,000 RPS), over-provision initially to ensure stability, then reduce over the following weeks as you gather real metrics.
+
+#### Per-Service Recommendations
+
+**DynamoDB**
+
+| Setting | Development | Prod (Low) | Prod (High) |
+|---------|-------------|------------|-------------|
+| Billing Mode | On-Demand | On-Demand | Provisioned |
+| Read Capacity (RCU) | Auto | Auto | 500-2,000<br>(with auto-scaling) |
+| Write Capacity (WCU) | Auto | Auto | 200-1,000<br>(with auto-scaling) |
+
+- On-Demand is simpler and handles unpredictable traffic well, but costs ~3.5x more per request than provisioned capacity at steady state (up to ~7x with reserved capacity commitments).
+- Switch to **Provisioned with Auto-Scaling** once your traffic patterns are predictable. Set the base capacity to your sustained average and let auto-scaling handle peaks.
+- Monitor `ConsumedReadCapacityUnits`, `ConsumedWriteCapacityUnits`, and `ThrottledRequests` in CloudWatch.
+
+**MemoryDB for Valkey**
+
+| Setting | Development | Prod (Low-Med) | Prod (High) |
+|---------|-------------|----------------|-------------|
+| Node Type | db.r6g.large | db.r6g.large | db.r6g.xlarge or 2xlarge |
+| Shards | 1 | 1-2 | 2-4 |
+| Replicas per Shard | 1 | 2 | 2-3 |
+
+- The node type determines available memory and network throughput. For leaderboards with millions of entries, move to db.r6g.xlarge or higher.
+- Add shards if you have many distinct leaderboards that can be distributed across shards (Valkey handles slot-based sharding).
+- Add replicas for read throughput (leaderboard queries are read-heavy) and high availability.
+- Monitor `DatabaseMemoryUsagePercentage`, `CPUUtilization`, and `CurrConnections`.
+
+**Lambda Functions**
+
+| Setting | Development | Prod (Low) | Prod (High) |
+|---------|-------------|------------|-------------|
+| Memory (standard) | 256 MB | 512 MB | 1024 MB |
+| Memory (long-running) | 512 MB | 1024 MB | 2048 MB |
+| Provisioned Concurrency | 5 min / 50 max | 10 min / 100 max | 50 min / 500 max |
+
+- Lambda CPU scales linearly with memory. Increasing memory from 256 MB to 512 MB doubles available CPU and often reduces execution time (and cost) for compute-bound operations.
+- Provisioned concurrency eliminates cold starts. The default applies to `store-stats`, `get-leaderboard-scores`, and `get-player-lb-standing`. Increase the minimum if you see consistent cold start latency in these functions.
+- Monitor `Duration`, `ConcurrentExecutions`, `Throttles`, and `Errors` per function.
+
+**API Gateway**
+
+| Setting | Default (as deployed) | Prod (Low) | Prod (High) |
+|---------|----------------------|------------|-------------|
+| Rate Limit | Account default (no per-stage limit) | 1,000 req/sec | 10,000 req/sec |
+| Burst Limit | Account default (no per-stage limit) | 2,000 | 5,000 |
+| Daily Quota | None (no usage plan created) | 1,000,000 | Remove or set<br>to 50,000,000 |
+
+- **As deployed, the stage sets no explicit throttle and no usage plan/daily quota** — it inherits your account-level API Gateway throttle, so the deploy works without a Service Quotas increase. Per the [AWS API Gateway quotas](https://docs.aws.amazon.com/apigateway/latest/developerguide/limits.html), that account default is **10,000 RPS with a 5,000-request burst bucket** in most Regions (and **2,500 RPS / 1,250 burst** in a number of newer Regions). It is **shared across all REST/HTTP/WebSocket APIs in the account/Region**, and the burst quota is set by AWS and not adjustable.
+- To enforce a per-stage rate/burst limit or a daily request quota, add a usage plan post-deployment (console/CLI) or extend `app.py`. The "Prod (Low/High)" columns above are suggested usage-plan targets if you choose to add one — they are not applied by default.
+- Monitor `Count`, `4XXError`, `5XXError`, and `Latency` metrics.
+
+**VPC / Networking**
+
+| Setting | Default | Production |
+|---------|---------|------------|
+| NAT Gateways | 1 | 2-3 (one per AZ) |
+| AZs | up to 3 (`max_azs=3`) | 2-3 |
+
+- A single NAT Gateway is a single point of failure. For production, deploy one per Availability Zone.
+- Additional AZs improve availability but increase NAT Gateway and cross-AZ data transfer costs.
+
+#### Cost-Performance Trade-offs
+
+| Change | Performance Impact | Cost Impact |
+|--------|-------------------|-------------|
+| DynamoDB:<br>On-Demand -> Provisioned | Same (if sized correctly) | ~3.5x cheaper at steady-state<br>(up to ~7x with reserved capacity) |
+| Lambda:<br>256 MB -> 512 MB | ~2x faster execution | Near-neutral<br>(faster = fewer billed ms) |
+| Lambda:<br>Increase provisioned concurrency | Eliminates cold starts | $0.0000041667/GB-sec<br>provisioned |
+| MemoryDB:<br>Add replica | Better read throughput, HA | +1 node cost per shard |
+| MemoryDB:<br>Larger node type | More memory,<br>higher throughput | Varies by node type |
+| API Gateway:<br>Raise limits | Handles more<br>concurrent users | No direct cost<br>(you pay per-request) |
+| VPC:<br>Add NAT Gateway | Eliminates SPOF | ~$32/month<br>per NAT Gateway |
+
+#### What to Monitor First
+
+After deployment, set up CloudWatch dashboards (the monitoring stack creates some automatically) and watch these metrics during your first week of real traffic:
+
+1. **DynamoDB**: `ThrottledRequests` (should be 0), `ConsumedReadCapacityUnits`/`ConsumedWriteCapacityUnits` (for sizing provisioned capacity)
+2. **Lambda**: `Duration` p99 (for timeout risk), `ConcurrentExecutions` (for provisioned concurrency sizing), `Throttles` (should be 0)
+3. **MemoryDB**: `DatabaseMemoryUsagePercentage` (stay under 80%), `CPUUtilization` (stay under 65%)
+4. **API Gateway**: `5XXError` rate, `Latency` p99, `Count` (for understanding traffic patterns)
+
+Use these metrics to make data-driven decisions about scaling up or down.
+
+#### Service Quota Increases (for high-scale production)
+
+At high traffic volumes, you will hit AWS account-level defaults that require formal quota increase requests via the [AWS Service Quotas console](https://console.aws.amazon.com/servicequotas/):
+
+| Service | Default Limit | When You'll Hit It | How to Increase |
+|---------|--------------|-------------------|-----------------|
+| **Lambda concurrent executions** | 1,000 per Region (shared across all functions in the account) | >1,000 simultaneous requests across all Lambda functions in the account | Service Quotas console; increases typically granted to tens of thousands |
+| **API Gateway account-level throttle** | 10,000 RPS per Region (shared across all REST/HTTP/WebSocket APIs in the account) | >10,000 req/sec aggregate | Service Quotas console; requires justification |
+| **DynamoDB on-demand table throughput** | 40,000 read request units / 40,000 write request units per table | Sustained throughput beyond 40K on a single table | DynamoDB auto-scales: instantly supports up to 2x previous peak; exceeding 2x requires ~30 minutes of gradual ramp. New tables start at 4,000 WRU / 12,000 RRU. For immediate high capacity, switch to provisioned mode. |
+| **DynamoDB provisioned account-level throughput** | 80,000 RCU / 80,000 WCU per account (shared across all provisioned tables) | Aggregate provisioned capacity across all tables exceeds 80K | Service Quotas console |
+| **MemoryDB nodes per cluster** | Max 500 nodes per cluster (up to 500 shards with 0 replicas, or fewer shards with up to 5 replicas each) | When scaling beyond your current shard/replica configuration | Service Quotas console or AWS Support |
+
+**Important notes:**
+
+- These limits are **account-wide and shared** with other workloads in the same account and Region. If you run other Lambda functions, APIs, or DynamoDB tables in the same account, their usage counts toward the same quotas. Consider deploying production game workloads in a dedicated AWS account.
+- Quota increase approvals are not guaranteed — AWS evaluates requests based on your account's usage history, payment history, and the specific limit being requested. Provide clear justification (expected player count, peak RPS, launch date) when submitting requests.
+- Request increases **before** launch day. Approvals can take 1-3 business days for standard limits and up to 2 weeks for large increases. For major launches or events, submit requests at least 2-4 weeks in advance.
+- Lambda concurrency is the most common bottleneck at scale. If 8 functions each handle 125 concurrent requests, you hit the 1,000 default. Request an increase to at least 3-5x your expected peak concurrent request count.
+
+### 3.8 Teardown / Decommissioning
+
+To decommission a deployment, use the included **`teardown.sh`** script rather than `cdk destroy` on its own.
+
+> **Why a dedicated script?** `cdk destroy` alone cannot fully tear this system down and can leave billable or orphaned resources behind:
+> 1. **RETAIN-by-design resources** — the DynamoDB tables, the KMS key, and the Lambda layer are deliberately marked `RETAIN` so an accidental stack delete never destroys your data. `cdk destroy` leaves them in place.
+> 2. **Asynchronous MemoryDB delete** — the MemoryDB for Valkey cluster takes ~15–20 minutes to delete. CloudFormation frequently times out waiting, leaving the cluster's subnet group, parameter group, ACL, and user orphaned in a `DELETE_FAILED` stack.
+> 3. **Post-deploy boto3 side-effects** — the monitoring stack's post-deploy step creates provisioned-concurrency and application-autoscaling targets imperatively via boto3. These are invisible to CloudFormation, so `cdk destroy` never removes them, and provisioned concurrency keeps billing after the stack is gone.
+>
+> `teardown.sh` orchestrates around all three, gives you per-resource control over your **data**, and starts the slow MemoryDB delete **first** so it drains while the rest of the teardown proceeds.
+
+#### Quick start
+
+```bash
+cd StatsLeaderboards
+
+# 1. SAFE PREVIEW (default). Shows exactly what would happen, changes NOTHING.
+./teardown.sh
+
+# 2. Perform the teardown (interactive — prompts for confirmations and per-resource choices)
+./teardown.sh --execute
+```
+
+The script **defaults to a dry-run**. You must pass `--execute` for it to delete anything. Run the dry-run first, read the resolved plan it prints, then re-run with `--execute`.
+
+#### Command-line parameters
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `--execute` | *(off)* | Actually perform deletions. **Omit this for a dry-run** (the default), which previews every action and changes nothing. |
+| `--dry-run` | *(on)* | Explicitly request the preview-only mode (this is already the default). |
+| `--profile <name>` | current credential chain | AWS CLI profile to use for all calls. |
+| `--region <region>` | `$AWS_DEFAULT_REGION` or `us-west-2` | AWS region the deployment lives in. |
+| `--environment <env>` | `dev` | Environment suffix (`dev` / `staging` / `prod`). Must match what you deployed — it drives every resource name (e.g. `game-statsleaderboards-<env>-cluster`). |
+| `--stack-name <name>` | `GameStatsLeaderboardsStack` | The base (main) stack name. The monitoring stack name is derived from it. |
+| `--yes-i-understand` | *(off)* | Pre-answers the top-level typed gate for **non-interactive** runs (CI, automation). The per-resource data choices still fall back to their **safe defaults** (backup/retain) — this flag does not auto-confirm data deletion. |
+| `-h`, `--help` | — | Print usage and exit. |
+
+Examples:
+
+```bash
+# Preview a staging teardown in a specific account/region
+./teardown.sh --profile my-staging-profile --region us-east-1 --environment staging
+
+# Execute a production teardown (will prompt for the typed gate + per-resource choices)
+./teardown.sh --execute --profile prod-profile --region us-west-2 --environment prod
+
+# Non-interactive execute (top gate pre-answered; data resources keep SAFE defaults)
+./teardown.sh --execute --yes-i-understand
+```
+
+#### Confirmations and choices, stage by stage
+
+When you run with `--execute`, the script gates destruction at multiple points — nothing is deleted silently:
+
+1. **Top-level typed gate.** After printing the account, region, discovered resources, and what is protected, the script asks you to **type the exact stack name** to proceed. Anything else aborts with no changes. (`--yes-i-understand` pre-answers only *this* gate.)
+
+2. **Per-resource data choice.** For each resource that holds data or state, you choose one of three actions (the safe option is the default if you just press Enter):
+
+   | Resource | Choices | Default | What each choice does |
+   |----------|---------|---------|-----------------------|
+   | **MemoryDB cluster** | `retain` / `backup` / `delete` | `backup` | `backup` takes a **final manual snapshot** (no expiry, billed) before deleting; `delete` discards the cached leaderboard data; `retain` keeps the cluster running. |
+   | **DynamoDB tables** (config + stats) | `retain` / `backup` / `delete` | `backup` | `backup` creates **on-demand backups** (which persist after the table is deleted) before deleting; `retain` leaves the tables in place; `delete` removes them outright. |
+   | **Lambda layer** | `retain` / `delete` | `delete` | Holds no data and is rebuildable from `layers/build_layer.sh`. `delete` removes all versions. |
+   | **Monitoring stack** | `delete` / `retain` | `delete` | CloudWatch alarms + dashboard; no data. |
+
+3. **Derived (dependency-locked) resources — not asked as free choices.** The **KMS key** and the **MemoryDB secret** are *never* offered as independent picks. Their fate is **derived from, and locked to**, the data they protect, so you cannot create a data-loss combination:
+
+   - The **secret** (MemoryDB password) is force-**retained** whenever the MemoryDB cluster is retained — a redeploy needs it to authenticate (deleting it would cause `WRONGPASS`). It is only deleted when the cluster itself is being deleted.
+   - The **KMS key** is force-**retained** whenever *anything kept still needs it*: retained DynamoDB tables, a DynamoDB backup being created (a restore requires the original key), any pre-existing DynamoDB backup, a retained/snapshotted MemoryDB cluster, or a retained secret encrypted with it. It is only scheduled for deletion when nothing kept depends on it.
+
+   The script discovers these dependencies from **live AWS state** (not assumptions, since encryption config can differ per deployment) and prints a **"Protected by dependency"** notice listing every retained item and the exact reason it was kept — so you can remove them yourself, manually, once you no longer need the associated data or backups.
+
+#### What the script does (in order)
+
+1. **Pre-flight** — validates AWS credentials, discovers the live stacks, finds the stack's VPC, and detects any **bastion EC2 instance** in that VPC (it is reported as *protected* and **never touched**, along with the VPC).
+2. **Inventory + plan** — prints all discovered resources, takes your choices, runs the dependency resolver, and shows the **resolved teardown plan** plus the dependency-protection notice.
+3. **STEP 1 — MemoryDB delete (async, first).** Kicks off the cluster delete (with a final snapshot if you chose `backup`) so its ~15–20 min drain overlaps with the rest of the work.
+4. **STEP 2 — Concurrent cleanup.** Removes the boto3 provisioned-concurrency / autoscaling side-effects, creates and **verifies** any DynamoDB backups (aborts before deleting anything if a backup fails to confirm), and deletes the monitoring stack.
+5. **STEP 3 — Rejoin.** Waits for the MemoryDB cluster to finish deleting (and confirms the final snapshot reached `available`, if requested).
+6. **STEP 4 — Main stack delete.** Runs `cdk destroy` (or falls back to CloudFormation `delete-stack` if the `cdk` CLI is not on the host). If you retained the MemoryDB cluster, it deletes the stack while **retaining the MemoryDB sub-tree**.
+7. **STEP 5 — Sweep.** Honoring each choice, deletes/retains the DynamoDB tables, schedules the KMS key for deletion (7-day recovery window — KMS cannot be deleted instantly) and frees its alias, deletes/retains the secret, removes the layer versions, and cleans up any orphaned MemoryDB subnet group / parameter group / ACL / user.
+8. **STEP 6 — Verify + report.** Prints the final status of every resource, lists any DynamoDB backup ARNs and the MemoryDB snapshot name created, and flags anything that needs a manual follow-up.
+
+#### Notes
+
+- **The `cdk` CLI is required for a managed stack delete.** If it is not installed on the host (e.g. you are running from a workstation that only has the AWS CLI), the script automatically falls back to CloudFormation `delete-stack`; the orphan sweep still runs either way.
+- **KMS keys can only be *scheduled* for deletion** (a 7–30 day recovery window; the script uses the 7-day minimum). Until then the key is recoverable with `aws kms cancel-key-deletion`.
+- **Retained data is reused on redeploy.** If you retain the DynamoDB tables and/or the MemoryDB cluster, a subsequent `./deploy.sh` correctly identifies and **reuses** them rather than recreating — the secret/key pairings remain consistent.
+- Run the script from the `StatsLeaderboards/` directory (it resolves `app.py` relative to its own location).
+
+---
+
+## 4. Integration
+
+### Integration Guide — Who Calls What
+
+This system has two distinct callers with separate authentication paths:
+
+**Your Game Backend / Server (uses StudioAPI Key)**
+
+These endpoints are called server-side, authenticated with the StudioAPI Key issued during deployment. The StudioAPI Key must never be embedded in game client builds or distributed to players.
+
+| When | API Call | Purpose |
+|------|----------|---------|
+| Initial setup (one-time) | `POST /developer/register` | Register your game, receive StudioAPI Key |
+| Verify deployment health | `GET /developer/info` | Confirm system is running and return registration metadata |
+| Game design time | `POST /leaderboards/config/create` | Create a leaderboard configuration (one per game mode / metric combination) |
+| Query existing configs | `GET /leaderboards/configs` | List all configured leaderboards for your game |
+| Update a leaderboard | `PUT /leaderboards/config/update` | Change scoring strategy, bounds, expiry, or other settings |
+| After a multiplayer match ends | `POST /leaderboards/stats/batch` | Submit all players' scores and full raw game reports from the match in one request (default limit: 1,000 reports, configurable via `MAX_ITEMS_PER_REQUEST` env var — increase alongside Lambda memory and timeout for larger batches) |
+| Periodic maintenance | `POST /leaderboards/admin/reset` | Clear leaderboard scores (e.g., weekly reset for seasonal boards). Backs up scores before clearing. |
+| After config/strategy change, or data recovery | `POST /leaderboards/admin/rebuild` | Rebuild leaderboard from stored stats (e.g., apply a new scoring strategy, or recover from leaderboard corruption using raw stats in DynamoDB as source of truth) |
+| Remove a leaderboard | `DELETE /leaderboards/config/delete` | Delete leaderboard configuration and its sorted set |
+
+The batch endpoint (`/leaderboards/stats/batch`) is the primary ingestion path for multiplayer games. Your game server collects each player's score and full raw game report (arbitrary JSON containing match stats, events, metadata) at match end and submits them in a single request. Each player can appear only once per batch — duplicates are rejected with HTTP 423. The raw game reports are persisted in DynamoDB and serve as the source of truth for rebuilds and player history queries.
+
+**Your Game Client / Player Device (uses player auth token)**
+
+These endpoints are called from the game client or on behalf of a player. They require player authentication — a token your game's identity system issues to authenticated players.
+
+| When | API Call | Purpose |
+|------|----------|---------|
+| After a solo game session ends | `POST /leaderboards/stats` | Submit the player's score and full raw game report for a specific leaderboard |
+| Viewing a leaderboard screen | `POST /leaderboards/scores` | Query leaderboard: top N, score range, around-player, or specific player |
+| Viewing player profile / history | `POST /leaderboards/player/stats` | Get the player's stored game reports (filterable by time range, game mode, leaderboard) |
+| Showing rank badge / position | `POST /leaderboards/player/standing` | Get the player's rank, percentile, score, and neighbouring players |
+
+**Choosing between client-side and server-side score submission:**
+
+| Game Type | Score Submission Path | Reason |
+|-----------|----------------------|--------|
+| Multiplayer with authoritative server | `/leaderboards/stats/batch` from game server | Server validates match results; prevents client-side score falsification |
+| Single-player (no game server) | `/leaderboards/stats` from game client | No server to relay through; client submits directly |
+| Single-player with backend validation | `/leaderboards/stats/batch` from game server | Game server validates replay/report before submission for anti-cheat |
+
+**Quick examples:**
+
+Batch submission from game server (after a multiplayer match):
+
+```bash
+curl -X POST "$API_ENDPOINT/leaderboards/stats/batch" \
+  -H "Authorization: Bearer $STUDIO_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "batchGameReportBody": {
+      "gameReports": [
+        {
+          "playerID": "player-abc-123",
+          "gameID": "my-game",
+          "gameMode": "deathmatch",
+          "playerScore": 2750,
+          "leaderboardName": "deathmatch-highscore",
+          "fullRawGameReport": { "kills": 14, "deaths": 3, "assists": 7, "matchDuration": 482 }
+        },
+        {
+          "playerID": "player-xyz-789",
+          "gameID": "my-game",
+          "gameMode": "deathmatch",
+          "playerScore": 1890,
+          "leaderboardName": "deathmatch-highscore",
+          "fullRawGameReport": { "kills": 9, "deaths": 5, "assists": 4, "matchDuration": 482 }
+        }
+      ]
+    }
+  }'
+```
+
+Individual score submission from game client (single-player):
+
+```bash
+curl -X POST "$API_ENDPOINT/leaderboards/stats" \
+  -H "Authorization: Bearer $PLAYER_AUTH_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "gameReportBody": {
+      "playerID": "player-abc-123",
+      "gameID": "my-game",
+      "gameMode": "time-trial",
+      "playerScore": "1:42.385",
+      "leaderboardName": "track-a-fastest-lap",
+      "fullRawGameReport": { "lapTimes": [105.2, 102.385, 108.7], "vehicle": "sports-car", "track": "coastal-highway" }
+    }
+  }'
+```
+
+Querying the leaderboard (top 10) from game client:
+
+```bash
+curl -X POST "$API_ENDPOINT/leaderboards/scores" \
+  -H "Authorization: Bearer $PLAYER_AUTH_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "leaderboardScoresRequest": {
+      "leaderboardName": "deathmatch-highscore",
+      "queryType": "top",
+      "pageSize": 10
+    }
+  }'
+```
+
+For complete request/response schemas, all query types, and additional examples, see [API Reference](docs/api_reference.md).
+
+**Typical integration flow:**
+
+1. **Deploy** — Run `./deploy.sh` on an EC2 instance or local machine. Note the API endpoint and StudioAPI Key from the output. Your studio and first game are registered automatically during deploy from `studio_parameters.json`.
+2. **Verify your registration** — The auto-registration uses whatever is in `studio_parameters.json`; if you didn't edit that file before deploying, those are stand-in placeholders. Confirm with `GET /developer/info`, and correct your studio/game details with `POST /developer/register` if needed (the API key, Studio ID, and Game ID stay the same).
+3. **Configure leaderboards** — Call `POST /leaderboards/config/create` from your game backend for each leaderboard your game needs (e.g., "level-1-highscore", "weekly-kills", "fastest-lap-trackA").
+4. **Set the identity issuer URL.** Player auth uses the Custom Identity Component by default, so before deploying run `export ISSUER_ENDPOINT_URL=<your identity component endpoint>` (the `IssuerEndpointUrl` output of CustomIdentityComponentStack). For a standalone deployment instead, set `PLAYER_AUTH_MODE=custom` and add your own validation in `auth/playerAuthorizer.py`.
+5. **Wire score submission** — For multiplayer: call `/leaderboards/stats/batch` from your game server after each match. For single-player: call `/leaderboards/stats` from the game client after each session.
+6. **Wire leaderboard UI** — Call `/leaderboards/scores` (top players, nearby, ranges) and `/leaderboards/player/standing` (current player's rank) from your game client to display leaderboard screens.
+7. **Wire player stats UI** — Call `/leaderboards/player/stats` to show the player's match history on their profile screen.
+8. **Test end-to-end** — Run the comprehensive integration + smoke test suite against your deployment to verify all score types, strategies, and query patterns work correctly. It auto-discovers this stack's endpoint and API key from CloudFormation outputs, exercises every endpoint, and cleans up after itself:
+
+   ```bash
+   cd testing
+   python3 test_StatsAndLeaderboards.py --region <your-region> --stack-name GameStatsLeaderboardsStack
+   # add --retain to keep the created leaderboards for manual inspection
+   ```
+
+   > **Player-facing phases need a valid player token (step 4).** In identity mode the suite's player-facing phases require a Custom Identity Component access token; without one they return HTTP 403 (the authorizer fails closed). Backend (developer) phases work immediately after deployment.
+
+### Before You Go to Production — Integration Points
+
+Backend (developer) APIs work after deployment without additional configuration. Player-facing APIs use the Custom Identity Component by default: set the issuer URL at deploy time (see below) and they accept that component's access tokens, with no code changes. For a standalone deployment, set `PLAYER_AUTH_MODE=custom` and add your own validation.
+
+**Player auth setup (identity mode, the default):**
+
+| Step | What to do |
+|------|-----------|
+| Set the issuer URL | `export ISSUER_ENDPOINT_URL=<CustomIdentityComponentStack IssuerEndpointUrl>` before running `./deploy.sh`. Required in identity mode; the deploy stops without it. |
+| Permissions (optional) | `guest` and `authenticated` tokens both get read and write. To restrict guests to read only, edit the `SCOPE_PERMISSIONS` table in `auth/playerAuthorizer.py`. |
+
+**Standalone (custom mode):**
+
+| File | What to do |
+|------|-----------|
+| `auth/playerAuthorizer.py` | Set `PLAYER_AUTH_MODE=custom` and implement `_authorize_custom()` to validate your own tokens, returning `studioId`, `gameId`, `permissions`, and `playerId` in the authorizer context. Setting `playerId` enables the per-request identity enforcement described below. |
+
+**No changes needed:**
+
+| File | Why |
+|------|-----|
+| `player/*.py` | All four player Lambda functions read from `event['requestContext']['authorizer']` — they work with any authorizer that provides the required context fields |
+| `backend/*.py` | Backend functions use the StudioAPI Key flow which works after deployment |
+| `auth/backendAuthorizer.py` | Backend auth is fully functional via SSM Parameter Store |
+
+The player authorizer **fails closed**: any request it cannot validate is denied at the API Gateway layer with HTTP `403`. In identity mode that rejects missing, expired, or invalid tokens; in custom mode every request is denied until you implement your validation. Note that API Gateway caches each authorizer decision for 5 minutes (`results_cache_ttl`), keyed on the `Authorization` header, so a token accepted once is honored from cache for up to 5 minutes even after it expires or is revoked; lower the player authorizer's `results_cache_ttl` in `app.py` if you need tighter enforcement for short-lived tokens.
+
+> **Player-identity enforcement.** Beyond token validation, the player Lambdas check that a caller acts only as themselves: each request's `playerID` must match the authenticated `playerId`, or it is rejected with HTTP `403` and a `PLAYER_ID_MISMATCH` warning. By default a player may only submit their own scores (`/leaderboards/stats`) and read their own stats (`/leaderboards/player/stats`) and standing (`/leaderboards/player/standing`); the public score queries (`/leaderboards/scores`) are not restricted. In identity mode the authorizer always sets `playerId`, so this is always on; in custom mode it applies when your authorizer sets it. Two toggles adjust the defaults: `ALLOW_VIEWING_OTHER_PLAYERS_STANDING` in `getPlayerLBStanding.py` and `RESTRICT_PLAYER_QUERIES_TO_SELF` in `getLeaderboardScores.py`. The Studio-key batch path (`/leaderboards/stats/batch`) is exempt. Full matrix in `docs/api_reference.md`.
+
+For player auth details (the two modes, the issuer URL, and the scope-to-permissions mapping), see [API Reference, Section 1.5](docs/api_reference.md#15-integrating-player-authentication).
+
+#### How authorization is enforced (route-level authZ is delegated to handlers)
+
+Worth understanding before you extend the API: the backend Lambda authorizer (`auth/backendAuthorizer.py`) authorizes a valid Studio API key for the **whole stage** — it returns a broad resource ARN (`…/{stage}/*/*`), and API Gateway caches that decision for 5 minutes. It does **not** enforce per-route read/write/admin separation at the gateway layer (this keeps the single shared authorizer cache-efficient across every route).
+
+Per-route authorization is instead enforced **inside each handler**: every backend/player Lambda calls `validate_authenticated_context(event, <required_permission>)` and rejects callers whose granted permissions don't include the required one (`developerRegistration.py` uses an ownership model on `studioId`/`gameId` instead). This is a deliberate, sound design — but it is a **compensating control**: a new or refactored handler that omits the check would silently make its route callable by any valid key.
+
+To keep that safe as the code evolves, `testing/test_authorization_enforcement.py` statically asserts the permission check is present in every data-plane handler. It needs no AWS/deployment and is suitable for CI:
+
+```bash
+python3 testing/test_authorization_enforcement.py   # exit 0 = all handlers enforce authZ
+```
+
+If you prefer to enforce least-privilege at the API Gateway layer instead, return a method/path-specific ARN from the authorizer (at the cost of reduced authorizer-cache reuse).
+
+### API Reference
+
+For the complete API documentation including authentication details, all endpoint request/response schemas, data models, leaderboard concepts, environment variables, and error codes, see:
+
+**[API Reference (docs/api_reference.md)](docs/api_reference.md)**
+
+---
+
+## Appendices
+
+## Appendix A: Introduction to Leaderboards and Game Statistics
+
+### What are Leaderboards, that are typically used in games?
+
+A leaderboard is a ranked list of players ordered by a specific metric (score, time, distance, etc.). Leaderboards are a common feature in games, giving players a way to compare performance and track progression.
+
+**Common leaderboard use cases:**
+- **High score boards** -- ranking players by their best or cumulative scores in a game mode
+- **Speedrun/time trial boards** -- ranking players by fastest completion times (lower is better)
+- **Seasonal/event boards** -- temporary leaderboards for limited-time events, often with expiry dates
+- **Ranked/ELO boards** -- tracking player skill ratings that change after each match
+
+### How Leaderboard Scoring Works
+
+When a player completes a match or game session, their result is submitted as a **game report** containing a score and arbitrary game-specific statistics. The system then:
+
+1. **Stores the full game report** in a persistent stats database (DynamoDB) for historical record
+2. **Updates the leaderboard** in a fast in-memory data store (MemoryDB for Valkey) based on the configured **score strategy**:
+   - **best** -- only update the leaderboard if the new score is better than the player's existing score
+   - **cumulative** -- add the new score to the player's running total
+   - **replace** -- always overwrite the player's score with the latest submission
+
+### What are Game Statistics?
+
+Game statistics are the raw game play data from each player session. Unlike leaderboard scores _(which track a single metric per player per leaderboard)_, game stats preserve the complete game report -- every match, every session, with all associated data _(kills, deaths, assists, items collected, time played, etc)_. Game statistics are the data source used to build and update leaderboards.
+
+This historical data enables:
+- Player progression tracking over time
+- Per-match breakdowns and analytics
+- Leaderboard rebuilds from historical data (e.g., recalculating a leaderboard with a different strategy)
+
+### Ascending vs. Descending Leaderboards
+
+| Direction | Ranking | Use Case | Example |
+|-----------|---------|----------|---------|
+| **Descending** (`DESCENDING_LB`) | Highest score ranks first | Points, XP, kills | "Top Scorers" |
+| **Ascending** (`ASCENDING_LB`) | Lowest score ranks first | Race times, golf scores | "Fastest Laps" |
+
+For ascending leaderboards, the system stores scores as negative values internally so that the same sorted set operations produce the correct ordering.
+
+---
+
+## Appendix B: Load Testing Framework
+
+The system includes a distributed load testing framework (`testing/load-stress-testing/test_LoadAndStressTests.py`) for testing system behavior under sustained load. The framework uses concurrent worker threads across multiple test instances to simulate realistic multiplayer game traffic.
+
+### Framework Overview
+
+- **Architecture**: Distributed test runner with configurable player/batch worker threads per instance
+- **Test scenarios**: Player score submission, leaderboard queries, batch operations, mixed workloads
+- **Data models**: Configurable player pools, score distributions, and game report structures
+- **Metrics collection**: Response time percentiles, throughput measurement, error rate tracking, CloudWatch integration
+- **Reports**: HTML, JSON, CSV, and Markdown summary reports generated automatically in `testing/load-stress-testing/reports/`
+
+### Reference Load Test Results
+
+The following results were captured during a ~108-minute sustained load test against the default development infrastructure. This is intended as a reference baseline -- your results will vary based on infrastructure sizing, region, and traffic patterns.
+
+**Test Configuration:**
+
+| Setting | Value |
+|---------|-------|
+| Duration | 108 minutes |
+| Test instances | 31 (distributed) |
+| Worker threads | 1,100 player + 153 batch |
+| Peak concurrent players | 168 |
+| Region | us-west-2 |
+
+**Throughput:**
+
+| Metric | Value |
+|--------|-------|
+| Peak RPS (CloudWatch) | **5,095 req/sec** |
+| Total API requests | **17.6 million** |
+| Total Lambda invocations | **17.5 million** |
+| Success rate | 99.99% (29 failures out of 338,328 test-tracked requests) |
+
+**Latency:**
+
+| Metric | Value |
+|--------|-------|
+| API Gateway avg latency | 69.3 ms |
+| API Gateway P99 latency | 474 ms (avg); 2,948 ms peak during cold-start ramp-up |
+| Store stats avg | 58.2 ms |
+| Get leaderboard scores avg | 55.1 ms |
+| Get player standing avg | 32.4 ms |
+| Get player stats avg | 33.5 ms |
+| Batch store avg | 632.0 ms |
+
+**Lambda Invocations and Concurrency:**
+
+| Function | Invocations | Errors | Throttles | Avg Duration | Peak Concurrency |
+|----------|-------------|--------|-----------|-------------|-----------------|
+| store-stats | 7,595,181 | 0 | 0 | 58 ms | 378 |
+| get-leaderboard-scores | 5,986,175 | 0 | 0 | 55 ms | 385 |
+| get-player-lb-standing | 3,038,730 | 0 | 0 | 32 ms | 210 |
+| get-player-stats | 756,324 | 0 | 0 | 34 ms | 23 |
+| batch-store-stats | 168,782 | 0 | 0 | 632 ms | 111 |
+| backend-authorizer | 4,749 | 0 | 0 | 218 ms | 860 |
+
+**DynamoDB (On-Demand):**
+
+| Table | Items | Size | Write Capacity (total) | Read Capacity (total) | Throttled |
+|-------|-------|------|----------------------|---------------------|-----------|
+| Stats | 2,222,143 | 1.15 GB | 11,848,674 WCU | 809,504 RCU | 0 |
+| Config | 6 | ~3 KB | 7 WCU | 4,804 RCU | 0 |
+
+**Infrastructure Under Test (default dev sizing, except API Gateway rate limits increased for load test):**
+
+| Resource | Configuration |
+|----------|--------------|
+| Lambda (config, player queries) | 512 MB, 15s timeout, Python 3.13 |
+| Lambda (player store) | 512 MB, 30s timeout, Python 3.13 |
+| Lambda (batch, reset, rebuild) | 512 MB, 60s timeout, Python 3.13 |
+| MemoryDB for Valkey | db.r6g.large, 1 shard, 1 replica |
+| DynamoDB | On-Demand (PAY_PER_REQUEST) |
+| API Gateway | 10,000 req/sec rate, 5,000 burst |
+| Lambda concurrency | Unreserved (AWS account default) |
+
+**Key Observations:**
+
+- Zero Lambda errors and zero throttles across 17.5 million invocations
+- Zero DynamoDB throttled requests despite on-demand billing
+- The API Gateway 4XX/5XX errors (18,844 + 40,501) were from the authorizer caching warm-up period and concurrent test instance ramp-up, not from the core Lambda functions
+- Read-heavy queries (leaderboard scores, player standings) sustained sub-100ms average latency at 5,095 peak RPS
+- MemoryDB handled all sorted set operations with zero errors at the default single-shard configuration
+
+> **Scaling Tip:** For production deployments expecting sustained traffic above 5,000 RPS, consider placing a CloudFront distribution in front of the read-heavy player query endpoints (`/leaderboards/scores`, `/leaderboards/player/standing`) with a short TTL (5-10 seconds). This can absorb repeated leaderboard page views while keeping data fresh within the TTL window, reducing Lambda invocations and MemoryDB load proportionally to the cache hit rate.
+
+> **Note:** These results reflect the default development sizing. Production deployments should adjust infrastructure per the [Production Infrastructure Sizing](#37-production-infrastructure-sizing) section and run their own load tests with representative data patterns. Use `testing/load-stress-testing/test_LoadAndStressTests.py` to execute your own load tests and generate comparable reports.
+
+---
+
+*Note: Documentation generated from source code analysis of the Stats and Leaderboards codebase. Please report any mistakes or exclusions, or suggest improvements.*
