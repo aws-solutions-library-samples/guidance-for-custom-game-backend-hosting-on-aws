@@ -11,14 +11,10 @@ config_version=5
 [application]
 
 config/name="GodotSample"
-run/main_scene="res://Samples/GuestIdentityAndRestApiBackend/GuestIdentityAndRestApiBackend.tscn"
-config/features=PackedStringArray("4.0", "Mobile")
+run/main_scene="uid://dpdmqpyoy6pg"
+config/features=PackedStringArray("4.4", "Mobile")
 config/icon="res://icon.svg"
 
-[autoload]
+[editor_plugins]
 
-AwsGameSdk="*res://AWSGameSDK/AWSGameSDK.gd"
-
-[rendering]
-
-renderer/rendering_method="mobile"
+enabled=PackedStringArray("res://addons/AWSGameSDK/plugin.cfg", "res://addons/gd_data_binding/plugin.cfg")

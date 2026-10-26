@@ -3,33 +3,21 @@
 
 extends Node
 
-# TODO: Add the login endpoint here
-const login_endpoint = "https://YOUR_ENDPOINT/prod/"
-# TODO: Add your Amazon GameLift backend component endpoint here
-const gamelift_integration_backend_endpoint = "https://YOUR_ENDPOINT/prod"
+# TODO: set your gamelift_integration_backend_endpoint on the AWSGameSDKBackend property page
 
-var aws_game_sdk
+@onready var aws_games_sdk_auth = get_node("AWSGameSDKAuth")
+@onready var aws_games_sdk_backend = get_node("AWSGameSDKBackend")
 
 var ticket_id
 var total_tries = 0 # The amount of tries to get match status
 
 var latency_data # The JSON latency data for requesting matchmaking
-	
-func save_login_data(user_id, guest_secret):
-	var file = FileAccess.open("user://save_game.dat", FileAccess.WRITE)
-	file.store_pascal_string(user_id)
-	file.store_pascal_string(guest_secret)
-	file = null
-	
-func load_login_data():
-	var file = FileAccess.open("user://save_game2.dat", FileAccess.READ)
-	if(file == null or file.get_length() == 0):
-		return null;
-	
-	var user_id = file.get_pascal_string()
-	var guest_secret = file.get_pascal_string()
-	return [user_id, guest_secret]
-	
+
+var logged_in: bool = false
+var actions: Array
+var current_action: String
+
+
 # Measures TCP latency to an endpoint with 3 requests (1 for establishing HTTPS, 2 for average TCP)
 func measure_tcp_latency(endpoint):
 	
@@ -124,7 +112,7 @@ func measure_latencies():
 	var latencydata = { "latencyInMs": { "us-east-1": region1latency, "us-west-2": region2latency, "eu-west-1": region3latency}}
 	
 	return JSON.stringify(latencydata)
-#func _http_request_completed(result, response_code, headers, body):
+
 	
 # Called when the node enters the scene tree for the first time.
 func _ready():
@@ -135,46 +123,47 @@ func _ready():
 	print("Got latency data: " + self.latency_data)
 	
 	# Get the SDK and Init
-	self.aws_game_sdk = get_node("/root/AwsGameSdk")
-	self.aws_game_sdk.init(self.login_endpoint, self.on_login_error)
+	aws_games_sdk_auth.init()
+	aws_games_sdk_auth.aws_login_success.connect(_on_login_success)
+	aws_games_sdk_auth.aws_login_error.connect(_on_login_error)
+	aws_games_sdk_auth.aws_sdk_error.connect(_on_aws_sdk_error)
+	aws_games_sdk_backend.aws_backend_request_successful.connect(_on_gamelift_backend_post_response)
+	aws_games_sdk_backend.aws_sdk_error.connect(_on_aws_sdk_error)
+	print("calling login")
+	aws_games_sdk_auth.login()	
 	
-	# Try to load existing user info
-	var stored_user_info = self.load_login_data()
-	
-	# If we have stored user info, login with existing user
-	if(stored_user_info != null):
-		print("Logging in with existing user: " + stored_user_info[0])
-		self.aws_game_sdk.login_as_guest(stored_user_info[0], stored_user_info[1], self.login_callback)
-	# Else we login as new user
-	else:
-		print("Logging in as new user")
-		self.aws_game_sdk.login_as_new_guest_user(self.login_callback)
 
 # Called on any login or token refresh failures
-func on_login_error(message):
+func _on_login_error(message):
 	print("Login error: " + message)
 
+
+func _on_aws_sdk_error(error_text):
+	print("Error received from AWS SDK: ", error_text)
+
 # Receives a UserInfo object after successful login
-func login_callback(user_info):
-	print("Received login info.")
-	print(user_info)
-	
-	# Store the login info for future logins
-	self.save_login_data(user_info.user_id, user_info.guest_secret)
-	
+func _on_login_success():
+	print("Received login success")
+	logged_in = true
+	actions = ['create_ticket', 'get_ticket_data']
+	current_action = actions.pop_front()
+	#you can inspect the user_info with this line
+	#print(aws_games_sdk_auth.user_info.to_string())
 	# Start matchmaking
-	self.aws_game_sdk.backend_post_request(self.gamelift_integration_backend_endpoint, "/request-matchmaking",
-											self.latency_data, self.matchmaking_request_callback)
+	self.aws_games_sdk_backend.gamelift_backend_post_request(aws_games_sdk_auth.get_auth_token(),
+											self.latency_data)
+
+func _on_gamelift_backend_post_response(body):
+	if current_action == 'create_ticket':
+		matchmaking_request_callback(body)
+		current_action = actions.pop_front()
+	elif current_action == 'get_ticket_data':
+		get_match_status_callback(body)
 	
 # We need to use the exact format of the callback required for HTTPRequest
-func matchmaking_request_callback(result, response_code, headers, body):
-	
+func matchmaking_request_callback(body):
 	var string_response = body.get_string_from_utf8()
 	
-	if(response_code >= 400):
-		print("Error code " + str(response_code) + " Message: " + string_response)
-		return
-		
 	print("Matchmaking request response: " + string_response)
 	
 	# Extract the ticket ID from the response
@@ -187,10 +176,11 @@ func matchmaking_request_callback(result, response_code, headers, body):
 		self.ticket_id = dict_response.data["TicketId"]
 		print("Ticket id: " + self.ticket_id)
 		# Call the get match status
-		self.aws_game_sdk.backend_get_request(self.gamelift_integration_backend_endpoint, "/get-match-status", { "ticketId" : self.ticket_id}, self.get_match_status_callback)
+		self.aws_game_sdk.gamelift_backend_get_request(aws_games_sdk_auth.get_auth_token(),
+												{ "ticketId" : self.ticket_id})
 
 # We need to use the exact format of the callback required for HTTPRequest
-func get_match_status_callback(result, response_code, headers, body):
+func get_match_status_callback(body):
 	
 	var string_response = body.get_string_from_utf8()
 		
@@ -213,14 +203,15 @@ func get_match_status_callback(result, response_code, headers, body):
 				print("Couldn't get a valid response from matchmaking")
 			else:
 				await get_tree().create_timer(1.5).timeout
-				self.aws_game_sdk.backend_get_request(self.gamelift_integration_backend_endpoint, "/get-match-status", { "ticketId" : self.ticket_id}, self.get_match_status_callback)
+				#TODO: change this call
+				self.aws_game_sdk.gamelift_backend_get_request(aws_games_sdk_auth.get_auth_token(),
+														{ "ticketId" : self.ticket_id})
 	elif ticket_status == "MatchmakingSucceeded":
 		print("Matchmaking done, connect to server...")
 		# TODO: Connect
 		self.connect_to_server(dict_response.data["IpAddress"], dict_response.data["Port"], dict_response.data["PlayerSessionId"])
 	else:
 		print("Matchmaking failed or timed out.")
-	
 	self.total_tries += 1
 
 func connect_to_server(host, port, player_session_id):
