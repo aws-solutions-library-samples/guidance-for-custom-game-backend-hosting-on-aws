@@ -25,7 +25,7 @@ python-dateutil==2.9.0.post0
 
 # JWT verification for the player authorizer: PyJWT[crypto] validates the
 # RS256 access tokens, requests fetches the issuer's public keys (JWKS).
-PyJWT[crypto]==2.13.0
+PyJWT[crypto]==2.15.0
 requests==2.34.2
 
 # Note: boto3 and botocore are provided by AWS Lambda runtime
